@@ -181,6 +181,7 @@ const orderSchema = new mongoose.Schema(
       respondedAt: { type: Date },
       declineReason: { type: String },
     },
+    staffingEmergencies: { type: [require('../utils/orderEmergency').schema(mongoose)], default: undefined },
 
     // optional booking reference when delivery_installation creates a service booking
     bookingId: {

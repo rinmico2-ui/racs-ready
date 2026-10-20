@@ -58,6 +58,31 @@ function fixture({ standalone = false, transactionError = null, failRelocation =
   };
 }
 
+test('cash after service persists the booking without creating a payment on either topology', async () => {
+  for(const standalone of [true,false]) {
+    const {calls,options}=fixture({standalone});
+    options.booking={_id:'booking-1',paymentMethod:'cash_after_service',toObject:()=>({_id:'booking-1',paymentMethod:'cash_after_service'})};
+    options.payment=null;
+    await persistBookingSubmission(options);
+    assert.ok(calls.includes(standalone?'booking:standalone':'booking:transaction'));
+    assert.equal(calls.some(call=>call.startsWith('payment:')),false);
+  }
+});
+
+test('cash submission retries still require linked staff quotes but never an upfront payment', async () => {
+  let linked=false;
+  const options={booking:{_id:'booking-1',paymentMethod:'cash_after_service',services:[{assistanceRequestId:'quote-1'}]},
+    Payment:{exists(){assert.fail('There is no upfront payment to check');}},
+    UnitAssistanceRequest:{exists:async()=>linked}};
+  assert.equal(await bookingSubmissionIsComplete(options),false);
+  linked=true;assert.equal(await bookingSubmissionIsComplete(options),true);
+});
+
+test('upfront payment plans cannot skip their payment write', async () => {
+  const {options}=fixture();options.payment=null;
+  await assert.rejects(persistBookingSubmission(options),/upfront payment record is required/);
+});
+
 test("replica-set booking writes remain in one transaction", async () => {
   const { calls, options } = fixture();
   const saved = await persistBookingSubmission(options);

@@ -234,3 +234,18 @@ test("staff details retain the stock check warning and cancellation acknowledges
   assert.match(queue, /escapeHtml\(item\.name\)/);
   assert.match(orders, /esc\(item\.name\)/);
 });
+test('an emergency after departure queues physical-return review without adding sellable stock', async () => {
+  const fail = async () => assert.fail('Units still with a technician must not be restocked automatically');
+  const result = await restoreCancelledOrderStock([line], { holdForReturn: true,
+    HVACProduct: { findOneAndUpdate: fail }, Inventory: { findByIdAndUpdate: fail } }, {});
+  assert.equal(result.status, 'pending_review'); assert.equal(result.items[0].quantity, line.quantity);
+  assert.match(result.items[0].reason, /physical unit return/);
+});
+test('cancelling the paused emergency order preserves refund review and holds its dispatched units', async t => {
+  const f = fixture(t, { stockExists: true, order: { status: 'technician_declined', staffingEmergencies: [{
+    reportedAt: new Date(), reportedBy: staffId, reporterName: 'Technician', reason: 'Vehicle breakdown', previousStatus: 'out_for_delivery', team: [],
+  }] } });
+  const response = f.response(); await handler(f.req, response);
+  assert.equal(response.statusCode, 200); assert.equal(f.state.stockAdded, 0); assert.equal(f.state.queries.length, 0);
+  assert.equal(f.state.order.cancellationStockReview.status, 'pending_review'); assert.equal(response.body.refundRequested, true);
+});

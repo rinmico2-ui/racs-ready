@@ -65,7 +65,8 @@ test('payment verification completes the assignment-queue transition in one requ
   assert.match(verifyClient, /destination!==['"]assignment_queue['"]/);
   assert.match(verifyClient, /_pdAll=_pdAll\.filter/);
   assert.match(verifyClient, /AU\.Pending\.load\(\)/);
-  assert.doesNotMatch(verifyClient, /bootstrap\.Tab\.getOrCreateInstance/);
+  assert.match(verifyClient, /closeBookingDetailFor\(id,function\(\)\{showBookingWorkflowTab\('queue'\)/);
+  assert.doesNotMatch(verifyClient, /remain on Pending Payment/);
 
   for (const legacyView of [
     read('views/pages/admin/Appointments/PaymentVerification.ejs'),

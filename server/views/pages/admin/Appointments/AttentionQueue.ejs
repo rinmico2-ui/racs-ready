@@ -84,6 +84,7 @@
   .rc-case-meta { display:flex; flex-wrap:wrap; gap:7px 16px; margin-top:7px; color:#64748b; font-size:.72rem; }
   .rc-case-meta span { display:inline-flex; align-items:center; gap:5px; }
   .rc-reason { margin-top:10px; padding:9px 11px; color:#7c2d12; background:#fff7ed; border-left:3px solid #f97316; border-radius:6px; font-size:.73rem; line-height:1.45; }
+  .rc-emergency { padding:0 16px; }
   .rc-more-issues { margin-top:10px; color:#475569; font-size:.73rem; }
   .rc-more-issues summary { cursor:pointer; color:#1d4ed8; font-weight:700; }
   .rc-more-issues ul { margin:8px 0 0; padding-left:18px; }
@@ -194,6 +195,7 @@
           <div class="rc-search"><i class="bi bi-search"></i><input class="form-control" id="resolutionSearch" type="search" placeholder="Search reference, customer, technician…" autocomplete="off"></div>
           <select class="form-select" id="resolutionIssue" aria-label="Issue type">
             <option value="">All issue types</option>
+            <option value="emergency">Emergency reported</option>
             <optgroup label="Bookings"><option value="no_show">No-show</option><option value="past_date">Past date</option><option value="incomplete">Incomplete service</option><option value="no_technician">No technician</option><option value="technician_issue">Technician issue</option><option value="schedule_conflict">Schedule conflict</option><option value="customer_reschedule">Customer reschedule</option><option value="cancelled">Cancellation review</option></optgroup>
             <optgroup label="Orders"><option value="payment_review_overdue">Payment review overdue</option><option value="assignment_overdue">Assignment overdue</option><option value="dispatch_overdue">Dispatch overdue</option><option value="pickup_overdue">Pickup overdue</option></optgroup>
           </select>
@@ -441,7 +443,9 @@
   </div>
 </div>
 
+<link rel="stylesheet" href="/css/visit-recovery.css?v=20261019">
 <script src="/js/enterprise-calendar.js"></script>
+<script src="/js/visit-recovery.js?v=20261019" defer></script>
 <script src="/js/resolution-evidence.js?v=20261009"></script>
 <script src="/js/resolution-action-loading.js?v=20261012-tab-loading"></script>
 <script>
@@ -464,7 +468,7 @@
   const queryParams = new URLSearchParams(window.location.search);
   const requestedFilter = queryParams.get('issue') || queryParams.get('status') || '';
   const legacyFilterMap = { 'no-show-reported':'no_show', pending_reassignment:'technician_issue', 're-scheduled':'customer_reschedule', awaiting_assignment:'no_technician' };
-  const validIssueFilters = ['no_show', 'cancelled', 'incomplete', 'no_technician', 'technician_issue', 'schedule_conflict', 'customer_reschedule', 'past_date', 'payment_review_overdue', 'assignment_overdue', 'dispatch_overdue', 'pickup_overdue'];
+  const validIssueFilters = ['emergency', 'no_show', 'cancelled', 'incomplete', 'no_technician', 'technician_issue', 'schedule_conflict', 'customer_reschedule', 'past_date', 'payment_review_overdue', 'assignment_overdue', 'dispatch_overdue', 'pickup_overdue'];
   let currentFilter = legacyFilterMap[requestedFilter] || (validIssueFilters.includes(requestedFilter) ? requestedFilter : '');
   let currentSource = ['booking', 'order'].includes(queryParams.get('source')) ? queryParams.get('source') : '';
   if (currentSource === 'order' && !RESOLUTION_CAN_VIEW_ORDERS) currentSource = '';
@@ -681,13 +685,14 @@
                 ${source === 'order' && item.fulfillmentType !== 'customer_pickup' ? `<span><i class="bi bi-box2-check"></i>Dispatch: ${escapeHtml(niceLabel(item.preparation?.dispatch?.status || 'pending'))}</span>` : ''}
                 ${source === 'order' && item.fulfillmentType === 'delivery_installation' ? `<span><i class="bi bi-tools"></i>Daily Kit: ${escapeHtml(niceLabel(item.preparation?.installation?.status || 'pending'))}</span>` : ''}
               </div>
-              <div class="rc-reason"><i class="bi bi-info-circle me-1"></i>${escapeHtml(item.reason)}</div>
+              ${item.staffingEmergency ? '' : `<div class="rc-reason"><i class="bi bi-info-circle me-1"></i>${escapeHtml(item.reason)}</div>`}
               ${proposalMessage ? `<div class="alert alert-info py-2 px-3 small mt-2 mb-0"><i class="bi bi-hourglass-split me-1"></i>${escapeHtml(proposalMessage)}</div>` : ''}
               ${noShowEvidence}
               ${otherIssuesHtml}
             </div>
             <div class="rc-sla"><strong>${item.status === 'cancelled' ? 'Review cancellation' : item.isPastDate ? `${escapeHtml(item.daysPast)} day${item.daysPast === 1 ? '' : 's'} overdue` : 'Needs review'}</strong><span>${item.status === 'cancelled' ? 'This booking is cancelled' : item.isPastDate ? 'Past requested schedule' : 'Choose the next action'}</span></div>
           </div>
+          ${item.staffingEmergency ? `<div class="rc-emergency">${window.RACSJobTeams?.emergencyNotice({_id:item.id,status:item.sourceType === 'order' ? 'pending_reassignment' : item.status,staffingEmergencies:[item.staffingEmergency]},{admin:true,source:item.sourceType}) || ''}</div>` : ''}
           <div class="rc-actions">${actions}</div>
         </article>`;
     }).join('');
@@ -722,6 +727,7 @@
 
     if (requestedOpenAction === 'resolve') {
       window.setTimeout(() => {
+        if (item.recoveryAvailable) { openVisitRecoveryCase(source, item.id, item.issueType); return; }
         if (source === 'order') {
           openOrderResolutionForCase(item.id);
           return;
@@ -757,13 +763,14 @@
     if (item.status === 'cancelled' || item.issueType === 'cancelled') return viewAction + closeAction + contactActions(item);
     const canSchedule = allowed.has('reschedule');
     const paymentAction = item.allowedActions?.includes('verify_payment') ? `<button type="button" class="btn btn-outline-success" onclick="openResolutionPaymentReview('booking','${item.id}')"><i class="bi bi-receipt me-1"></i>Review payment</button>` : '';
+    if (item.recoveryAvailable && allowed.has('recover') && item.issueType !== 'no_show') return `${viewAction}${paymentAction}<button type="button" class="btn btn-primary" onclick="openVisitRecoveryCase('booking','${item.id}','${item.issueType}')"><i class="bi bi-person-plus me-1"></i>${window.RACSVisitRecovery?.ready(item) ? 'Assign replacement' : 'Resolve and reassign'}</button>${contactActions(item)}`;
     if (item.issueType === 'no_show') {
       const customerChoice = item.awaitingCustomerSchedule
         ? ''
         : `<button class="btn btn-outline-danger" onclick="confirmNoShow('${item.id}',false,this)"><i class="bi bi-person-check me-1"></i>Confirm &amp; close</button><button class="btn btn-success" onclick="confirmNoShow('${item.id}',true,this)"><i class="bi bi-send-check me-1"></i>Customer chooses</button>`;
       return `${viewAction}${paymentAction}${customerChoice}${canSchedule ? `<button class="btn btn-primary" onclick="openReschedule('${item.id}',decodeURIComponent('${encodedReference}'),${item.serviceDurationMinutes || 60},'no-show-review','no_show',${item.capacityQuantity || 1})"><i class="bi bi-calendar-event me-1"></i>Schedule visit</button>` : ''}${contactActions(item)}`;
     }
-    return `${viewAction}${paymentAction}${closeAction}${canSchedule ? item.issueType === 'past_date' ? `<button class="btn btn-primary" onclick="openResolveMenuForCase('${item.id}','${item.issueType}')"><i class="bi bi-signpost-split me-1"></i>Resolve case</button>` : `<button class="btn btn-primary" onclick="openReschedule('${item.id}',decodeURIComponent('${encodedReference}'),${item.serviceDurationMinutes || 60},'standard','${item.issueType}')"><i class="bi bi-calendar-event me-1"></i>Reschedule</button>` : ''}${item.canReassign && allowed.has('reassign') ? `<button class="btn btn-outline-success" onclick="reassignCase('${item.id}','${item.issueType}')"><i class="bi bi-person-plus me-1"></i>Reassign</button>` : ''}${contactActions(item)}`;
+    return `${viewAction}${paymentAction}${closeAction}${canSchedule ? item.issueType === 'past_date' ? `<button class="btn btn-primary" onclick="openResolveMenuForCase('${item.id}','${item.issueType}')"><i class="bi bi-signpost-split me-1"></i>Resolve case</button>` : `<button class="btn btn-primary" onclick="openReschedule('${item.id}',decodeURIComponent('${encodedReference}'),${item.serviceDurationMinutes || 60},'standard','${item.issueType}')"><i class="bi bi-calendar-event me-1"></i>Reschedule</button>` : ''}${item.canReassign && allowed.has('reassign') ? `<button class="btn btn-outline-success" onclick="reassignCase('${item.id}','${item.issueType}')"><i class="bi bi-person-plus me-1"></i>${item.staffingEmergency ? 'Reassign team' : 'Reassign'}</button>` : ''}${contactActions(item)}`;
   }
 
   function resolutionProposalText(booking) {
@@ -777,7 +784,7 @@
 
   function renderOrderActions(item) {
     const allowed = new Set(item.allowedActions || []);
-    return `<button type="button" class="btn btn-outline-secondary" onclick="viewOrderDetail('${item.id}')"><i class="bi bi-eye me-1"></i>View order</button>${allowed.has('verify_payment') ? `<button type="button" class="btn btn-outline-success" onclick="openResolutionPaymentReview('order','${item.id}')"><i class="bi bi-receipt me-1"></i>Review payment</button>` : ''}${['reschedule','send_link','cancel'].some(action => allowed.has(action)) ? `<button type="button" class="btn btn-primary" onclick="openOrderResolutionForCase('${item.id}','${escapeHtml(item.issueType)}')"><i class="bi bi-signpost-split me-1"></i>Resolve case</button>` : ''}`;
+    return `<button type="button" class="btn btn-outline-secondary" onclick="viewOrderDetail('${item.id}')"><i class="bi bi-eye me-1"></i>View order</button>${allowed.has('verify_payment') ? `<button type="button" class="btn btn-outline-success" onclick="openResolutionPaymentReview('order','${item.id}')"><i class="bi bi-receipt me-1"></i>Review payment</button>` : ''}${['reschedule','send_link','cancel'].some(action => allowed.has(action)) ? `<button type="button" class="btn btn-primary" onclick="openOrderResolutionForCase('${item.id}','${escapeHtml(item.issueType)}')"><i class="bi bi-signpost-split me-1"></i>${item.recoveryAvailable && window.RACSVisitRecovery?.ready(item) ? 'Assign replacement' : 'Resolve case'}</button>` : ''}`;
   }
 
   function findResolutionCase(source, id, issueType = '') {
@@ -788,9 +795,28 @@
 
   function openResolveMenuForCase(id, issueType = '') {
     const item = findResolutionCase('booking', id, issueType);
+    if (item?.recoveryAvailable) return openVisitRecoveryCase('booking', id, issueType);
     if (!item) { showToast('error', 'The booking resolution case is no longer available. Refresh the queue.'); return; }
     if (item.status === 'cancelled' || !item.allowedActions?.includes('reschedule')) { showToast('info', 'This booking is not available for rescheduling.'); return; }
     openResolveMenu(item.id, item.reference || 'Booking', item.serviceDurationMinutes || 60, item.servicePrice || 0, item.amountPaid || 0, item.issueType, item.phone || '', item.email || '', item.customer || 'Customer');
+  }
+
+  async function openVisitRecoveryCase(source, id, issueType = '') {
+    const item = findResolutionCase(source, id, issueType);
+    if (!item?.recoveryAvailable || !window.RACSVisitRecovery) { showToast('error', 'Refresh the case to load its recovery actions.'); return; }
+    await RACSVisitRecovery.open(item, {
+      apiBase: RESOLUTION_API_BASE,
+      onSaved: async () => { await loadQueue(); },
+      onAssigned: async () => { await loadQueue(); },
+      onSendLink: async () => {
+        if (source === 'order') await sendOrderRescheduleLink(item);
+        else await sendCustomerRescheduleLink(item.id, item.reference);
+      },
+      onCancel: async () => {
+        if (source === 'order') await cancelResolutionOrder(item);
+        else await openCancelModal(item.id, item.reference, item.amountPaid || 0);
+      },
+    });
   }
 
   let orderResolutionSelection = null;
@@ -800,6 +826,7 @@
     if (orderResolutionActionPending) return;
     const item = findResolutionCase('order', id, issueType);
     if (!item) { showToast('error', 'The order resolution case is no longer available. Refresh the queue.'); return; }
+    if (item.recoveryAvailable) return openVisitRecoveryCase('order', id, issueType);
     const allowed = new Set(item.allowedActions || []);
     if (!['reschedule','verify_payment','send_link','cancel'].some(action => allowed.has(action))) { showToast('info', 'No action is available for this case.'); return; }
     const pickup = item.fulfillmentType === 'customer_pickup';
@@ -1986,6 +2013,7 @@
   }
 
   async function reassignCase(id, issueType) {
+    if (findResolutionCase('booking', id, issueType)?.recoveryAvailable) return openVisitRecoveryCase('booking', id, issueType);
     if (!confirm('Send this booking to the assignment queue for a new technician?')) return;
     try {
       const res = await fetch(`${RESOLUTION_API_BASE}/resolution-center/${id}/reassign`, {

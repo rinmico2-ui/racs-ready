@@ -22,6 +22,8 @@
       </div>
     </div>
 
+    <div id="attendanceSessionNotice" class="alert alert-info d-none" role="status"></div>
+    <div id="attendanceLoadError" class="alert alert-danger d-none" role="alert">Attendance could not be refreshed. Check your connection and try again. <button type="button" id="attendanceRetry" class="btn btn-sm btn-outline-danger ms-2">Try again</button></div>
     <div class="att-main-row row g-4">
 
       <!-- ═══ LEFT COLUMN: Status + QR ═══ -->
@@ -77,7 +79,7 @@
           <div class="att-timer-icon"><i class="bi bi-stopwatch"></i></div>
           <div class="att-timer-content">
             <div class="att-timer-value" id="timerValue">00:00:00</div>
-            <div class="att-timer-label">Hours Worked Today</div>
+            <div class="att-timer-label">Hours worked this shift</div>
           </div>
         </div>
 
@@ -124,10 +126,10 @@
           </div>
         </div>
 
-        <!-- Today's Timeline -->
+        <!-- Shift timeline -->
         <div class="att-panel mt-3">
           <div class="att-panel-header">
-            <h6 class="att-panel-title"><i class="bi bi-clock-history me-2 text-primary"></i>Today's Timeline</h6>
+            <h6 class="att-panel-title"><i class="bi bi-clock-history me-2 text-primary"></i>Shift timeline</h6>
           </div>
           <div class="att-panel-body" id="timelineContainer">
             <div class="att-empty-timeline">
@@ -155,10 +157,13 @@
     <div class="att-panel mt-3">
       <div class="att-panel-header">
         <h6 class="att-panel-title"><i class="bi bi-calendar-x me-2 text-warning"></i>Leave Requests</h6>
-        <button type="button" class="att-leave-request-btn btn btn-sm btn-warning fw-semibold" onclick="openLeaveModal()">
-          <i class="bi bi-plus-lg me-1"></i>Request Leave
-        </button>
+        <div class="leave-request-controls"><button type="button" class="btn btn-sm btn-light border" id="refreshLeavesButton">Refresh</button>
+        <button type="button" id="requestLeaveButton" class="att-leave-request-btn btn btn-sm btn-warning fw-semibold">
+          <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Request Leave
+        </button></div>
       </div>
+      <p class="leave-request-policy">You can request other dates while a request is pending or after approval. Dates cannot overlap. Only approved leave marks you unavailable.</p>
+      <div id="leaveFeedback" role="status" hidden></div>
       <div class="att-panel-body" id="leaveContainer">
         <div class="text-center py-3 text-muted"><div class="spinner-border spinner-border-sm"></div> Loading...</div>
       </div>
@@ -168,30 +173,34 @@
 </div>
 
 <!-- Leave Request Modal -->
-<div class="modal fade" id="leaveModal" tabindex="-1">
+<div class="modal fade" id="leaveModal" tabindex="-1" aria-labelledby="leaveModalTitle" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h6 class="modal-title fw-bold"><i class="bi bi-calendar-x me-2 text-warning"></i>Request Leave</h6>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h6 class="modal-title fw-bold" id="leaveModalTitle">Request leave</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <form id="leaveForm" onsubmit="submitLeave(event)">
+      <form id="leaveForm">
         <div class="modal-body">
+          <p class="small text-muted">Choose one day or a range of days. You can make another request for dates outside your pending and approved leave.</p>
+          <div id="leaveAvailabilityStatus" role="status" hidden></div>
           <div class="row g-3">
             <div class="col-sm-6">
               <label for="leaveStart" class="form-label fw-semibold">Start Date *</label>
-              <input type="date" class="form-control" id="leaveStart" required min="">
+              <input type="date" class="form-control" id="leaveStart" name="startDate" aria-describedby="leaveDatesNotice" required min="">
             </div>
             <div class="col-sm-6">
               <label for="leaveEnd" class="form-label fw-semibold">End Date</label>
-              <input type="date" class="form-control" id="leaveEnd" min="" aria-describedby="leaveEndHelp">
+              <input type="date" class="form-control" id="leaveEnd" name="endDate" min="" aria-describedby="leaveEndHelp">
               <small id="leaveEndHelp" class="text-muted">Choose the start date or a later date. Leave blank for a single day.</small>
             </div>
             <div class="col-12">
-              <label class="form-label fw-semibold">Reason</label>
-              <textarea class="form-control" id="leaveReason" rows="3" maxlength="500" placeholder="Optional reason..."></textarea>
+              <label for="leaveReason" class="form-label fw-semibold">Reason (optional)</label>
+              <textarea class="form-control" id="leaveReason" name="reason" rows="3" maxlength="500" placeholder="Add any details admin needs to review your request."></textarea>
             </div>
           </div>
+          <p id="leaveDatesNotice" class="small text-muted mt-3 mb-0" role="status"></p>
+          <details id="leaveUnavailableDetails"><summary id="leaveUnavailableSummary">Dates already requested</summary><div id="leaveUnavailableList"></div></details>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
@@ -769,24 +778,8 @@
   }
 
   // ── Init ──────────────────────────────────────────────────────────────
-  document.getElementById('todayDate').textContent = new Date().toLocaleString('en-PH', { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:true });
-  document.getElementById('detailDate').textContent = new Date().toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-  const leaveStart = document.getElementById('leaveStart');
-  const leaveEnd = document.getElementById('leaveEnd');
-  function syncLeaveDates() {
-    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date());
-    leaveStart.min = today;
-    leaveEnd.min = leaveStart.value && leaveStart.value > today ? leaveStart.value : today;
-    // Preserve an entered end date, but make earlier dates invalid until corrected.
-    leaveEnd.setCustomValidity(leaveEnd.value && leaveEnd.value < leaveEnd.min
-      ? 'End date must be on or after the start date and cannot be in the past.' : '');
-  }
-  leaveStart.addEventListener('input', syncLeaveDates);
-  leaveStart.addEventListener('change', syncLeaveDates);
-  leaveEnd.addEventListener('input', syncLeaveDates);
-  leaveEnd.addEventListener('change', syncLeaveDates);
-  syncLeaveDates();
-
+  document.getElementById('todayDate').textContent = new Date().toLocaleString('en-PH', { timeZone:'Asia/Manila', weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:true });
+  document.getElementById('detailDate').textContent = new Date().toLocaleDateString('en-PH', { timeZone:'Asia/Manila', weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   // ── Load Status ───────────────────────────────────────────────────────
   async function loadStatus() {
     try {
@@ -794,11 +787,21 @@
       if (!res.ok) throw new Error();
       const data = await res.json();
 
+      document.getElementById('attendanceLoadError').classList.add('d-none');
       const status = data.attendanceStatus || 'Not Checked In';
       const record = data.record;
       const isCheckedIn = ['Present', 'Late'].includes(status) && record && !record.checkOutTime;
       const isCheckedOut = status === 'Checked Out' || (record && record.checkOutTime);
       const isOnLeave = data.isOnLeave;
+      const notice = document.getElementById('attendanceSessionNotice');
+      const workDate = data.attendanceDate || record?.date;
+      const workDateLabel = workDate ? new Date(String(workDate).length === 10 ? workDate + 'T12:00:00+08:00' : workDate).toLocaleDateString('en-PH', { timeZone:'Asia/Manila', month:'short', day:'numeric', year:'numeric' }) : '';
+      notice.classList.toggle('d-none', !data.isOvernight && !data.needsAdminReview);
+      notice.textContent = data.needsAdminReview ? 'Your open shift from ' + workDateLabel + ' needs admin review. Ask admin to record its verified finish time.' : 'You are finishing the shift for ' + workDateLabel + '. Check-out will stay with that work date.';
+      document.getElementById('detailDate').textContent = workDateLabel || new Date().toLocaleDateString('en-PH', { timeZone:'Asia/Manila', month:'long', day:'numeric', year:'numeric' });
+      document.getElementById('btnStartScanner').disabled = !!data.needsAdminReview || isOnLeave || !!isCheckedIn || !!isCheckedOut;
+      document.getElementById('checkoutBtn').disabled = !!data.needsAdminReview;
+
 
       const page = document.getElementById('attendancePage');
       const attendanceState = isOnLeave ? 'on-leave' : isCheckedIn ? 'checked-in' : isCheckedOut ? 'checked-out' : 'not-checked-in';
@@ -838,11 +841,11 @@
             : '<span class="badge bg-secondary">Not Checked In</span>';
 
       document.getElementById('detailCheckIn').textContent = record && record.checkInTime
-        ? new Date(record.checkInTime).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })
+        ? new Date(record.checkInTime).toLocaleTimeString('en-PH', { timeZone:'Asia/Manila', hour: '2-digit', minute: '2-digit' })
         : '--';
 
       document.getElementById('detailCheckOut').textContent = record && record.checkOutTime
-        ? new Date(record.checkOutTime).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })
+        ? new Date(record.checkOutTime).toLocaleTimeString('en-PH', { timeZone:'Asia/Manila', hour: '2-digit', minute: '2-digit' })
         : '--';
 
       // Total hours
@@ -871,7 +874,7 @@
       }
 
       // Timer
-      if (isCheckedIn && record && record.checkInTime) {
+      if (isCheckedIn && record && record.checkInTime && !data.needsAdminReview) {
         checkInTime = new Date(record.checkInTime);
         startTimer();
         document.getElementById('timerCard').style.display = '';
@@ -883,23 +886,26 @@
       // Timeline
       renderTimeline(record);
     } catch(e) {
-      console.error('Status load error:', e);
+      document.getElementById('attendanceLoadError').classList.remove('d-none');
+      document.getElementById('btnStartScanner').disabled = true; document.getElementById('checkoutBtn').disabled = true;
     }
   }
 
   // ── Timer ─────────────────────────────────────────────────────────────
   function startTimer() {
     stopTimer();
-    timerInterval = setInterval(() => {
+    const update = () => {
       if (!checkInTime) return;
       const now = new Date();
-      const diff = now - checkInTime;
+      const diff = Math.max(0, now - checkInTime);
       const hrs = Math.floor(diff / 3600000);
       const mins = Math.floor((diff % 3600000) / 60000);
       const secs = Math.floor((diff % 60000) / 1000);
       document.getElementById('timerValue').textContent =
         String(hrs).padStart(2, '0') + ':' + String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
-    }, 1000);
+    };
+    update();
+    timerInterval = setInterval(update, 1000);
   }
 
   function stopTimer() {
@@ -919,7 +925,7 @@
       const t = new Date(record.checkInTime);
       items.push(`
         <div class="att-timeline-item check-in">
-          <div class="att-timeline-time">${t.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}</div>
+          <div class="att-timeline-time">${t.toLocaleTimeString('en-PH', { timeZone:'Asia/Manila', hour: '2-digit', minute: '2-digit' })}</div>
           <div class="att-timeline-label"><i class="bi bi-box-arrow-in-right text-success me-1"></i>Check-In</div>
           <div class="att-timeline-detail">${record.method === 'qr_scan' ? 'QR Code' : 'Button'} | ${record.status}</div>
         </div>`);
@@ -928,7 +934,7 @@
       const t = new Date(record.checkOutTime);
       items.push(`
         <div class="att-timeline-item check-out">
-          <div class="att-timeline-time">${t.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}</div>
+          <div class="att-timeline-time">${t.toLocaleTimeString('en-PH', { timeZone:'Asia/Manila', hour: '2-digit', minute: '2-digit' })}</div>
           <div class="att-timeline-label"><i class="bi bi-box-arrow-right text-indigo me-1"></i>Check-Out</div>
           <div class="att-timeline-detail">Work day ended</div>
         </div>`);
@@ -975,15 +981,15 @@
       if (!res.ok && data.code === 'EXPENSE_CONFIRMATION_REQUIRED') {
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-box-arrow-right"></i> Check Out';
-        const hasCompletedJobs = data.completedJobsToday > 0;
+        const hasCompletedJobs = Number(data.completedJobsToday) > 0;
         const choice = await Swal.fire({
           icon: hasCompletedJobs ? 'warning' : 'question',
-          title: hasCompletedJobs ? 'Expenses required' : 'Any expenses today?',
-          html: `<div style="font-size:.9rem;color:#475569;">You have not logged any expenses today.${data.completedJobsToday ? `<br><strong>You completed ${data.completedJobsToday} booking${data.completedJobsToday === 1 ? '' : 's'}.</strong>` : ''}</div>`,
+          title: 'Any expenses for this shift?',
+          html: `<div style="font-size:.9rem;color:#475569;">Record any expenses from this shift, or confirm that you had none.${data.completedJobsToday ? `<br><strong>You completed ${Number(data.completedJobsToday)} booking${Number(data.completedJobsToday) === 1 ? '' : 's'}.</strong>` : ''}</div>`,
           showCancelButton: true,
-          showDenyButton: !hasCompletedJobs,
+          showDenyButton: true,
           confirmButtonText: '<i class="bi bi-receipt me-1"></i> Log Expenses',
-          denyButtonText: 'No Expenses Today',
+          denyButtonText: 'No expenses this shift',
           cancelButtonText: 'Cancel',
           confirmButtonColor: '#2563eb',
           denyButtonColor: '#059669'
@@ -997,13 +1003,14 @@
           const confirmedRes = await fetch('/api/technician/attendance/checkout', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ noExpensesToday:true, location: confirmedLocation }) });
           const confirmedData = await confirmedRes.json();
           if (!confirmedRes.ok) { await showAttendanceFailure(confirmedData, 'Check-out failed'); btn.disabled=false; btn.innerHTML='<i class="bi bi-box-arrow-right"></i> Check Out'; return; }
-          showToast('No expenses recorded. Checked out successfully!', 'success'); stopTimer(); checkInTime=null; loadStatus();
+          showToast('No expenses recorded. Checked out successfully!', 'success'); stopTimer(); checkInTime=null; await Promise.all([loadStatus(), loadHistory()]);
         }
         return;
       }
 
       if (!res.ok) {
         await showAttendanceFailure(data, 'Check-out failed');
+        await Promise.all([loadStatus(), loadHistory()]);
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-box-arrow-right"></i> Check Out';
         return;
@@ -1013,7 +1020,7 @@
       showToast('Checked out successfully!' + hours, 'success');
       stopTimer();
       checkInTime = null;
-      loadStatus();
+      await Promise.all([loadStatus(), loadHistory()]);
     } catch(e) {
       showToast(e.message || 'Network error', 'danger');
       btn.disabled = false;
@@ -1023,6 +1030,7 @@
 
   // ── QR Scanner ────────────────────────────────────────────────────────
   window.startScanner = async function() {
+    if (!window.Html5Qrcode) { showToast('The scanner could not load. Refresh the page and try again.', 'warning'); return; }
     const startButton = document.getElementById('btnStartScanner');
     startButton.disabled = true;
     startButton.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Verifying Location...';
@@ -1084,13 +1092,13 @@
   async function processQRScan(token) {
     if (scanSubmissionInFlight) return;
     scanSubmissionInFlight = true;
-    const location = pendingAttendanceLocation;
     pendingAttendanceLocation = null;
     stopScanner();
     document.getElementById('scanStatusBadge').textContent = 'Verifying...';
     document.getElementById('scanStatusBadge').className = 'badge bg-info';
 
     try {
+      const location = await requestAttendanceLocation();
       const res = await fetch('/api/technician/attendance/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1099,10 +1107,11 @@
       const data = await res.json();
       if (!res.ok) {
         await showAttendanceFailure(data, 'Scan failed');
+        await Promise.all([loadStatus(), loadHistory()]);
         return;
       }
       showToast('Check-in verified! Status: ' + (data.attendanceStatus || 'Present'), 'success');
-      loadStatus();
+      await Promise.all([loadStatus(), loadHistory()]);
     } catch(e) {
       showToast(e.message || 'Network error', 'danger');
     } finally {
@@ -1119,7 +1128,7 @@
       if (!res.ok) throw new Error();
       const data = await res.json();
       const container = document.getElementById('historyContainer');
-      document.getElementById('historyCount').textContent = data.count + ' records';
+      document.getElementById('historyCount').textContent = data.count + (data.count === 1 ? ' record' : ' records');
 
       if (!data.records || data.records.length === 0) {
         container.innerHTML = '<div class="text-center py-4 text-muted">No attendance records found.</div>';
@@ -1129,9 +1138,9 @@
       container.innerHTML = `<div class="table-responsive"><table class="att-history-table">
         <thead><tr><th>Date</th><th>Check-In</th><th>Check-Out</th><th>Hours</th><th>Status</th></tr></thead>
         <tbody>${data.records.map(r => {
-          const date = new Date(r.date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
-          const cin = r.checkInTime ? new Date(r.checkInTime).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' }) : '--';
-          const cout = r.checkOutTime ? new Date(r.checkOutTime).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' }) : '--';
+          const date = new Date(r.date).toLocaleDateString('en-PH', { timeZone:'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' });
+          const cin = r.checkInTime ? new Date(r.checkInTime).toLocaleTimeString('en-PH', { timeZone:'Asia/Manila', hour: '2-digit', minute: '2-digit' }) : '--';
+          const cout = r.checkOutTime ? new Date(r.checkOutTime).toLocaleTimeString('en-PH', { timeZone:'Asia/Manila', hour: '2-digit', minute: '2-digit' }) : '--';
           let hours = '--';
           if (r.checkInTime && r.checkOutTime) {
             hours = ((new Date(r.checkOutTime) - new Date(r.checkInTime)) / 3600000).toFixed(1) + 'h';
@@ -1151,76 +1160,6 @@
     }
   }
 
-  // ── Load Leave Requests ───────────────────────────────────────────────
-  async function loadLeaves() {
-    try {
-      const res = await fetch('/api/technician/leave-requests');
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      const container = document.getElementById('leaveContainer');
-
-      if (!data.items || data.items.length === 0) {
-        container.innerHTML = '<p class="text-muted text-center small mb-0">No leave requests yet.</p>';
-        return;
-      }
-
-      container.innerHTML = data.items.slice(0, 5).map(l => {
-        const s = new Date(l.startDate).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
-        const e = new Date(l.endDate).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
-        const range = s === e ? s : s + ' – ' + e;
-        const badge = l.status === 'approved' ? 'bg-success' : l.status === 'rejected' ? 'bg-danger' : 'bg-warning text-dark';
-        return `<div class="d-flex justify-content-between align-items-center py-2 border-bottom">
-          <div>
-            <div class="fw-semibold small">${range}</div>
-            ${l.reason ? '<div class="text-muted" style="font-size:0.78rem;">' + l.reason + '</div>' : ''}
-          </div>
-          <span class="badge ${badge}">${l.status}</span>
-        </div>`;
-      }).join('');
-    } catch(e) {
-      document.getElementById('leaveContainer').innerHTML = '<p class="text-danger small text-center">Failed to load</p>';
-    }
-  }
-
-  // ── Leave Modal ───────────────────────────────────────────────────────
-  window.openLeaveModal = function() {
-    document.getElementById('leaveForm').reset();
-    FormFeedback.clear(document.getElementById('leaveForm'));
-    syncLeaveDates();
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('leaveModal')).show();
-  };
-
-  window.submitLeave = async function(e) {
-    e.preventDefault();
-    syncLeaveDates();
-    const form = document.getElementById('leaveForm');
-    if (!form.reportValidity() || form.dataset.submitting === 'true') return;
-    const start = document.getElementById('leaveStart').value;
-    const end = document.getElementById('leaveEnd').value || start;
-    const reason = document.getElementById('leaveReason').value;
-
-    const submitButton = form.querySelector('[type="submit"]');
-    form.dataset.submitting = 'true';
-    if (submitButton) submitButton.disabled = true;
-    try {
-      FormFeedback.clear(document.getElementById('leaveForm'));
-      await RACSRequest.json('/api/technician/leave-requests', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ startDate: start, endDate: end, reason })
-      });
-
-      bootstrap.Modal.getInstance(document.getElementById('leaveModal')).hide();
-      showToast('Leave request submitted!', 'success');
-      loadLeaves();
-    } catch(e) {
-      FormFeedback.show(document.getElementById('leaveForm'), e, { startDate:'leaveStart', endDate:'leaveEnd', reason:'leaveReason' });
-    } finally {
-      delete form.dataset.submitting;
-      if (submitButton) submitButton.disabled = false;
-    }
-  };
-
   // ── Toast ─────────────────────────────────────────────────────────────
   function showToast(msg, type) {
     var container = document.getElementById('globalToastContainer');
@@ -1237,9 +1176,12 @@
   // ── Init Load ─────────────────────────────────────────────────────────
   loadStatus();
   loadHistory();
-  loadLeaves();
 
+  document.getElementById('attendanceRetry').addEventListener('click', () => Promise.all([loadStatus(), loadHistory()]));
   // Refresh status every 30s
   setInterval(loadStatus, 30000);
 })();
 </script>
+
+<link rel="stylesheet" href="/css/technician-leave-requests.css?v=20261020-leave-requests">
+<script src="/js/technician-leave-requests.js?v=20261020-leave-requests"></script>

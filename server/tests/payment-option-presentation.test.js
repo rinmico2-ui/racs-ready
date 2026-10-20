@@ -38,7 +38,7 @@ test("service checkout presents payment plans instead of a misleading cash metho
 
 test("service and product checkout use one consistent customer payment layout", () => {
   for (const source of [servicesView, cartWizard, productWizard]) {
-    assert.match(source, /customer-payment\.css\?v=20260925-qr-actions-v4/);
+    assert.match(source, /customer-payment\.css\?v=[A-Za-z0-9_-]+/);
     assert.match(source, /customer-payment-options/);
     assert.match(source, /payment-method-copy/);
     assert.match(source, /customer-payment-panel/);
@@ -56,7 +56,7 @@ test("service payment evidence is validated on both client and server", () => {
   assert.match(servicesScript, /isValidPhilippineMobile/);
   assert.match(servicesScript, /paymentProofValidationMessage/);
   assert.match(bookingRoutes, /hasValidImageDataUrl\(proofImageBase64\)/);
-  assert.match(bookingRoutes, /\['gcash', 'cod'\]\.includes\(bookingPaymentMethod\)/);
+  assert.match(bookingRoutes, /\['gcash', 'cod', 'cash_after_service'\]\.includes\(bookingPaymentMethod\)/);
 });
 
 test("service and installation-order checkout separate payment plans from payment channels", () => {

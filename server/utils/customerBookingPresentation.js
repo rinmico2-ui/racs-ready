@@ -149,6 +149,8 @@ const CUSTOMER_HIDDEN_FIELDS = [
   "technicianAssistant",
   "statusHistory",
   "cancellationHistory",
+  "staffingEmergencies",
+  "visitRecoveryHistory",
   "internalNotes",
   "adminNotes",
 ];

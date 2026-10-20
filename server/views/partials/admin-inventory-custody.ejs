@@ -1,0 +1,37 @@
+<nav class="ic-workspace-tabs" role="tablist" aria-label="Inventory tracking workspace">
+  <button type="button" id="icTabTracking" role="tab" aria-controls="icTracking" aria-selected="true" data-custody-view="tracking"><i class="bi bi-briefcase" aria-hidden="true"></i> Items with technicians</button>
+  <button type="button" id="icTabReports" role="tab" aria-controls="icReports" aria-selected="false" tabindex="-1" data-custody-view="reports"><i class="bi bi-arrow-return-left" aria-hidden="true"></i> Return reports</button>
+  <button type="button" id="icTabFollowup" role="tab" aria-controls="icFollowup" aria-selected="false" tabindex="-1" data-custody-view="followup"><i class="bi bi-clock-history" aria-hidden="true"></i> Equipment follow-up</button>
+</nav>
+<section id="icTracking" role="tabpanel" aria-labelledby="icTabTracking">
+  <div class="ic-summary" aria-label="Matching inventory summary">
+    <div><span>Technicians holding items</span><strong id="icHolderCount">&mdash;</strong></div>
+    <div><span>Outstanding item records</span><strong id="icRecordCount">&mdash;</strong></div>
+    <div><span>Awaiting receipt</span><strong id="icPendingCount">&mdash;</strong></div>
+    <div><span>Overdue equipment</span><strong id="icOverdueCount">&mdash;</strong></div>
+  </div>
+  <section class="ic-ledger" aria-labelledby="icTitle">
+    <header class="ic-heading"><div><h2 id="icTitle">Who has what?</h2><p>Issued items across all work dates. A return stays outstanding until its receipt is confirmed.</p></div><span id="icUpdated" class="ic-updated" aria-live="polite"></span></header>
+    <div class="ic-categories" role="group" aria-label="Item category">
+      <% for (const [value,label,icon] of [['all','All items','collection'],['equipment','Equipment','tools'],['repair_part','Repair parts','boxes'],['consumable','Consumables','droplet']]) { %>
+      <button type="button" data-custody-category="<%= value %>" aria-pressed="<%= value === 'all' %>"><i class="bi bi-<%= icon %>" aria-hidden="true"></i><span><%= label %></span><b id="icCount-<%= value %>">&mdash;</b></button>
+      <% } %>
+    </div>
+    <div class="ic-filters">
+      <label class="ic-search">Search items or work<input id="icSearch" type="search" class="form-control" maxlength="100" placeholder="Item, code, technician or job reference" autocomplete="off"></label>
+      <label>Technician<select id="icTechnician" class="form-select"><option value="">All technicians</option></select></label>
+      <label>Work date<input id="icDate" class="form-control" type="date"><small>Leave empty for all dates</small></label>
+      <label>Tracking status<select id="icStatus" class="form-select"><option value="all">All outstanding</option><option value="pending">Awaiting receipt</option><option value="overdue">Overdue equipment</option><option value="check_balance">Check balance</option></select></label>
+    </div>
+    <div class="ic-results-heading"><span id="icResultHint">Loading issued items...</span><button type="button" id="icClear" class="btn btn-link btn-sm" hidden>Clear filters</button></div>
+    <div id="icError" class="ic-error" role="alert" hidden><span></span><button type="button" id="icRetry" class="btn btn-outline-danger btn-sm">Try again</button></div>
+    <div id="icRows" class="ic-rows" aria-live="polite" aria-busy="true"><p class="ic-empty">Loading issued items...</p></div>
+    <footer class="ic-footer"><span id="icRange"></span><div><button type="button" id="icPrev" class="btn btn-outline-secondary btn-sm" disabled>Previous</button><button type="button" id="icNext" class="btn btn-outline-secondary btn-sm" disabled>Next</button></div></footer>
+  </section>
+  <p class="ic-footnote"><i class="bi bi-info-circle" aria-hidden="true"></i> Counts are item records, not quantities added across different units. Preparing a kit alone does not mark it as issued.</p>
+</section>
+<div class="modal fade" id="icDetailModal" tabindex="-1" aria-labelledby="icDetailTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+  <div class="modal-header"><h5 class="modal-title" id="icDetailTitle">Issued item details</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+  <div class="modal-body" id="icDetailBody"></div>
+  <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button><button type="button" class="btn btn-primary" id="icDetailAction" hidden>Review returns</button></div>
+</div></div></div>

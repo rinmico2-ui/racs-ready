@@ -1,16 +1,21 @@
 <link rel="stylesheet" href="/css/equipment-returns.css">
+<link rel="stylesheet" href="/css/admin-inventory-custody.css?v=20261020-custody">
 
 <div class="equipment-returns-page">
   <section class="er-hero">
     <div>
       <span class="er-eyebrow"><i class="bi bi-shield-check"></i> Inventory accountability</span>
-      <h1>Equipment and Material Returns</h1>
-      <p>Review return reports, confirm what was received, and follow up on items still with technicians.</p>
+      <h1>Technician inventory tracking</h1>
+      <p>See who has each item, follow its usage, and confirm returns in one place.</p>
     </div>
-    <button class="btn btn-light er-refresh" id="erRefresh" type="button"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+    <div class="ic-hero-actions"><a class="btn btn-outline-light" href="/admin/inventory/technician-tools">Daily preparation</a><button class="btn btn-light er-refresh" id="erRefresh" type="button"><i class="bi bi-arrow-clockwise"></i> Refresh</button></div>
   </section>
 
-  <%- include('../../../partials/kit-return-panel', { kitReturnMode: 'admin' }) %>
+  <%- include('../../../partials/admin-inventory-custody') %>
+  <section id="icReports" role="tabpanel" aria-labelledby="icTabReports" hidden>
+  <%- include('../../../partials/kit-return-panel', { kitReturnMode: 'admin', kitReturnTechnicianFilter: true }) %>
+  </section>
+  <section id="icFollowup" role="tabpanel" aria-labelledby="icTabFollowup" hidden>
   <section class="er-metrics" aria-label="Equipment return summary">
     <button class="er-metric er-danger" data-state="overdue" type="button">
       <span class="er-metric-icon"><i class="bi bi-exclamation-octagon"></i></span>
@@ -74,6 +79,7 @@
       </div>
     </div>
   </section>
+  </section>
 </div>
 
 <div class="modal fade" id="erDeadlineModal" tabindex="-1" aria-hidden="true">
@@ -108,3 +114,5 @@
 </div>
 
 <script src="/js/equipment-returns.js" defer></script>
+
+<script src="/js/admin-inventory-custody.js?v=20261020-custody" defer></script>

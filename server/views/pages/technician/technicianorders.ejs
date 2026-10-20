@@ -3439,6 +3439,7 @@
       aHtml += '<button class="to-btn to-btn-done" data-action="status" data-id="'+oid+'" data-status="completed"><i class="bi bi-check2-all"></i>Mark Completed</button>';
     }
     
+    if(!o.isProject && o.continuation?.status !== 'pending' && (['technician_accepted','out_for_delivery','arrived'].includes(s) || s === 'technician_assigned' && o.viewerAssignment?.status === 'accepted')) aHtml += '<button type="button" class="to-btn to-btn-decline" onclick="RACSJobTeams.reportOrderEmergency(\''+oid+'\')"><i class="bi bi-exclamation-triangle"></i>Report Emergency</button>';
     if(s === 'installing' && o.continuation?.status !== 'pending') aHtml += '<button type="button" class="to-btn" onclick="RACSWorkContinuation.request(\'order\',\''+oid+'\')">Continue on another visit</button>';
     var actDiv = document.getElementById('detailPanelActions');
     if(aHtml) {

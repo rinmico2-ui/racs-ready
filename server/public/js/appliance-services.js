@@ -149,18 +149,11 @@
       throw new Error('Aircon Relocation must be booked on its own for one aircon. Book other services separately.');
     }
   }
-  function assertSingleServiceType(rows) {
-    if (!Array.isArray(rows)) throw Object.assign(new Error('Choose valid service details.'), { status:400, code:'SERVICE_SELECTION_INVALID' });
-    const types = new Set(rows.map(item => {
-      const type = String(item?.type || item?.serviceType || 'core').trim().toLowerCase();
-      return ['repair', 'repairservices', 'repair_service'].includes(type) ? 'repair' : type === 'mixed' ? 'mixed' : 'core';
-    }));
-    if (types.has('mixed') || types.size > 1) {
-      throw Object.assign(new Error('Book Core Services and Repair Service separately. Choose one service category per booking.'), {
-        status:400, code:'MIXED_SERVICE_BOOKING_NOT_ALLOWED',
-      });
+  function assertServiceTypes(rows) {
+    if (!Array.isArray(rows) || rows.some(item => !item || typeof item !== 'object' || Array.isArray(item)
+      || !['core', 'repair'].includes(item.type || item.serviceType || 'core'))) {
+      throw Object.assign(new Error('Choose valid Core or Repair service details.'), { status:400, code:'SERVICE_SELECTION_INVALID' });
     }
-    return types.values().next().value || null;
   }
   function needsVerification(catalog, selection) {
     const supported = profile(catalog, selection.applianceKind || 'aircon');
@@ -208,5 +201,5 @@
   function remainingUnits(services, editingGroupId) {
     return Math.max(0, 40 - unitCount((services || []).filter(row => !editingGroupId || row.applianceGroupId !== editingGroupId)));
   }
-  return { kinds, labels, profiles, profile, price, unitPrice, availability, airconHpOptions, effectiveAirconTypes, airconHpValues, unitCount, serviceLines, setQuantity, remainingUnits, parseHp, formatHp, isRelocation, assertStandaloneServices, assertSingleServiceType, needsVerification, repairHpValues, isRepairAircon, repairDetails };
+  return { kinds, labels, profiles, profile, price, unitPrice, availability, airconHpOptions, effectiveAirconTypes, airconHpValues, unitCount, serviceLines, setQuantity, remainingUnits, parseHp, formatHp, isRelocation, assertStandaloneServices, assertServiceTypes, needsVerification, repairHpValues, isRepairAircon, repairDetails };
 });

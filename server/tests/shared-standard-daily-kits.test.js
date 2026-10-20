@@ -97,8 +97,9 @@ test('supporting job actions link to the Manila work date and tolerate older row
   const source = fs.readFileSync(require.resolve('../public/js/standard-job-team'), 'utf8');
   const dates = source.slice(source.indexOf('  function kitDate('), source.indexOf('  const statusLabel'));
   const actions = source.slice(source.indexOf('  function assignmentActions('), source.indexOf('  function supportCard('));
+  const emergency = source.slice(source.indexOf('  function emergencyAction('), source.indexOf('  function emergencyNotice('));
   const context = vm.createContext({ validId: value => /^[a-f\d]{24}$/i.test(value), escape: String, Intl, Date });
-  vm.runInContext(dates + actions, context);
+  vm.runInContext(dates + emergency + actions, context);
   assert.match(context.assignmentActions({ _id: assignmentId, status: 'accepted', bookingDate: '2026-10-17T16:30:00Z' }), /openTechnicianDailyKit\('2026-10-18'\)/);
   assert.match(context.assignmentActions({ _id: assignmentId, status: 'accepted' }), /View shared daily kit/);
   assert.doesNotMatch(context.assignmentActions({ _id: assignmentId, status: 'completed' }), /View shared daily kit/);

@@ -142,6 +142,20 @@ function isAssignmentWindowExpired(booking, now = new Date()) {
   return assignmentTimingState(booking, now).isExpired;
 }
 
+// Staff may still dispatch an existing booking during its displayed grace
+// period. Capacity starts now; the customer's appointment start stays intact.
+function bookingAssignmentWindow(booking, now = new Date()) {
+  const timing = assignmentTimingState(booking, now);
+  const start = parseAppointmentTime(booking?.startTime);
+  const reference = now instanceof Date ? now : new Date(now);
+  const dayStart = booking?.bookingDate && manilaDateTime(booking.bookingDate, 0);
+  const valid = Boolean(dayStart && Number.isFinite(start) && Number.isFinite(reference.getTime()));
+  const capacityStartMinutes = valid ? Math.max(start, Math.ceil((reference.getTime() - dayStart.getTime()) / 60000)) : NaN;
+  return { ...timing, valid, allowed: valid && !timing.isExpired && capacityStartMinutes < 1440,
+    withinGrace: valid && new Date(timing.scheduledStartAt) <= reference,
+    capacityStartMinutes };
+}
+
 module.exports = {
   MANILA_OFFSET_MS,
   ASSIGNMENT_GRACE_MINUTES,
@@ -153,4 +167,5 @@ module.exports = {
   parseAppointmentTime,
   assignmentTimingState,
   isAssignmentWindowExpired,
+  bookingAssignmentWindow,
 };

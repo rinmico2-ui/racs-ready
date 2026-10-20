@@ -6,6 +6,7 @@
   let sending = false, requestToken = null, requestFingerprint = null, assistanceReceipt = null;
   let assistanceOpen = false;
   let batch = null;
+  let guide = null;
   const canAsk = () => typeof hooks?.assistance === 'function';
   let A = window.ApplianceServices;
   const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -145,6 +146,34 @@
     return ['brand', ...(field('brand').value === '__other__' ? ['brandCustom'] : []), ...(hooks.repair ? ['model'] : []), 'quantity',
       ...(aircon() ? hooks.repair ? ['hp'] : ['airconType', 'hp'] : compressorHpRequired() ? ['compressorHp'] : [])];
   }
+  function guidanceFields() {
+    const result = [];
+    function add(input, key, label, count = true, valid, includeDisabled = false) {
+      if (!input) return;
+      result.push({ element: input, key, label, count, includeDisabled,
+        complete: valid === undefined ? input.validity.valid && (!input.required || Boolean(input.value.trim())) : valid,
+      });
+    }
+    if (!hooks.repair) add(field('quantity'), 'quantity', 'Number of appliances', false);
+    const labels = { brand: 'Brand', brandCustom: 'Other brand', airconType: 'Aircon type', hp: 'Capacity (HP)', compressorHp: 'Compressor HP', model: 'Model number' };
+    if (batch?.active() && batch.differentDetails()) {
+      batch.model.activeUnits().forEach((unit, index) => {
+        for (const name of ['brand','brandCustom','airconType','hp','model']) {
+          const input = host.querySelector(`[data-unit-row="${index}"] [data-unit-field="${name}"]`);
+          let valid;
+          if (name === 'brandCustom') valid = Boolean(unit.brand) && batch.model.issue(unit)?.field !== 'brand';
+          if (name === 'model') valid = !unit.model || unit.model.length <= 50 && /^[A-Za-z0-9][A-Za-z0-9 ._/#()+-]*$/.test(unit.model);
+          add(input, `${unit.key}-${name}`, `Aircon ${index + 1} · ${labels[name]}`, name !== 'model', valid, name === 'hp');
+        }
+      });
+    } else {
+      const label = batch?.active() ? 'Shared aircon' : A.labels[field('kind').value] || 'Appliance';
+      for (const name of ['brand','brandCustom','airconType','hp','compressorHp','model']) {
+        add(field(name), `shared-${name}`, `${label} · ${labels[name]}`, field(name).required);
+      }
+    }
+    return result;
+  }
   function compressorHpRequired() {
     if (hooks.repair || aircon()) return false;
     const kind = field('kind').value;
@@ -218,7 +247,7 @@
     if (step < 3) { refreshServices(); setStep(step + 1); }
   }
   function advanceCompletedRepairDetails(event) {
-    if (!hooks.repair || !['brand', 'brandCustom', 'model', 'hp'].includes(event.target.name)) return;
+    if (hooks.guideFields || !hooks.repair || !['brand', 'brandCustom', 'model', 'hp'].includes(event.target.name)) return;
     setTimeout(() => {
       if (step !== 2 || saved || helpOpen || !host.isConnected || !detailsValid()) return;
       const panel = host.querySelector('[data-panel="2"]');
@@ -305,7 +334,7 @@
         : 'Use one group for appliances with the same details and services.';
     }
     batch?.sync();
-    if (batch?.active()) { updateBatchTotal(); return; }
+    if (batch?.active()) { updateBatchTotal(); guide?.refresh(); return; }
     syncProblemSuggestions();
     const assisted = helpOpen || detailsUnknown;
     host.querySelector('[data-unit-details]').hidden = assisted;
@@ -366,6 +395,7 @@
     host.querySelector('[data-next]').disabled = !available() || !A.kinds.includes(field('kind').value) || step === 2 && !detailsValid();
     host.querySelector('[data-summary-appliance]').textContent = `${detailsUnknown ? 'Staff identification' : selected.brand || 'Your appliance'} · ${A.labels[selected.applianceKind] || 'Choose an appliance'}`;
     host.querySelector('[data-guidance]').textContent = !available() ? 'Your booking has 40 appliances. Edit or remove an item before adding another.' : step === 1 ? hooks.repair ? 'Next, add the details for this appliance.' : 'Next, add the appliance details and quantity.' : step === 2 ? helpOpen ? 'Choose staff assistance or use AI to help read your unit label.' : 'Fill in the required fields to see matching services and prices.' : detailsUnknown ? 'Choose a service, then review and confirm your request to staff.' : 'Choose services, then add this appliance to your booking.';
+    guide?.refresh();
   }
   function updateBatchTotal() {
     const individual = batch.differentDetails(), validQuantity = syncLimit(), state = batch.model.estimate();
@@ -474,7 +504,7 @@
       }
     });
     if (options.repair) {
-      host.querySelector('[data-details-required]').textContent = 'Fields marked * are required. Services will open automatically when you finish these details.';
+      host.querySelector('[data-details-required]').textContent = options.guideFields ? 'Fields marked * are required. Follow the next-field guide below.' : 'Fields marked * are required. Services will open automatically when you finish these details.';
       host.querySelector('[data-assistance] h4').textContent = 'Describe the problem';
       host.querySelector('[data-assistance] p').textContent = 'Choose Repair inspection and describe what happened. Repair work is quoted after inspection and needs separate approval.';
       const notes = field('assistanceNotes'); notes.required = true; notes.minLength = 10; notes.maxLength = 500; notes.placeholder = 'Tell us what happened, in at least 10 characters.';
@@ -488,7 +518,7 @@
       field('assistancePhotos').closest('label').hidden = options.photos === false;
     }
     if (options.multiUnit && !options.repair && window.CoreApplianceBatch) {
-      batch = window.CoreApplianceBatch.mount({ host, catalog, selection, step: () => step,
+      batch = window.CoreApplianceBatch.mount({ host, catalog, selection, step: () => step, guided: options.guideFields && Boolean(window.ApplianceFieldGuide),
         enabled: () => !helpOpen && !detailsUnknown && !selectedRelocation() && !hooks.state.selectedServices.some(row => row.applianceGroupId === editingId && row.assistanceRequestId),
         update: updateTotal, changed,
         restoreShared: unit => {
@@ -506,12 +536,18 @@
       });
       host.querySelector('.cab-quantity > div > p').textContent = 'Set the number first. You can enter shared details or adjust each unit below.';
     }
+    if (options.guideFields && window.ApplianceFieldGuide) {
+      guide = window.ApplianceFieldGuide.mount({ host, fields: guidanceFields,
+        enabled: () => step === 2 && !saved && !helpOpen && !detailsUnknown,
+        nextButton: () => host.querySelector('[data-next]'),
+      });
+    }
     host.addEventListener('change', event => {
       closeConfirmation();
       if (event.target.name === 'kind') { batch?.reset(); detailsUnknown = false; helpOpen = false; if (field('assistancePhotos')) field('assistancePhotos').value = ''; if (field('assistanceNotes')) field('assistanceNotes').value = ''; host.querySelectorAll('[name="service"]').forEach(input => { input.checked = false; }); reached = 1; refreshTypes(); }
       else if (event.target.name === 'airconType') refreshHp(); else if (['hp', 'compressorHp'].includes(event.target.name)) refreshServices(); else updateTotal();
-      if (event.target.name === 'brand') { syncBrand(); if (field('brand').value === '__other__') field('brandCustom').focus(); }
-      if (hooks.repair && step === 2 && ['brand', 'hp'].includes(event.target.name) && detailsValid()) next();
+      if (event.target.name === 'brand') { syncBrand(); if (!guide && field('brand').value === '__other__') field('brandCustom').focus(); }
+      if (hooks.repair && !hooks.guideFields && step === 2 && ['brand', 'hp'].includes(event.target.name) && detailsValid()) next();
       if (event.target.name === 'service' && event.target.checked && A.isRelocation(catalog.find(service => String(service._id) === event.target.value))) {
         const heading = host.querySelector('[data-builder-id="cabMoveHeading"]'); heading.tabIndex = -1;
         heading.focus({ preventScroll: true }); heading.scrollIntoView({ behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
@@ -580,7 +616,7 @@
       if (batch?.active()) {
         try {
           const rows = batch.model.rows(), state = batch.model.estimate(), edited = Boolean(editingId);
-          window.ApplianceServices.assertSingleServiceType(outsideRows().concat(rows));
+          window.ApplianceServices.assertServiceTypes(outsideRows().concat(rows));
           window.ApplianceServices.assertStandaloneServices(outsideRows().concat(rows));
           hooks.commit(rows, editingId);
           success({ applianceKind: 'aircon', quantity: state.count }, Array(state.tasks), edited);
@@ -605,7 +641,7 @@
     } else host.querySelector('form').addEventListener('submit', submit);
     refreshTypes(); setStep(1, false); restoreDraft(initialDraft);
   }
-  function reset() {
+  function reset(focus = true) {
     batch?.reset();
     assistanceOpen = false;
     editingId = null; reached = 1; saved = false; savedMove = null; detailsUnknown = false; helpOpen = false;
@@ -619,7 +655,7 @@
     });
     host.querySelectorAll('[name="service"]').forEach(input => { input.checked = false; });
     host.querySelector('[data-quantity-feedback]').textContent = '';
-    host.querySelector('[data-submit]').textContent = 'Add to booking'; host.querySelector('[data-cancel]').hidden = true; refreshTypes(); setStep(1);
+    host.querySelector('[data-submit]').textContent = 'Add to booking'; host.querySelector('[data-cancel]').hidden = true; refreshTypes(); setStep(1, focus);
   }
   function edit(groupId) {
     const rows = hooks.state.selectedServices.filter(item => (hooks.repair ? String(item.id || item._id || '') : item.applianceGroupId || String(item.id || item._id || '')) === String(groupId)), item = rows[0]; if (!item) return;
@@ -648,7 +684,16 @@
     return mounted && !saved && Boolean(editingId || helpOpen || detailsUnknown || hooks.repair && field('kind').value || field('brand').value.trim() || hooks.repair && field('model').value.trim() || field('airconType').value || field('hp').value || field('compressorHp').value || Number(field('quantity').value) !== 1 || host.querySelector('[name="service"]:checked'));
   }
   function start() { if (mounted && saved) reset(); }
-  return { mount, edit, sync, pending, start, reset };
+  function chooseAppliance() {
+    if (!mounted) return;
+    if (saved) reset(false); else setStep(1, false);
+    host.querySelector('[data-panel="1"] h3').focus({ preventScroll: true });
+    host.querySelector('.cab-step-meta').scrollIntoView({
+      behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      block: 'start',
+    });
+  }
+  return { mount, edit, sync, pending, start, reset, chooseAppliance };
   }
   window.CoreApplianceBooking = Object.assign(create(), { create });
 })();

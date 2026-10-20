@@ -1,11 +1,13 @@
-<link rel="stylesheet" href="/css/core-appliance-booking.css?v=20261017-service-category-lock-v2">
+<link rel="stylesheet" href="/css/core-appliance-booking.css?v=20261019-core-appliance-navigation">
 <link rel="stylesheet" href="/css/core-appliance-batch.css?v=20261019-aircon-details">
+<link rel="stylesheet" href="/css/appliance-field-guide.css?v=20261019-field-guidance">
 <script src="/js/relocation-booking-locations.js?v=20261017-relocation-address-pins"></script>
-<script src="/js/appliance-services.js?v=20261017-separate-service-bookings"></script>
-<script src="/js/core-appliance-batch.js?v=20261019-aircon-details"></script>
-<script src="/js/core-appliance-booking.js?v=20261019-aircon-details"></script>
+<script src="/js/appliance-services.js?v=20261019-combined-services"></script>
+<script src="/js/appliance-field-guide.js?v=20261019-field-guidance"></script>
+<script src="/js/core-appliance-batch.js?v=20261019-field-guidance"></script>
+<script src="/js/core-appliance-booking.js?v=20261019-core-appliance-navigation"></script>
 <script src="/js/repair-appliance-booking.js?v=20261017-catalog-pricing"></script>
-<link rel="stylesheet" href="/css/customer-payment.css?v=20260925-qr-actions-v4">
+<link rel="stylesheet" href="/css/customer-payment.css?v=20261019-equal-service-cards">
 <% const serviceStats = (typeof publicStats === 'object' && publicStats) ? publicStats : { servicesCompleted:0, satisfactionPercentage:0, activeTechnicians:0, averageRating:0 }; %>
 <%
   const accountAddressData = user && user.address ? user.address : null;
@@ -306,10 +308,10 @@
               <div class="service-selection-layout">
                 <div class="service-catalog-panel" id="serviceCatalogPanel">
               <ul class="nav service-type-tabs mb-3" id="serviceTabs" role="tablist" aria-label="Choose a service category">
-                <li class="nav-item" role="presentation"><button class="nav-link active" id="core-tab" data-bs-toggle="tab" data-bs-target="#core-services" type="button" role="tab" aria-controls="core-services" aria-selected="true"><span class="service-type-icon"><i class="bi bi-gear-fill" aria-hidden="true"></i></span><span class="service-type-copy"><strong>Core Services</strong><small>Cleaning, installation and maintenance</small></span><i class="bi bi-check-circle-fill service-type-check" aria-hidden="true"></i><i class="bi bi-lock-fill service-type-lock" aria-hidden="true"></i></button></li>
-                <li class="nav-item" role="presentation"><button class="nav-link" id="repair-tab" data-bs-toggle="tab" data-bs-target="#repair-services" type="button" role="tab" aria-controls="repair-services" aria-selected="false"><span class="service-type-icon"><i class="bi bi-tools" aria-hidden="true"></i></span><span class="service-type-copy"><strong>Repair Service</strong><small>Inspection, diagnosis and repairs</small></span><i class="bi bi-check-circle-fill service-type-check" aria-hidden="true"></i><i class="bi bi-lock-fill service-type-lock" aria-hidden="true"></i></button></li>
+                <li class="nav-item" role="presentation"><button class="nav-link active" id="core-tab" data-bs-toggle="tab" data-bs-target="#core-services" type="button" role="tab" aria-controls="core-services" aria-selected="true"><span class="service-type-icon"><i class="bi bi-gear-fill" aria-hidden="true"></i></span><span class="service-type-copy"><strong>Core Services</strong><small>Cleaning, installation and maintenance</small></span><i class="bi bi-check-circle-fill service-type-check" aria-hidden="true"></i></button></li>
+                <li class="nav-item" role="presentation"><button class="nav-link" id="repair-tab" data-bs-toggle="tab" data-bs-target="#repair-services" type="button" role="tab" aria-controls="repair-services" aria-selected="false"><span class="service-type-icon"><i class="bi bi-tools" aria-hidden="true"></i></span><span class="service-type-copy"><strong>Repair Service</strong><small>Inspection, diagnosis and repairs</small></span><i class="bi bi-check-circle-fill service-type-check" aria-hidden="true"></i></button></li>
               </ul>
-              <p id="serviceTypePolicy" class="small text-muted mb-3" role="status">Choose Core Services or Repair Service for this booking. Book the other category separately.</p>
+              <p id="serviceTypePolicy" class="small text-muted mb-3">You can combine Core and Repair services in one booking.</p>
               <div class="tab-content" id="serviceTabContent">
                 <!-- Core Services Tab -->
                 <div class="tab-pane fade show active" id="core-services" role="tabpanel" aria-labelledby="core-tab">
@@ -879,7 +881,7 @@
             <div class="ent-step-body">
               <div id="bookingPaymentRestoreNotice" class="alert alert-info d-none" role="status">
                 <i class="bi bi-arrow-clockwise me-2"></i><strong>Your booking was restored.</strong>
-                Your details and payment choice were saved. For your safety, enter the payment reference again and upload the receipt again.
+                <span id="bookingPaymentRestoreMessage">Your details and payment choice were saved. For your safety, enter the payment reference again and upload the receipt again.</span>
               </div>
               <div id="paymentError" class="booking-payment-error d-none" role="alert" tabindex="-1">
                 <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>
@@ -890,7 +892,7 @@
                 <span class="payment-guide-number" id="paymentGuideNumber" aria-hidden="true">1</span>
                 <div class="payment-guide-copy" aria-live="polite">
                   <strong id="paymentGuideTitle">First, choose how much to pay</strong>
-                  <span id="paymentGuideText">Choose Full Payment or Down Payment below.</span>
+                  <span id="paymentGuideText">Choose a payment option below.</span>
                 </div>
                 <button type="button" id="paymentGuideAction" onclick="guidePaymentNextAction()"><span id="paymentGuideActionLabel">Choose Payment</span><i class="bi bi-arrow-down" aria-hidden="true"></i></button>
               </div>
@@ -908,9 +910,9 @@
                   <div class="booking-payment-flow mt-3" aria-label="Payment process">
                     <span class="active"><i class="bi bi-1-circle-fill"></i>Choose payment</span>
                     <i class="bi bi-chevron-right"></i>
-                    <span><i class="bi bi-2-circle"></i>Upload receipt</span>
+                    <span><i class="bi bi-2-circle"></i><span id="paymentProcessNext">Upload receipt</span></span>
                     <i class="bi bi-chevron-right"></i>
-                    <span><i class="bi bi-3-circle"></i>We check payment</span>
+                    <span><i class="bi bi-3-circle"></i><span id="paymentProcessLast">We check payment</span></span>
                   </div>
                 </div>
               </div>
@@ -919,29 +921,37 @@
               <div class="rv-card mb-3">
                 <div class="rv-card-body">
                   <div class="rv-section-title"><i class="bi bi-credit-card"></i>1. Choose how much to pay now</div>
-                  <p class="small text-muted mb-3">Pick one option. You will choose GCash, Maya, or bank transfer next.</p>
-                  <div class="ent-payment-tabs customer-payment-options row mb-3" role="group" aria-label="Payment options">
-                    <div class="col-12 col-md-6">
+                  <p class="small text-muted mb-3">Pay online now, pay a deposit, or pay the full bill in cash after service.</p>
+                  <div class="ent-payment-tabs customer-payment-options service-payment-options row mb-3" role="group" aria-label="Payment options">
+                    <div class="col-12 col-md-4">
                     <button type="button" class="ent-payment-tab payment-method-card payment-card-blue" data-method="gcash" aria-pressed="false">
                       <span class="checkout-choice-check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
                       <span class="payment-method-icon"><i class="bi bi-phone fs-3"></i></span>
                       <span class="payment-method-copy"><strong>Full Payment</strong><span>Pay the full estimated amount now.</span><span class="payment-choice-amount" id="fullPaymentChoiceAmount">Amount shown after loading</span></span>
                     </button>
                     </div>
-                    <div class="col-12 col-md-6">
+                    <div class="col-12 col-md-4">
                     <button type="button" class="ent-payment-tab payment-method-card payment-card-amber" data-method="cod" aria-pressed="false">
                       <span class="checkout-choice-check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
                       <span class="payment-method-icon"><i class="bi bi-wallet2 fs-3"></i></span>
                       <span class="payment-method-copy"><strong>Down Payment</strong><span>Pay part now. Pay the rest after the service is done.</span><span class="payment-choice-amount" id="downPaymentChoiceAmount">Amount shown after loading</span></span>
                     </button>
                     </div>
+                    <div class="col-12 col-md-4">
+                    <button type="button" class="ent-payment-tab payment-method-card payment-card-green" data-method="cash_after_service" aria-pressed="false">
+                      <span class="checkout-choice-check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
+                      <span class="payment-method-icon"><i class="bi bi-cash-stack fs-3"></i></span>
+                      <span class="payment-method-copy"><strong>100% Cash After Service</strong><span>Pay the full bill to the technician after the work is finished. No advance payment.</span><span class="payment-choice-amount" id="payLaterChoiceAmount">₱0 to pay now</span></span>
+                    </button>
+                    </div>
                   </div>
                   <input class="d-none" type="radio" name="paymentMethod" id="payGcash" value="gcash">
                   <input class="d-none" type="radio" name="paymentMethod" id="payDeposit" value="cod">
+                  <input class="d-none" type="radio" name="paymentMethod" id="payAfterService" value="cash_after_service">
 
                   <div class="payment-due-callout" id="paymentDueCallout" role="status" aria-live="polite">
                     <i class="bi bi-wallet2"></i>
-                    <div><span>Amount to pay now</span><strong id="paymentDueNow">Choose Full Payment or Down Payment</strong></div>
+                    <div><span>Amount to pay now</span><strong id="paymentDueNow">Choose a payment option</strong></div>
                   </div>
 
                   <div id="bookingPaymentChannelSection" class="payment-channel-section d-none">
@@ -961,6 +971,12 @@
                     <div><strong>Why do I need a down payment?</strong><br>It holds your schedule and helps the team prepare. It is part of your total bill, not an extra fee.</div>
                   </div>
 
+                  <div id="cashAfterServiceFields" class="payment-section customer-payment-panel d-none" role="status">
+                    <h6 class="customer-payment-panel-title"><i class="bi bi-cash-stack text-success"></i>Cash After Service</h6>
+                    <p>No transfer, payment reference or receipt is needed to request your booking. Admin will review your request before the visit.</p>
+                    <div class="customer-payment-summary"><strong>Pay now: ₱0</strong><br><span>Estimated cash due after service: <strong id="cashAfterServiceTotal">₱0</strong></span></div>
+                    <p class="small text-muted mb-0">Your technician will see this payment choice and record the cash collected. For repairs, the final bill includes only work and parts you approve after inspection.</p>
+                  </div>
                   <div id="gcashFields" class="payment-section customer-payment-panel d-none">
                     <h6 class="customer-payment-panel-title" id="fullPaymentPanelTitle"><i class="bi bi-credit-card text-success"></i>Full Payment</h6>
                     <!-- Payment-option header -->
@@ -1215,7 +1231,7 @@
               <div class="booking-next-steps">
                 <strong>What happens next?</strong>
                 <ol>
-                  <li>We will check your request and payment receipt.</li>
+                  <li id="bookingResultReviewStep">We will check your request and payment receipt.</li>
                   <li>We will assign an available technician.</li>
                   <li>We will send an update when your schedule is confirmed.</li>
                 </ol>
@@ -1868,6 +1884,7 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 .ent-payment-tab.active{border-color:var(--sv-b);background:rgba(37,99,235,0.04);color:var(--sv-b);box-shadow:0 0 0 3px rgba(37,99,235,0.08)}
 .ent-payment-tab i{font-size:1.1rem}
 .payment-section{width:100%;padding:0}
+#cashAfterServiceFields{padding:1rem;font-size:.85rem;line-height:1.6}
 .booking-review-count{padding:4px 9px;border-radius:999px;background:#eff6ff;color:#1d4ed8;font-size:.72rem;font-weight:800}
 .booking-review-services{display:grid;gap:.7rem}
 .booking-review-service{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;padding:1rem;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc}
@@ -2770,7 +2787,7 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 <link rel="stylesheet" href="/css/repair-units.css?v=20261017-repair-workspace-v2">
 <script src="/js/repair-unit-entry.js?v=20261013"></script>
 <script>
-  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20261019-aircon-details':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
+  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20261019-cash-after-service':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
 </script>
 
 <script>
@@ -2877,8 +2894,11 @@ function showBookingConfirmationModal(d){
 
   /* Downpayment & balance */
   var downpayment=0;
+  var payAfterService=BookingState.paymentMethod==='cash_after_service';
   var isDepositOption=(BookingState.paymentMethod||'gcash')==='cod';
-  if(isDepositOption){
+  if(payAfterService){
+    downpayment=0;
+  } else if(isDepositOption){
     var dpEl=document.getElementById('downpaymentAmt');
     var configuredPercentage=Number(BookingState.downpaymentPercentage)||10;
     downpayment=Number(dpEl&&dpEl.value)||Math.round(total*configuredPercentage/100);
@@ -2890,9 +2910,11 @@ function showBookingConfirmationModal(d){
   var balOut=document.getElementById('bookingResultBalance');
   var paidNowLabel=document.getElementById('bookingResultPaidNowLabel');
   var balanceLabel=document.getElementById('bookingResultBalanceLabel');
+  var reviewStep=document.getElementById('bookingResultReviewStep');
+  if(reviewStep) reviewStep.textContent=payAfterService?'We will review your request. No advance payment is needed.':'We will check your request and payment receipt.';
   var resultChannelLabel=window.paymentChannelLabel?window.paymentChannelLabel(BookingState.paymentChannel):'Selected method';
-  if(paidNowLabel) paidNowLabel.textContent=isDepositOption?resultChannelLabel+' downpayment submitted':'Full payment via '+resultChannelLabel+' submitted';
-  if(balanceLabel) balanceLabel.textContent=isDepositOption?'Balance due at service completion':'Remaining balance';
+  if(paidNowLabel) paidNowLabel.textContent=payAfterService?'Paid upfront (cash after service)':isDepositOption?resultChannelLabel+' downpayment submitted':'Full payment via '+resultChannelLabel+' submitted';
+  if(balanceLabel) balanceLabel.textContent=payAfterService?'Cash due after service':isDepositOption?'Balance due at service completion':'Remaining balance';
   if(dpOut) dpOut.textContent='₱'+downpayment.toLocaleString();
   if(balOut) balOut.textContent='₱'+balance.toLocaleString();
 
@@ -3136,19 +3158,27 @@ document.addEventListener("DOMContentLoaded",()=>{
     }
   }
   function selectPaymentMethod(method, guideNext){
-    if(!['gcash','cod'].includes(method)) return;
+    if(!['gcash','cod','cash_after_service'].includes(method)) return;
     var gcashFields=document.getElementById('gcashFields');
     var cashFields=document.getElementById('cashFields');
     var payGcash=document.getElementById('payGcash');
     var payDeposit=document.getElementById('payDeposit');
+    var payAfterService=document.getElementById('payAfterService');
     if(gcashFields) gcashFields.classList.add('d-none');
     if(cashFields) cashFields.classList.add('d-none');
     if(payGcash) payGcash.checked=method==='gcash';
     if(payDeposit) payDeposit.checked=method==='cod';
+    if(payAfterService) payAfterService.checked=method==='cash_after_service';
     var channelSection=document.getElementById('bookingPaymentChannelSection');
-    if(channelSection) channelSection.classList.remove('d-none');
+    if(channelSection) channelSection.classList.toggle('d-none',method==='cash_after_service');
     var bs=getBookingState();
     bs.paymentMethod=method;
+    if(method==='cash_after_service') bs.paymentChannel='cash';
+    else if(bs.paymentChannel==='cash') bs.paymentChannel=null;
+    if(method==='cash_after_service'||!bs.paymentChannel){
+      document.querySelectorAll('#bookingPaymentChannelSection .payment-channel-card').forEach(function(button){button.classList.remove('selected');button.setAttribute('aria-pressed','false');});
+      var channelInput=document.getElementById('bookingPaymentChannel');if(channelInput)channelInput.value='';
+    }
     if(typeof window.clearBookingPaymentError==='function') window.clearBookingPaymentError();
     if(window.selectBookingPaymentChannel){
       var preferredChannel=bs.paymentChannel;

@@ -181,10 +181,10 @@ function saveBookingProgress() {
       selectedTime: BookingState.selectedTime || BookingState.scheduleTime || null,
       projectScheduling: BookingState.projectScheduling || null,
       isProject: BookingState.isProject === true,
-      paymentMethod: ['gcash', 'cod'].includes(BookingState.paymentMethod)
+      paymentMethod: ['gcash', 'cod', 'cash_after_service'].includes(BookingState.paymentMethod)
         ? BookingState.paymentMethod
         : null,
-      paymentChannel: ['gcash', 'maya', 'bank_transfer', 'other'].includes(BookingState.paymentChannel)
+      paymentChannel: ['gcash', 'maya', 'bank_transfer', 'other', 'cash'].includes(BookingState.paymentChannel)
         ? BookingState.paymentChannel
         : null,
       currentStep: normalizeBookingStep(BookingState.currentStep, 1),
@@ -261,10 +261,10 @@ function restoreBookingProgress() {
       BookingState.scheduleTime = BookingState.selectedTime;
       BookingState.projectScheduling = data.projectScheduling || null;
       BookingState.isProject = data.isProject === true;
-      BookingState.paymentMethod = ['gcash', 'cod'].includes(data.paymentMethod)
+      BookingState.paymentMethod = ['gcash', 'cod', 'cash_after_service'].includes(data.paymentMethod)
         ? data.paymentMethod
         : null;
-      BookingState.paymentChannel = ['gcash', 'maya', 'bank_transfer', 'other'].includes(data.paymentChannel)
+      BookingState.paymentChannel = ['gcash', 'maya', 'bank_transfer', 'other', 'cash'].includes(data.paymentChannel)
         ? data.paymentChannel
         : null;
       BookingState.currentStep = normalizeBookingStep(data.currentStep || data.maxReachedStep, 1);
@@ -287,7 +287,7 @@ function restoreBookingProgress() {
 
 function getRestorableBookingStep() {
   let step = normalizeBookingStep(BookingState.currentStep, 1);
-  try { window.ApplianceServices.assertSingleServiceType(BookingState.selectedServices); }
+  try { window.ApplianceServices.assertServiceTypes(BookingState.selectedServices); }
   catch (_) { return 2; }
   if (step > 2 && (!Array.isArray(BookingState.selectedServices) || BookingState.selectedServices.length === 0)) {
     return 2;
@@ -682,7 +682,7 @@ async function openAcceptedUnitAssistance() {
     }
     if (request.requestType === 'repair') {
       if (BookingState.selectedServices.some(item => String(item.assistanceRequestId) === String(request._id))) return;
-      window.ApplianceServices.assertSingleServiceType(BookingState.selectedServices.concat({ type:'repair' }));
+      window.ApplianceServices.assertServiceTypes(BookingState.selectedServices.concat({ type:'repair' }));
       if (selectedUnitTotal() + Number(request.quantity) > MAX_BOOKING_UNITS) throw new Error('Remove another appliance before adding this verified repair request.');
       const pricing = repairUnitPricing(request.quote.unitType, request.quote.unitCategory);
       if (Number(pricing.inspectionFee) !== Number(request.quote.unitPrice)) throw new Error('The inspection fee changed. Ask staff for an updated quote before booking.');
@@ -5992,7 +5992,7 @@ function renderCoreServices() {
       guide.hidden = document.getElementById('core-tab')?.classList.contains('active') !== false;
       document.getElementById("serviceTabs")?.addEventListener("shown.bs.tab", event => { guide.hidden = event.target.id === "core-tab"; });
     }
-    window.CoreApplianceBooking.mount(BookingState.catalog.coreServices, { state: BookingState, multiUnit: true, commit: commitCoreAppliance, openLegacy: service => showCombinedQuantityHpModal(service), count: selectedUnitTotal, next: () => advanceToNextStep(), review: openSelectedServiceSummary,
+    window.CoreApplianceBooking.mount(BookingState.catalog.coreServices, { state: BookingState, multiUnit: true, guideFields: true, commit: commitCoreAppliance, openLegacy: service => showCombinedQuantityHpModal(service), count: selectedUnitTotal, next: () => advanceToNextStep(), review: openSelectedServiceSummary,
       assistance: requestCoreUnitAssistance, changed: draft => { BookingState.applianceDraft = draft; scheduleBookingProgressSave(); } });
     return;
   }
@@ -6062,7 +6062,7 @@ window.scrollToCoreServiceList = scrollToCoreServiceList;
  */
 function renderRepairServices() {
   if (window.RepairApplianceBooking && document.getElementById('repairApplianceBuilder')) {
-    window.RepairApplianceBooking.mount({ host: document.getElementById('repairApplianceBuilder'), state: BookingState,
+    window.RepairApplianceBooking.mount({ host: document.getElementById('repairApplianceBuilder'), state: BookingState, guideFields: true,
       categories: window._serviceCategories || [], coreServices: BookingState.catalog.coreServices, defaultInspectionFee: window._repairInspectionDefaultFee,
       inspectionDuration: window.__bookingPolicy?.inspectionDurationMinutes,
       draft: BookingState.repairDraft, assistance: requestCoreUnitAssistance,
@@ -10522,7 +10522,7 @@ function commitCoreAppliance(rows, editingGroupId) {
     replacement.assistanceRequestId = original.assistanceRequestId;
   }
   const next = BookingState.selectedServices.filter(item => !editingGroupId || item.applianceGroupId !== editingGroupId).concat(rows);
-  window.ApplianceServices.assertSingleServiceType(next);
+  window.ApplianceServices.assertServiceTypes(next);
   window.ApplianceServices.assertStandaloneServices(next);
   window.ApplianceServices.unitCount(next);
   BookingState.selectedServices = next;
@@ -10531,8 +10531,9 @@ function commitCoreAppliance(rows, editingGroupId) {
 }
 function commitRepairAppliance(row, editingId) {
   const next = BookingState.selectedServices.filter(item => String(item.id || item._id || '') !== String(editingId)).concat(row);
-  window.ApplianceServices.assertSingleServiceType(next);
+  window.ApplianceServices.assertServiceTypes(next);
   window.ApplianceServices.assertStandaloneServices(next);
+  window.ApplianceServices.unitCount(next);
   const index = BookingState.selectedServices.findIndex(item => String(item.id || item._id || '') === String(editingId));
   if (index >= 0) BookingState.selectedServices.splice(index, 1, row); else BookingState.selectedServices.push(row);
   updateSelectedServicesDisplay(); updatePricingDisplay(); updateContinueButtonState(); saveBookingProgress();
@@ -10581,7 +10582,7 @@ function addServiceToBooking(service, quantity, hpData = null) {
 
   try {
     const next = BookingState.selectedServices.filter(item => item.id !== BookingState.editingServiceId).concat(serviceItem);
-    window.ApplianceServices.assertSingleServiceType(next);
+    window.ApplianceServices.assertServiceTypes(next);
     window.ApplianceServices.assertStandaloneServices(next);
   }
   catch (error) { showError(error.message); return; }
@@ -10652,8 +10653,8 @@ function advanceToNextStep() {
 
 function getBookingStepIssue(stepNumber) {
   if (stepNumber === 2) {
-    try { window.ApplianceServices.assertSingleServiceType(BookingState.selectedServices); }
-    catch (error) { return { step:2, title:'Choose one service category', message:error.message, focusSelector:'#selectedServicesSummary' }; }
+    try { window.ApplianceServices.assertServiceTypes(BookingState.selectedServices); }
+    catch (error) { return { step:2, title:'Review your service details', message:error.message, focusSelector:'#selectedServicesSummary' }; }
   }
   if (stepNumber === 2 && document.getElementById('repair-tab')?.classList.contains('active') && window.RepairApplianceBooking?.pending()) {
     return { step: 2, title: 'Finish your appliance setup', message: 'Finish adding this repair appliance or cancel your changes before continuing.', focusSelector: '#repairApplianceBuilder [data-panel]:not([hidden]) h3' };
@@ -11307,47 +11308,7 @@ function editSelectedService(index) {
 }
 window.editSelectedService = editSelectedService;
 
-function syncCustomerServiceTypeChoice() {
-  let type = null, mixed = false;
-  try { type = window.ApplianceServices.assertSingleServiceType(BookingState.selectedServices); }
-  catch (_) { mixed = true; }
-  for (const category of ['core', 'repair']) {
-    const blocked = Boolean(type && category !== type);
-    const selection = document.getElementById(`${category}ServiceSelection`);
-    if (selection) selection.disabled = blocked;
-    const pane = document.getElementById(`${category}-services`);
-    if (pane) {
-      pane.inert = blocked;
-      pane.setAttribute('aria-disabled', String(blocked));
-    }
-    const tab = document.getElementById(`${category}-tab`);
-    if (!tab) continue;
-    tab.disabled = blocked;
-    tab.setAttribute('aria-disabled', String(blocked));
-    const description = tab.querySelector('.service-type-copy small');
-    if (description) {
-      if (tab.dataset.serviceTypeDescription === undefined) tab.dataset.serviceTypeDescription = description.textContent;
-      description.textContent = blocked
-        ? `Blocked while ${type === 'core' ? 'Core' : 'Repair'} services are added.`
-        : tab.dataset.serviceTypeDescription;
-    }
-    if (!tab.dataset.serviceTypeLockBound) {
-      tab.dataset.serviceTypeLockBound = 'true';
-      tab.addEventListener('show.bs.tab', event => { if (tab.disabled) event.preventDefault(); });
-    }
-    tab.title = tab.disabled ? 'Remove the added services before switching category, or submit a separate booking.' : '';
-  }
-  const hint = document.getElementById('serviceTypePolicy');
-  if (hint) hint.textContent = mixed
-    ? 'This saved selection combines Core and Repair. Remove one category and book it separately.'
-    : type ? `This booking is for ${type === 'core' ? 'Core Services' : 'Repair Service'}. Book the other category separately, or remove the added services to switch.`
-      : 'Choose Core Services or Repair Service for this booking. Book the other category separately.';
-  const tab = type && document.getElementById(`${type}-tab`);
-  if (tab && !tab.classList.contains('active')) window.bootstrap?.Tab?.getOrCreateInstance?.(tab)?.show();
-}
-
 function updateSelectedServicesDisplay() {
-  syncCustomerServiceTypeChoice();
   reconcileBookingScheduleAfterServiceChange();
   window.CoreApplianceBooking?.sync();
   window.RepairApplianceBooking?.sync();
@@ -13421,6 +13382,10 @@ function updatePaymentAmounts() {
   const paymentDueNow = document.getElementById('paymentDueNow');
   const fullChoiceAmount = document.getElementById('fullPaymentChoiceAmount');
   const downChoiceAmount = document.getElementById('downPaymentChoiceAmount');
+  const payLaterChoice = document.getElementById('payLaterChoiceAmount');
+  const payLaterTotal = document.getElementById('cashAfterServiceTotal');
+  if (payLaterChoice) payLaterChoice.textContent = `₱0 now · ₱${totalFee.toLocaleString()} after service`;
+  if (payLaterTotal) payLaterTotal.textContent = `₱${totalFee.toLocaleString()}`;
 
   // Keep the readonly amount field and breakdown sourced from the same value.
   if (amountInput) amountInput.value = String(downpayment);
@@ -13447,8 +13412,10 @@ function updatePaymentAmounts() {
       paymentDueNow.textContent = `₱${totalFee.toLocaleString()} — full payment`;
     } else if (BookingState.paymentMethod === 'cod') {
       paymentDueNow.textContent = `₱${downpayment.toLocaleString()} — down payment`;
+    } else if (BookingState.paymentMethod === 'cash_after_service') {
+      paymentDueNow.textContent = '₱0 — pay the full bill in cash after service';
     } else {
-      paymentDueNow.textContent = 'Choose Full Payment or Down Payment';
+      paymentDueNow.textContent = 'Choose a payment option';
     }
   }
 }
@@ -13497,16 +13464,17 @@ function syncGcashNumberGuidance(fieldId) {
 
 function paymentChannelLabel(channel) {
   const configured = window.paymentMethodsConfig?.[channel]?.label;
-  return configured || ({ gcash: 'GCash', maya: 'Maya', bank_transfer: 'Bank Transfer', other: 'Other Transfer' })[channel] || 'Payment';
+  return configured || ({ gcash: 'GCash', maya: 'Maya', bank_transfer: 'Bank Transfer', cash: 'Cash', other: 'Other Transfer' })[channel] || 'Payment';
 }
 
 function syncPaymentChoiceGuide() {
-  const method = ['gcash', 'cod'].includes(BookingState.paymentMethod) ? BookingState.paymentMethod : null;
+  const method = ['gcash', 'cod', 'cash_after_service'].includes(BookingState.paymentMethod) ? BookingState.paymentMethod : null;
+  const payAfterService = method === 'cash_after_service';
   const channel = BookingState.paymentChannel;
   const channelButton = channel
     ? document.querySelector(`#bookingPaymentChannelSection .payment-channel-card[data-channel="${channel}"]`)
     : null;
-  const channelReady = Boolean(method && channelButton && !channelButton.disabled &&
+  const channelReady = payAfterService || Boolean(method && channelButton && !channelButton.disabled &&
     window.paymentMethodsConfig?.[channel]?.available !== false);
   const stage = !method ? 1 : channelReady ? 3 : 2;
   const guide = document.getElementById('paymentChoiceGuide');
@@ -13517,8 +13485,8 @@ function syncPaymentChoiceGuide() {
   const guideAction = document.getElementById('paymentGuideAction');
   const button = document.getElementById('confirmBookingBtn');
   const availableChannel = document.querySelector('#bookingPaymentChannelSection .payment-channel-card:not(:disabled)');
-  const copy = {
-    1: ['First, choose how much to pay', 'Choose Full Payment or Down Payment below.', 'Choose Payment'],
+  const copy = payAfterService ? ['Ready to request your booking', 'Pay the full bill in cash to your technician after service. No advance payment or receipt is needed.', 'Review Cash After Service'] : {
+    1: ['First, choose how much to pay', 'Choose a payment option below.', 'Choose Payment'],
     2: ['Next, choose where to send payment', 'Pick GCash, Maya, or an available bank or transfer option.', 'Choose Payment Method'],
     3: ['Next, send payment and upload the receipt', 'Follow the instructions below, then enter the reference and upload your receipt.', 'View Payment Steps']
   }[stage];
@@ -13534,8 +13502,18 @@ function syncPaymentChoiceGuide() {
   document.getElementById('downpaymentReason')?.classList.toggle('d-none', method !== 'cod');
   document.querySelector('.customer-payment-options')?.classList.toggle('is-needed', stage === 1);
   document.getElementById('bookingPaymentChannelSection')?.classList.toggle('is-needed', stage === 2);
+  document.getElementById('bookingPaymentChannelSection')?.classList.toggle('d-none', !method || payAfterService);
+  document.getElementById('cashAfterServiceFields')?.classList.toggle('d-none', !payAfterService);
+  const processNext = document.getElementById('paymentProcessNext');
+  const processLast = document.getElementById('paymentProcessLast');
+  const restoreMessage = document.getElementById('bookingPaymentRestoreMessage');
+  if (processNext) processNext.textContent = payAfterService ? 'We review your booking' : 'Upload receipt';
+  if (processLast) processLast.textContent = payAfterService ? 'Pay after service' : 'We check payment';
+  if (restoreMessage) restoreMessage.textContent = payAfterService
+    ? 'Your details and Cash After Service choice were saved. No advance payment or receipt is needed.'
+    : 'Your details and payment choice were saved. For your safety, enter the payment reference again and upload the receipt again.';
   if (button && !button.dataset.submitting) button.disabled = stage !== 3;
-  if (!channelReady) {
+  if (!channelReady || payAfterService) {
     document.getElementById('gcashFields')?.classList.add('d-none');
     document.getElementById('cashFields')?.classList.add('d-none');
   }
@@ -13544,6 +13522,10 @@ function syncPaymentChoiceGuide() {
 window.syncPaymentChoiceGuide = syncPaymentChoiceGuide;
 
 function guidePaymentNextAction() {
+  if (BookingState.paymentMethod === 'cash_after_service') {
+    document.getElementById('cashAfterServiceFields')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
   const stage = Number(document.getElementById('paymentChoiceGuide')?.dataset.stage) || 1;
   const target = stage === 1
     ? document.querySelector('.customer-payment-options .payment-method-card')
@@ -13646,13 +13628,18 @@ function getPaymentConfirmationState() {
   if (!currentBookingReward() || bookingLoyaltyPending || bookingLoyaltyError) {
     return { active: true, ready: false, isProject, eyebrow: 'Checking price', title: 'Confirm your loyalty price first', hint: bookingLoyaltyError || 'Please wait for the final amount before sending payment.' };
   }
-  if (!['gcash', 'cod'].includes(BookingState.paymentMethod)) {
+  if (!['gcash', 'cod', 'cash_after_service'].includes(BookingState.paymentMethod)) {
     return {
       active: true, ready: false, isProject,
       eyebrow: isProject ? 'Large-scale project' : 'Payment not finished',
-      title: 'Choose Full Payment or Down Payment',
+      title: 'Choose how you will pay',
       hint: `Complete this step to send your ${projectLabel}.`,
     };
+  }
+  if (BookingState.paymentMethod === 'cash_after_service') {
+    return { active: true, ready: true, isProject, eyebrow: 'Cash After Service',
+      title: isProject ? 'Ready to send your project request' : 'Ready to send your booking request',
+      hint: 'No advance payment. Your technician will collect the full approved bill in cash after service.' };
   }
   if (!['gcash', 'maya', 'bank_transfer', 'other'].includes(BookingState.paymentChannel) ||
       window.paymentMethodsConfig?.[BookingState.paymentChannel]?.available === false) {
@@ -13900,7 +13887,7 @@ async function handleBookingSubmission() {
     // Submit to backend using simplified endpoint
     const bookingForm = new FormData();
     bookingForm.append('payload', JSON.stringify(bookingData));
-    const paymentProofFile = BookingState.paymentMethod === 'gcash'
+    const paymentProofFile = BookingState.paymentMethod === 'cash_after_service' ? null : BookingState.paymentMethod === 'gcash'
       ? document.getElementById('gcashProof')?.files?.[0]
       : document.getElementById('cashProof')?.files?.[0];
     if (paymentProofFile) bookingForm.append('paymentProof', paymentProofFile);
@@ -14059,7 +14046,7 @@ function validateBookingData() {
   if (!BookingState.selectedServices || BookingState.selectedServices.length === 0) {
     return { valid: false, error: 'Choose at least one service.', step: 2 };
   }
-  try { window.ApplianceServices.assertSingleServiceType(BookingState.selectedServices); }
+  try { window.ApplianceServices.assertServiceTypes(BookingState.selectedServices); }
   catch (error) { return { valid:false, error:error.message, step:2 }; }
   if (selectedUnitTotal() > MAX_BOOKING_UNITS) {
     return { valid: false, error: `A booking can contain at most ${MAX_BOOKING_UNITS} units across all Core and Repair services.`, step: 2 };
@@ -14088,9 +14075,10 @@ function validateBookingData() {
   }
 
   // Check the payment plan stored in the existing legacy-safe field.
-  if (!['gcash', 'cod'].includes(BookingState.paymentMethod)) {
-    return { valid: false, error: 'Choose Full Payment or Down Payment.', focusSelector: '.customer-payment-options .payment-method-card' };
+  if (!['gcash', 'cod', 'cash_after_service'].includes(BookingState.paymentMethod)) {
+    return { valid: false, error: 'Choose a payment option.', focusSelector: '.customer-payment-options .payment-method-card' };
   }
+  if (BookingState.paymentMethod === 'cash_after_service') return { valid: true };
   const paymentChannel = BookingState.paymentChannel;
   if (!['gcash', 'maya', 'bank_transfer', 'other'].includes(paymentChannel)) {
     return { valid: false, error: 'Choose where you will send the payment.', focusSelector: '#bookingPaymentChannelSection .payment-channel-card:not(:disabled)' };
@@ -14373,15 +14361,16 @@ function showBookingSuccessModal(result) {
   if (location) location.textContent = BookingState.customerLocation?.address || 'Location';
   if (paymentMethod) {
     const channelLabel = paymentChannelLabel(BookingState.paymentChannel);
-    paymentMethod.textContent = BookingState.paymentMethod === 'gcash'
+    paymentMethod.textContent = BookingState.paymentMethod === 'cash_after_service' ? '100% Cash After Service — no advance payment' : BookingState.paymentMethod === 'gcash'
       ? `Full payment via ${channelLabel}`
       : `${BookingState.downpaymentPercentage || 10}% down payment via ${channelLabel}; pay the rest after service`;
   }
 
   // Show payment breakdown
   const totalFee = BookingState.totalFee || 0;
-  const isCOD = BookingState.paymentMethod === 'cod';
-  const downpayment = calculateConfiguredDownpayment(totalFee);
+  const payAfterService = BookingState.paymentMethod === 'cash_after_service';
+  const isCOD = BookingState.paymentMethod === 'cod' || payAfterService;
+  const downpayment = payAfterService ? 0 : calculateConfiguredDownpayment(totalFee);
   const balance = Math.max(0, totalFee - downpayment);
 
   const breakdownEl = document.getElementById('receiptPaymentBreakdown');
@@ -15143,7 +15132,7 @@ function repairItemIsComplete(item) {
 }
 
 function addCurrentRepairItem() {
-  try { window.ApplianceServices.assertSingleServiceType(BookingState.selectedServices.concat({ type: 'repair' })); }
+  try { window.ApplianceServices.assertServiceTypes(BookingState.selectedServices.concat({ type: 'repair' })); }
   catch (error) { return showAlert(error.message, 'warning'); }
   if (repairNeedsIdentification()) return reviewRepairIdentification();
   if (repairIdentificationState.mode !== 'manual') { goToRepairGuideStep(3); return repairIdentificationMessage('Choose staff assistance or enter the unit details before continuing.'); }
@@ -15544,8 +15533,23 @@ function initRepairFormControls() {
   }
   if (coreTab && !coreTab.dataset.guideWired) {
     coreTab.dataset.guideWired = '1';
+    let openApplianceAfterTab = false;
+    const openCoreAppliance = () => {
+      toggleBookingSummary(false);
+      setServicePickerGuide('choose');
+      window.CoreApplianceBooking?.chooseAppliance();
+    };
+    coreTab.addEventListener('click', event => {
+      // Only customer activation should move the page. Restoring a draft or
+      // opening an existing service for editing must keep its current step.
+      if (!event.isTrusted || coreTab.disabled) return;
+      if (coreTab.classList.contains('active')) openCoreAppliance();
+      else openApplianceAfterTab = true;
+    });
     coreTab.addEventListener('shown.bs.tab', () => {
       setServicePickerGuide(BookingState.selectedServices.length ? 'review' : 'choose');
+      if (openApplianceAfterTab && coreTab.classList.contains('active')) openCoreAppliance();
+      openApplianceAfterTab = false;
     });
   }
   refreshRepairGuide();

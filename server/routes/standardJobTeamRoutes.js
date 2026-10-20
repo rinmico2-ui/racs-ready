@@ -31,7 +31,7 @@ router.get('/mine', requireRole('technician'), async (req, res, next) => {
 });
 router.get('/:source/:id/candidates', staff, async (req, res, next) => {
   try { const manager = service(), job = await manager.load(req.params.source, req.params.id); res.json({ ...(await manager.candidates(req.params.source, job, req.query)), team: team.publicTeam(job), staffing: require('../utils/assignmentStaffing').staffingFor(req.params.source, job) }); }
-  catch (error) { if (error.status) return res.status(error.status).json({ error: error.message }); next(error); }
+  catch (error) { if (error.status) return res.status(error.status).json({ error: error.message, code: error.code }); next(error); }
 });
 router.get('/:source/:id', async (req, res, next) => {
   try {
@@ -41,6 +41,26 @@ router.get('/:source/:id', async (req, res, next) => {
   } catch (error) { if (error.status) return res.status(error.status).json({ error: error.message }); next(error); }
 });
 router.post('/:source/:id', staff, (req, res) => require('../utils/standardJobTeamService').assignmentResponse(req.params.source, req, res));
+router.post('/:source/:id/recovery', staff, async (req, res, next) => {
+  try {
+    const recovery = require('../utils/visitRecovery');
+    const result = await recovery.createService().recover(req.params.source, req.params.id, req.body || {}, req.user);
+    await recovery.publish(result, req);
+    res.json({ success: true, message: 'Customer agreement and schedule saved. Choose the replacement technician team.',
+      source: result.source, id: String(result.job._id), status: result.job.status,
+      date: require('../utils/bookingDateTime').manilaDateKey(result.source === 'booking' ? result.job.bookingDate : result.job.delivery?.preferredDate),
+      time: result.source === 'booking' ? result.job.startTime : result.job.timeSlot });
+  } catch (error) { if (error.status) return res.status(error.status).json({ error: error.message, code: error.code }); next(error); }
+});
+router.get('/:source/:id/emergency-equipment', staff, async (req, res, next) => {
+  try {
+    if (!['booking', 'order'].includes(req.params.source) || !require('mongoose').isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid visit reference.' });
+    const job = await require(req.params.source === 'booking' ? '../models/BookingService' : '../models/Order').findById(req.params.id).lean();
+    if (!job) return res.status(404).json({ error: 'Visit not found.' });
+    res.set('Cache-Control', 'private, no-store');
+    res.json(await require('../utils/bookingEmergencyEquipment').read(job, {}, req.params.source));
+  } catch (error) { next(error); }
+});
 router.post('/:source/:id/respond', requireRole('technician'), async (req, res, next) => {
   try {
     const tech = await require('../models/Technician').findOne({ user: req.user._id }).select('_id').lean();

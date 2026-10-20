@@ -58,28 +58,8 @@ function classify(action, details, moduleName) {
   return { category, entityType, actionType };
 }
 
-const SENSITIVE_DETAIL_KEY = /(password|passcode|token|secret|authorization|cookie|csrf|otp|credential|session)/i;
-
 function sanitizeDetails(value, depth = 0, seen = new WeakSet()) {
-  if (value == null || typeof value === 'boolean' || typeof value === 'number') return value;
-  if (typeof value === 'string') return value.slice(0, 2000);
-  if (value instanceof Date) return value.toISOString();
-  if (typeof value !== 'object') return String(value).slice(0, 2000);
-  if (depth >= 6) return '[MAX_DEPTH]';
-  if (seen.has(value)) return '[CIRCULAR]';
-  seen.add(value);
-
-  if (Array.isArray(value)) {
-    return value.slice(0, 100).map((item) => sanitizeDetails(item, depth + 1, seen));
-  }
-
-  const output = {};
-  Object.entries(value).slice(0, 100).forEach(([key, item]) => {
-    output[key] = SENSITIVE_DETAIL_KEY.test(key)
-      ? '[REDACTED]'
-      : sanitizeDetails(item, depth + 1, seen);
-  });
-  return output;
+  return require('./logPrivacy').sanitize(value, depth, seen);
 }
 
 function normalizeIp(req) {
@@ -167,7 +147,7 @@ async function logEvent({
       source: resolvedSource,
       requestId,
       requestMethod: req ? String(req.method || '').slice(0, 12).toUpperCase() : '',
-      requestPath: req ? String(req.originalUrl || req.url || '').split('?')[0].slice(0, 500) : '',
+      requestPath: req ? require('./logPrivacy').text(require('./logPrivacy').sanitizePath(req.originalUrl || req.url), 500) : '',
       userAgent: req && req.headers ? String(req.headers['user-agent'] || '').slice(0, 512) : '',
     });
   } catch (e) {

@@ -22,7 +22,15 @@ module.exports = function createRouter({ technician = false, getContext } = {}) 
     router.get('/materials', handle(async (req, res) => {
       const DailyKit = require('../models/DailyKit');
       const selectAll = req.query.selection === 'all';
-      const page = selectAll ? 1 : Math.max(1, parseInt(req.query.page, 10) || 1), limit = selectAll ? 100 : 20;
+      const category = req.query.category;
+      if (category !== undefined && !['consumable', 'repair_part'].includes(category)) return res.status(400).json({ error: 'Choose repair parts or consumables.' });
+      if (req.query.search !== undefined && typeof req.query.search !== 'string') return res.status(400).json({ error: 'Enter an item name to search.' });
+      const search = String(req.query.search || '').trim().slice(0, 100);
+      const filters = [
+        ...(category ? [{ $match: { 'item.category': category } }] : []),
+        ...(search ? [{ $match: { 'item.name': new RegExp(require('../utils/stringSecurity').escapeRegex(search), 'i') } }] : []),
+      ];
+      const page = selectAll ? 1 : Math.min(100000, Math.max(1, parseInt(req.query.page, 10) || 1)), limit = selectAll ? 100 : Math.min(20, Math.max(1, parseInt(req.query.limit, 10) || 20));
       const outstandingExpr = { $max: [0, { $subtract: [{ $ifNull: ['$item.quantityIssued', 0] }, { $add: ['quantityUsed', 'quantityReturned', 'quantityDamaged', 'quantityMissing'].map(field => ({ $ifNull: ['$item.' + field, 0] })) }] }] };
       const availableExpr = { $max: [0, { $subtract: [outstandingExpr, { $ifNull: ['$item.returnPendingQuantity', 0] }] }] };
       const [snapshot] = await DailyKit.aggregate([
@@ -32,7 +40,8 @@ module.exports = function createRouter({ technician = false, getContext } = {}) 
         { $match: { 'item.category': { $in: ['consumable', 'repair_part'] }, $expr: { $gt: [outstandingExpr, 0] } } },
         ...(selectAll ? [{ $match: { $expr: { $and: [{ $gt: [availableExpr, 0] }, { $lte: [{ $ifNull: ['$item.returnPendingQuantity', 0] }, 0] }] } } }] : []),
         { $sort: { workDate: -1, _id: 1, 'item._id': 1 } },
-        { $facet: { total: [{ $count: 'count' }], items: [{ $skip: (page - 1) * limit }, { $limit: limit },
+        { $facet: { summary: [{ $group: { _id: '$item.category', count: { $sum: 1 } } }],
+          total: [...filters, { $count: 'count' }], items: [...filters, { $skip: (page - 1) * limit }, { $limit: limit },
           { $replaceRoot: { newRoot: { $mergeObjects: ['$item', { kitId: '$_id', workDate: '$workDate', outstanding: outstandingExpr, available: { $max: [0, { $subtract: [outstandingExpr, { $ifNull: ['$item.returnPendingQuantity', 0] }] }] } }] } } }] } },
       ]).allowDiskUse(true);
       if (selectAll && (snapshot?.total[0]?.count || 0) > 100) return res.status(400).json({ error: 'You have more than 100 materials. Select and return up to 100 at a time.' });
@@ -45,7 +54,9 @@ module.exports = function createRouter({ technician = false, getContext } = {}) 
       const cancelled = new Set([...bookings, ...orders].filter(job => job.status === 'cancelled').map(job => String(job._id)));
       items.forEach(item => { item.cancelledWork = [...(item.bookingIds || []), ...(item.issuedBookingIds || []), ...(item.orderIds || []), ...(item.issuedOrderIds || [])].some(value => cancelled.has(String(value))); });
       const total = snapshot?.total[0]?.count || 0;
-      return res.json({ items, pagination: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) } });
+      const summary = { repair_part: 0, consumable: 0 };
+      for (const row of snapshot?.summary || []) if (Object.hasOwn(summary, row._id)) summary[row._id] = row.count;
+      return res.json({ items, summary, pagination: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) } });
     }));
     router.post('/materials', handle(async (req, res) => {
       const report = await service.reportMaterials({ kitId: req.body.kitId, itemId: req.body.itemId, unused: req.body.unused ?? req.body.quantity, used: req.body.used, damaged: req.body.damaged, missing: req.body.missing, notes: req.body.notes, technicianIds: req.returnContext.technicianIds, userId: req.user._id });
@@ -63,6 +74,13 @@ module.exports = function createRouter({ technician = false, getContext } = {}) 
     const page = selectAll ? 1 : Math.max(1, parseInt(req.query.page, 10) || 1), limit = selectAll ? 100 : 10;
     const filter = { status: !selectAll && ['received', 'rejected'].includes(req.query.status) ? req.query.status : 'pending' };
     if (technician) filter.technicianId = { $in: req.returnContext.technicianIds };
+    else if (req.query.technicianId !== undefined && req.query.technicianId !== '') {
+      const mongoose = require('mongoose');
+      if (typeof req.query.technicianId !== 'string' || !mongoose.isObjectIdOrHexString(req.query.technicianId)) return res.status(400).json({ error: 'Choose a valid technician.' });
+      const technicianId = req.query.technicianId;
+      const profile = await require('../models/Technician').findOne({ $or: [{ _id: technicianId }, { user: technicianId }] }).select('_id user').lean();
+      filter.technicianId = { $in: [...new Set([technicianId, profile?._id, profile?.user].filter(Boolean).map(String))] };
+    }
     const [items, total] = await Promise.all([
       KitReturn.find(filter).populate('technicianId', 'name').populate('dailyKitId', 'workDate')
         .populate('bookingIds', 'bookingReference status').populate('orderIds', 'orderReference status')

@@ -29,6 +29,16 @@ router.use((req, res, next) => {
   return requirePermission(permission)(req, res, next);
 });
 
+router.get('/inventory-custody', requireRole(['admin']), async (req, res) => {
+  res.set('Cache-Control', 'private, no-store');
+  try { return res.json(await require('../utils/adminInventoryCustody').createService().list(req.query)); }
+  catch (error) {
+    if (error.status === 400) return res.status(400).json({ error: error.message });
+    console.error('[inventory-custody]', require('../utils/logPrivacy').text(error.message));
+    return res.status(503).json({ error: 'Item tracking is temporarily unavailable. Please try again.' });
+  }
+});
+
 function dayBounds(now = new Date()) {
   const { manilaDateTime } = require('../utils/bookingDateTime');
   const start = manilaDateTime(now, 0);

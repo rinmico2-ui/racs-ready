@@ -1,0 +1,54 @@
+.customer-directory .rp-filter-group { min-width: min(180px, 100%); }
+.customer-directory .rp-filter-group.search { min-width: min(240px, 100%); }
+.customer-directory .dash-card:hover { transform: none; }
+.customer-directory .customer-records-heading { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.customer-directory .customer-privacy-note { color: #475569; font-size: .85rem; margin: 0 0 1rem; }
+.customer-directory .customer-privacy-note i { color: #2563eb; }
+.customer-directory #customerTableBody td { padding: 16px; font-size: .85rem; overflow-wrap: anywhere; }
+.customer-directory #customerTableBody .customer-name { min-width: 0; }
+.customer-directory #customerTableBody td:last-child { text-align: right; }
+.customer-directory .inv-pagination { align-items: center; flex-wrap: wrap; }
+.customer-directory .inv-pagination .page-link:disabled { opacity: .45; cursor: default; }
+.customer-directory .customer-page-summary { font-size: .8rem; color: #475569; padding: 0 6px; }
+#customerDetailModal .ent-modal-header { background: #f8fafc !important; color: #0f172a !important; padding: 20px 24px; border-bottom: 1px solid #e2e8f0; }
+#customerDetailModal .ent-modal-header .modal-title { color: #0f172a !important; }
+#customerDetailModal .ent-modal-header .btn-close { filter: none !important; }
+#customerDetailModal .customer-modal-subtitle { color: #64748b; font-size: .8rem; }
+#customerDetailModal .modal-content { max-height: calc(100dvh - 32px); }
+#customerDetailModal .ent-modal-body { min-height: 0; max-height: none; overflow-y: auto; }
+#customerDetailModal .customer-profile { display: flex; align-items: center; gap: 16px; padding: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; }
+#customerDetailModal .customer-name { min-width: 0; overflow-wrap: anywhere; }
+#customerDetailModal .customer-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+#customerDetailModal .ent-detail-label { color: #64748b; margin-bottom: 6px; }
+#customerDetailModal .ent-detail-value { font-size: .9rem; font-weight: 500; overflow-wrap: anywhere; }
+#customerDetailModal .cust-modal-section-title { font-size: .8rem; color: #475569; }
+#customerDetailModal .ent-detail-card:hover { background: #f8fafc; }
+#customerDetailModal .ent-modal-footer { flex-shrink: 0; }
+#customerDetailModal .customer-modal-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; width: 100%; }
+#customerDetailModal .cust-violation-item { overflow-wrap: anywhere; }
+@media (max-width: 767px) {
+  .customer-directory .table-responsive { overflow: visible; }
+  .customer-directory table thead { display: none; }
+  .customer-directory #customerTableBody { display: block; }
+  .customer-directory #customerTableBody tr { display: block; border-bottom: 1px solid #e2e8f0; padding: 12px 16px; }
+  .customer-directory #customerTableBody td { display: flex; gap: 12px; justify-content: space-between; padding: 8px 0; border: 0; text-align: right; }
+  .customer-directory #customerTableBody td::before { content: attr(data-label); color: #64748b; text-align: left; flex-shrink: 0; }
+  .customer-directory #customerTableBody td:first-child { text-align: left; justify-content: flex-start; }
+  .customer-directory #customerTableBody td:first-child::before { display: none; }
+  .customer-directory #customerTableBody td[colspan] { display: block; text-align: center; }
+  .customer-directory #customerTableBody td[data-label="Contact"] { flex-wrap: wrap; }
+  .customer-directory #customerTableBody td[data-label="Contact"] > span { flex: 1; }
+  .customer-directory #customerTableBody td[data-label="Contact"] > small { width: 100%; margin-top: -8px; }
+  .customer-directory .inv-pagination { justify-content: center !important; }
+}
+@media (max-width: 420px) {
+  .customer-directory .rp-toolbar { padding: 14px; gap: 12px; }
+  .customer-directory .rp-filter-group { flex-basis: 100%; }
+  .customer-directory .rp-filter-btn { width: 100%; }
+  #customerDetailModal .ent-modal-header, #customerDetailModal .ent-modal-body, #customerDetailModal .ent-modal-footer { padding: 16px; }
+  #customerDetailModal .customer-detail-grid { grid-template-columns: minmax(0, 1fr); }
+  #customerDetailModal .customer-profile { padding: 12px; gap: 12px; }
+  #customerDetailModal .cust-modal-avatar { width: 44px; height: 44px; border-radius: 12px; font-size: 1rem; }
+  #customerDetailModal .ent-modal-icon { display: none; }
+  #customerDetailModal .customer-modal-actions .btn { width: 100%; }
+}

@@ -7,7 +7,8 @@ const Order = require('../models/Order');
 const { orderWindow } = require('./orderAssignmentPlanner');
 const { projectAllocations } = require('./assignmentProjectCapacity');
 const { recommendTeam } = require('./assignmentStaffing');
-const { assignmentTimingState, isAssignmentWindowExpired, manilaDateKey, manilaDateTime } = require('./bookingDateTime');
+const { getBufferMinutesSync } = require('./bookingPolicy');
+const { assignmentTimingState, isAssignmentWindowExpired, manilaDateKey, manilaDateTime, bookingAssignmentWindow } = require('./bookingDateTime');
 const { latestAllowedFinish, overtimeMinutesForWindow } = require('./technicianOvertimePolicy');
 
 const ACTIVE_BOOKING_STATUSES = [
@@ -90,9 +91,10 @@ async function buildAssignmentPlan(bookings, options = {}) {
   const result = [];
   for (const booking of rows) {
     const key = dateKey(booking.bookingDate); const date = manilaDateTime(booking.bookingDate, 12 * 60); const day = date?.getUTCDay();
-    const target = bookingWindow(booking); const bookingCoords = coordinates(booking);
+    let target = bookingWindow(booking); const bookingCoords = coordinates(booking);
     const timing = assignmentTimingState(booking);
-    if (timing.isExpired || !date || !Number.isFinite(target.start) || !Number.isFinite(target.end)) {
+    const window = bookingAssignmentWindow(booking);
+    if (!window.allowed || !date || !Number.isFinite(target.start) || !Number.isFinite(target.end)) {
       result.push({
         bookingId:String(booking._id),
         bookingReference:booking.bookingReference||`#${String(booking._id).slice(-8).toUpperCase()}`,
@@ -107,7 +109,12 @@ async function buildAssignmentPlan(bookings, options = {}) {
       });
       continue;
     }
-    const priorTechIds = new Set((booking.cancellationHistory||[]).filter(h => ['declined','cancelled'].includes(h.action)).map(h => String(h.technicianId||'')).filter(Boolean));
+    if (window.capacityStartMinutes > target.start) {
+      const end = Math.max(target.end, window.capacityStartMinutes + Math.max(30, Number(booking.serviceDurationMinutes) || 60)
+        + Math.max(0, Number(booking.travelDuration || booking.travelTime || booking.routeDurationMin) || 30) + getBufferMinutesSync());
+      target = { start: window.capacityStartMinutes, end, duration: end - window.capacityStartMinutes };
+    }
+    const priorTechIds = new Set((booking.cancellationHistory||[]).filter(h => ['declined','cancelled','emergency_reported'].includes(h.action)).map(h => String(h.technicianId||'')).filter(Boolean));
     for (const member of booking.technicianTeam || []) if (['declined', 'expired'].includes(member.status)) priorTechIds.add(String(member.technicianId));
     const candidates = [];
     const exclusionReasons = {};
@@ -121,7 +128,7 @@ async function buildAssignmentPlan(bookings, options = {}) {
       if (rest) { exclusionReasons[tid] = 'Rest Day'; continue; }
       if (nonWorking) { exclusionReasons[tid] = 'Not Working This Day'; continue; }
       if (onLeave) { exclusionReasons[tid] = 'On Leave'; continue; }
-      if (priorTechIds.has(tid)) { exclusionReasons[tid] = 'Previously Declined This Booking'; continue; }
+      if (priorTechIds.has(tid)) { exclusionReasons[tid] = 'Previously unavailable for this booking; review before selecting again'; continue; }
       if (!Number.isFinite(target.start)) { exclusionReasons[tid] = 'Booking Time Is Invalid'; continue; }
       const shiftStart = Number(working.startMinutes ?? 480);
       const shiftEnd = Number(working.endMinutes ?? 1140);

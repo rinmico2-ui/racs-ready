@@ -53,11 +53,11 @@ function fixture(t, { duration = 180, inspection = 90, threshold = 8, sufficient
       calculatePaymentBreakdown: total => ({ downpaymentPercentage: 10, downpaymentAmount: total / 10, balanceAmount: total * 0.9 }), paymentRecordMethod: () => 'bank' },
     '../utils/operationLock': { bookingCapacityLockKey: value => value, withOperationLock: async (_key, fn) => fn() },
     '../utils/rateLimitIdentity': {}, '../utils/maintenanceLifecycle': {},
-    '../utils/uploadSecurity': { hasValidImageDataUrl: () => true },
+    '../utils/uploadSecurity': { hasValidImageDataUrl: value => Boolean(value) },
     '../utils/paymentProofStorage': { discardTemporaryPaymentProof: async () => {} },
     '../utils/repairInspectionPricing': { resolveRepairInspectionFees: async services => services.map(item => item.type === 'repair' ? { fee: 500 } : null) },
     '../utils/mongoWriteSupport': { isUnsupportedMongoWriteFeature: () => false },
-    '../utils/bookingSubmissionWrite': { persistBookingSubmission: async ({ booking, payment }) => { calls.writes.push(booking); calls.payments.push(payment); return booking; } },
+    '../utils/bookingSubmissionWrite': { persistBookingSubmission: async ({ booking, payment }) => { calls.writes.push(booking); if (payment) calls.payments.push(payment); return booking; } },
     '../utils/loyaltyRewards': { rewardFor: async () => null, assertQuote() {}, round: value => value },
     '../public/js/appliance-services': require('../public/js/appliance-services'),
     '../public/js/nueva-ecija-coverage': require('../public/js/nueva-ecija-coverage'),
@@ -83,6 +83,42 @@ function fixture(t, { duration = 180, inspection = 90, threshold = 8, sufficient
   }
   return { call, calls };
 }
+
+test('cash after service books Core and Repair without an upfront payment or proof', async t => {
+  const {code,body,calls}=await fixture(t,{duration:60}).call({
+    paymentMethod:'cash_after_service',paymentChannel:'gcash',downpaymentAmount:9999,
+    proofImageBase64:undefined,paymentReference:undefined,startTime:'08:00',
+    services:[{serviceId:'core-id',type:'core',brand:'Carrier',quantity:1,unitPrice:1000},
+      {type:'repair',unitType:'Split Aircon',brand:'Midea',hp:2,quantity:1,problemDescription:'The unit does not cool properly'}],
+  });
+  assert.equal(code,201,body?.error);
+  const saved=calls.writes[0];
+  assert.equal(saved.paymentMethod,'cash_after_service');assert.equal(saved.paymentChannel,'cash');
+  assert.equal(saved.downpaymentAmount,0);assert.equal(saved.downpaymentPercentage,0);
+  assert.equal(saved.amountPaid,0);assert.equal(saved.balanceAmount,1500);
+  assert.equal(saved.paymentStatus,'pending');assert.equal(saved.status,'pending');
+  assert.equal(saved.paymentProof,null);assert.equal(calls.payments.length,0);
+});
+
+test('cash after service projects retain the full balance in the staff project snapshot', async t => {
+  const {code,body,calls}=await fixture(t).call({paymentMethod:'cash_after_service',paymentChannel:'cash',proofImageBase64:undefined,paymentReference:undefined});
+  assert.equal(code,201,body?.error);assert.equal(body.isProject,true);
+  assert.equal(calls.payments.length,0);assert.equal(calls.projects.length,1);
+  assert.equal(calls.projects[0].payment.amountPaid,0);
+  assert.equal(calls.projects[0].payment.balanceAmount,3000);
+  assert.equal(calls.projects[0].payment.paymentMethod,'cash');
+});
+
+test('cash requests reject stale transfer evidence and upfront plans still require a receipt', async t => {
+  const f=fixture(t,{duration:60});
+  const stale=await f.call({paymentMethod:'cash_after_service',startTime:'08:00'});
+  assert.equal(stale.code,400);assert.match(stale.body.error,/does not require a transfer/);
+  for(const paymentMethod of ['cod','gcash']) {
+    const missing=await f.call({paymentMethod,proofImageBase64:undefined,startTime:'08:00'});
+    assert.equal(missing.code,400);assert.match(missing.body.error,/payment receipt/);
+  }
+  assert.equal(f.calls.writes.length,0);
+});
 
 test('compressor HP booking uses appliance-specific prices and time, ignoring client estimates', async t => {
   const catalog = [{ _id: 'core-id', name: 'Recharging', active: true, isAirconService: true,
@@ -240,28 +276,42 @@ test('a workload exactly at the hours threshold remains a standard appointment',
   assert.equal(calls.capacity.length, 2);
 });
 
-test('customers cannot submit Core and Repair together as a project', async t => {
+test('customers can submit Core and Repair together as a project with separate work phases', async t => {
   const { code, body, calls } = await fixture(t, { duration: 90 }).call({ services: [
     { serviceId: 'core-id', type: 'core', quantity: 5, unitPrice: 1000 },
     { serviceId: 'repair-id', brand: 'Carrier', model: 'TEST-123', name: 'Aircon repair', unitType: 'Split Aircon', hp: 3, type: 'repair', quantity: 1, problemDescription: 'Aircon is not cooling properly' },
   ] });
-  assert.equal(code, 400);
-  assert.equal(body.code, 'MIXED_SERVICE_BOOKING_NOT_ALLOWED');
-  assert.match(body.error, /separately/i);
-  assert.equal(calls.writes.length, 0); assert.equal(calls.payments.length, 0);
-  assert.equal(calls.windows.length, 0); assert.equal(calls.projects.length, 0);
+  assert.equal(code, 201, body?.error);
+  assert.equal(body.isProject, true);
+  assert.equal(calls.writes.length, 1); assert.equal(calls.payments.length, 1);
+  assert.equal(calls.windows.length, 2); assert.equal(calls.projects.length, 1);
   assert.equal(calls.capacity.length, 0);
+  const saved = calls.writes[0];
+  assert.equal(saved.serviceType, 'mixed');
+  assert.equal(saved.quantity, 6); assert.equal(saved.serviceDurationMinutes, 540);
+  assert.equal(saved.totalPrice, 5500);
+  assert.deepEqual(Array.from(saved.services, row => [row.type, row.status, row.phase, row.hp]), [
+    ['core', 'pending', 'core', null], ['repair', 'inspection_pending', 'repair_phase_1', 3],
+  ]);
 });
 
-test('mixed standard bookings and stringified submissions fail before pricing or payment writes', async t => {
+test('mixed standard bookings and stringified submissions save catalog prices and inspection charges', async t => {
   for (const stringified of [false, true]) {
-    const f = fixture(t);
-    const services = [{ serviceId:'core-id', quantity:1 }, { serviceId:'repair-id', type:'repair', quantity:1 }];
+    const f = fixture(t, { duration:60, inspection:90 });
+    const services = [{ serviceId:'core-id', type:'core', brand:'Carrier', quantity:1, unitPrice:1000 },
+      { serviceId:'repair-id', type:'repair', brand:'Midea', unitType:'Split Aircon', hp:2, quantity:1,
+        unitPrice:1, duration:1, problemDescription:'Aircon is not cooling properly' }];
     const result = await f.call({ services:stringified ? JSON.stringify(services) : services, projectScheduling:undefined, startTime:'08:00' });
-    assert.equal(result.code, 400);
-    assert.equal(result.body.code, 'MIXED_SERVICE_BOOKING_NOT_ALLOWED');
-    assert.equal(f.calls.writes.length, 0); assert.equal(f.calls.payments.length, 0);
-    assert.equal(f.calls.capacity.length, 0); assert.equal(f.calls.windows.length, 0);
+    assert.equal(result.code, 201, result.body?.error);
+    assert.equal(result.body.isProject, false);
+    assert.equal(f.calls.writes.length, 1); assert.equal(f.calls.payments.length, 1);
+    assert.equal(f.calls.capacity.length, 2); assert.equal(f.calls.windows.length, 0);
+    const saved = f.calls.writes[0];
+    assert.equal(saved.serviceType, 'mixed'); assert.equal(saved.quantity, 2);
+    assert.equal(saved.totalPrice, 1500); assert.equal(saved.serviceDurationMinutes, 150);
+    assert.deepEqual(Array.from(saved.services, row => [row.type, row.brand, row.hp, row.unitPrice, row.schedule.kind]), [
+      ['core','Carrier',null,1000,'service'], ['repair','Midea',2,500,'inspection'],
+    ]);
   }
 });
 

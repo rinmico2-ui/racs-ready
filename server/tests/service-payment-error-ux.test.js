@@ -44,7 +44,7 @@ function validatePayment({ number = "", proof = null, channel = "gcash" } = {}) 
     EnterpriseCalendar: { isProjectMode: () => false },
     isValidPhilippineMobile: value => /^09\d{9}$/.test(value),
     paymentProofValidationMessage: file => !file ? "Upload the payment receipt to continue." : "",
-    window: { adminGcashNumber: "09171234567", paymentMethodsConfig: { gcash: { available: true } } },
+    window: { ApplianceServices: require('../public/js/appliance-services'), adminGcashNumber: "09171234567", paymentMethodsConfig: { gcash: { available: true } } },
     document: { getElementById: id => fields[id] || null }
   };
   return vm.runInNewContext(`${validation}\nvalidateBookingData();`, context);

@@ -19,6 +19,8 @@
 const Technician = require("../models/Technician");
 const TechnicianAttendance = require("../models/TechnicianAttendance");
 const LeaveRequest = require("../models/LeaveRequest");
+const { attendanceDay } = require("./attendanceTime");
+const { readFilter, chooseRecord, sessionState } = require("./staffAttendanceSessions");
 
 /**
  * Statuses that indicate the technician is actively engaged
@@ -43,32 +45,26 @@ const AT_WORK_STATUSES = ["Present", "Late"];
  * @returns {Promise<string>}     – The computed availability status string
  */
 async function resolveAvailabilityStatus(technician, attendance, leave, opts = {}) {
-  const today = opts.today || startOfToday();
+  const reference = opts.today || new Date();
+  const today = attendanceDay(reference).start;
   const techId = technician._id;
-
-  // ── 1. Check for approved leave covering today ──────────────────────────
-  if (!leave) {
-    leave = await LeaveRequest.findOne({
-      technicianId: techId,
-      status: "approved",
-      startDate: { $lte: today },
-      endDate: { $gte: today },
+  if (!attendance && !opts.attendanceLoaded) {
+    const records = await TechnicianAttendance.find(readFilter({ technicianId: techId }, attendanceDay(reference))).lean();
+    attendance = chooseRecord(records, reference);
+  }
+  const session = sessionState(attendance, reference);
+  // An overnight shift keeps its original leave/attendance date. Old forgotten
+  // shifts need review and must not make a technician available indefinitely.
+  if (session.needsAdminReview) return persistStatus(technician, "Offline", opts);
+  const leaveDate = session.isOvernight ? session.workDay.start : today;
+  if (!leave && !opts.leaveLoaded) {
+    leave = await LeaveRequest.findOne({ technicianId: techId, status: "approved",
+      startDate: { $lte: leaveDate }, endDate: { $gte: leaveDate },
     }).lean();
   }
+  if (leave) return persistStatus(technician, "Offline", opts);
 
-  if (leave) {
-    return persistStatus(technician, "Offline", opts);
-  }
-
-  // ── 2. Check today's attendance record ──────────────────────────────────
-  if (!attendance) {
-    attendance = await TechnicianAttendance.findOne({
-      technicianId: techId,
-      date: today,
-    }).lean();
-  }
-
-  const isCheckedIn = attendance && AT_WORK_STATUSES.includes(attendance.status);
+  const isCheckedIn = attendance && !!attendance.checkInTime && AT_WORK_STATUSES.includes(attendance.status);
   const isCheckedOut = attendance && attendance.checkOutTime;
 
   // ── 3. Active assignment overrides attendance logic ─────────────────────
@@ -115,49 +111,30 @@ async function resolveAvailabilityStatus(technician, attendance, leave, opts = {
  * @returns {Promise<Map<string, string>>} Map of technicianId → computed status
  */
 async function resolveAvailabilityBulk(technicians, opts = {}) {
-  const today = opts.today || startOfToday();
+  const reference = opts.today || new Date(), day = attendanceDay(reference);
   const techIds = technicians.map(t => t._id);
-
   if (!techIds.length) return new Map();
-
-  // ── Batch fetch today's attendance records ──────────────────────────────
-  const attendanceRecords = await TechnicianAttendance.find({
-    technicianId: { $in: techIds },
-    date: today,
-  }).lean();
-
-  const attendanceMap = new Map(
-    attendanceRecords.map(r => [r.technicianId.toString(), r])
-  );
-
-  // ── Batch fetch active leave requests ───────────────────────────────────
-  const leaveRecords = await LeaveRequest.find({
-    technicianId: { $in: techIds },
-    status: "approved",
-    startDate: { $lte: today },
-    endDate: { $gte: today },
-  }).lean();
-
-  const leaveMap = new Map(
-    leaveRecords.map(l => [l.technicianId.toString(), l])
-  );
-
-  // ── Resolve each technician ─────────────────────────────────────────────
-  const results = new Map();
-
-  for (const tech of technicians) {
-    const idStr = tech._id.toString();
-    const attendance = attendanceMap.get(idStr) || null;
-    const leave = leaveMap.get(idStr) || null;
-
-    const status = await resolveAvailabilityStatus(tech, attendance, leave, {
-      today,
-      syncDb: opts.syncDb,
-    });
-
-    results.set(idStr, status);
+  const [records, leaves] = await Promise.all([
+    TechnicianAttendance.find(readFilter({ technicianId: { $in: techIds } }, day)).lean(),
+    LeaveRequest.find({ technicianId: { $in: techIds }, status: "approved",
+      startDate: { $lte: day.start }, endDate: { $gte: new Date(day.start.getTime() - 86400000) },
+    }).lean(),
+  ]);
+  const attendanceMap = new Map();
+  for (const record of records) {
+    const key = String(record.technicianId);
+    if (!attendanceMap.has(key)) attendanceMap.set(key, []);
+    attendanceMap.get(key).push(record);
   }
-
+  const results = new Map();
+  for (const tech of technicians) {
+    const key = String(tech._id), attendance = chooseRecord(attendanceMap.get(key) || [], reference);
+    const session = sessionState(attendance, reference), date = session.isOvernight ? session.workDay.start : day.start;
+    const leave = leaves.find(row => String(row.technicianId) === key && row.startDate <= date && row.endDate >= date);
+    results.set(key, await resolveAvailabilityStatus(tech, attendance, leave, {
+      today: reference, syncDb: opts.syncDb, attendanceLoaded: true, leaveLoaded: true,
+    }));
+  }
   return results;
 }
 
@@ -181,12 +158,6 @@ function computeAttendanceStatus(attendanceRecord, activeLeave) {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
-
-function startOfToday() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
 
 async function persistStatus(technician, status, opts) {
   if (opts.syncDb && technician.availabilityStatus !== status) {

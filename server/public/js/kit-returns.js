@@ -3,12 +3,24 @@
   const panel = document.getElementById('kitReturnsPanel');
   if (!panel) return;
   const technician = panel.dataset.mode === 'technician', base = technician ? '/api/technician/kit-returns' : '/api/admin/appointments/kit-returns';
+  const categorized = technician && panel.dataset.categorized === 'true';
   const canReview = !technician && panel.dataset.reviewAllowed === 'true';
   const $ = id => document.getElementById(id);
   const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[char]);
   const keys = ['unused', 'used', 'damaged', 'missing'];
   const date = value => value ? new Date(value).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' }) : 'No date';
-  const state = { page: 1, pages: 1, reportTotal: 0, materialPage: 1, materialPages: 1, materialTotal: 0, reports: [], materials: [], materialSelection: new Map(), reviewSelection: new Map(), selected: null, saving: false, loading: false, selecting: false };
+  const state = { category: '', search: '', filterPending: false, revision: 0, reloadRequested: false, page: 1, pages: 1, reportTotal: 0, materialPage: 1, materialPages: 1, materialTotal: 0, reports: [], materials: [], materialSelection: new Map(), reviewSelection: new Map(), selected: null, saving: false, loading: false, selecting: false };
+  function reportUrl(all = false) {
+    const query = new URLSearchParams(all ? { selection: 'all' } : { status: $('krStatus').value, page: state.page });
+    if ($('krTechnician')?.value) query.set('technicianId', $('krTechnician').value);
+    return `${base}?${query}`;
+  }
+  function materialUrl(all = false) {
+    const query = new URLSearchParams(all ? { selection: 'all' } : { page: state.materialPage, ...(categorized ? { limit: 6 } : {}) });
+    if (state.category) query.set('category', state.category);
+    if (state.search) query.set('search', state.search);
+    return `${base}/materials?${query}`;
+  }
   function message(id, text) { $(id).textContent = text || ''; $(id).hidden = !text; }
   async function request(url, options) {
     const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store', ...options });
@@ -20,7 +32,13 @@
   const materialKey = row => `${row.kitId}:${row._id}`;
   const returnable = row => Number(row.available) > 0 && !Number(row.returnPendingQuantity);
   function selectionControls() {
-    const busy = state.loading || state.saving || state.selecting;
+    const busy = state.loading || state.saving || state.selecting || state.filterPending;
+    $('krPrev').disabled = busy || state.page <= 1;
+    $('krNext').disabled = busy || state.page >= state.pages;
+    if (technician) {
+      $('krMaterialPrev').disabled = busy || state.materialPage <= 1;
+      $('krMaterialNext').disabled = busy || state.materialPage >= state.materialPages;
+    }
     if (!technician) {
       if (!canReview) return;
       const pending = $('krStatus').value === 'pending';
@@ -47,7 +65,7 @@
     $('krClearSelection').disabled = busy;
     $('krReturnSelected').disabled = busy || !state.materialSelection.size;
     $('krReturnAll').disabled = busy || !state.materialTotal;
-    $('krReturnAll').textContent = state.selecting ? 'Loading materials...' : 'Return all';
+    $('krReturnAll').textContent = state.selecting ? 'Loading materials...' : categorized ? 'Return all matches' : 'Return all';
     panel.querySelectorAll('[data-select-material]').forEach(input => { input.disabled = busy; input.checked = state.materialSelection.has(input.dataset.selectMaterial); });
   }
   const jobs = row => [...(row.bookingIds || []), ...(row.orderIds || [])].map(job => '<span class="kr-job-ref">' + escape(job.bookingReference || job.orderReference || 'Linked job') + (job.status === 'cancelled' ? ' <span class="badge bg-secondary">Cancelled</span>' : '') + '</span>').join('') || '<span class="kr-job-ref">Shared Daily Kit</span>';
@@ -69,34 +87,47 @@
     $('krPageLabel').textContent = 'Page ' + state.page + ' of ' + state.pages + ' - 10 per page';
   }
   function renderMaterials(data) {
+    if (categorized) window.dispatchEvent(new CustomEvent('technician-kit-counts', { detail: data.summary || {} }));
     state.materials = data.items || [];
     state.materialPages = data.pagination.pages;
     state.materialTotal = data.pagination.total;
     state.materials.forEach(row => { const key = materialKey(row); if (!returnable(row)) state.materialSelection.delete(key); else if (state.materialSelection.has(key)) state.materialSelection.set(key, row); });
-    $('krMaterialPage').textContent = 'Page ' + state.materialPage + ' of ' + state.materialPages + ' - ' + data.pagination.total + ' materials';
+    $('krMaterialPage').textContent = data.pagination.total ? 'Showing ' + ((state.materialPage - 1) * data.pagination.limit + 1) + '–' + Math.min(state.materialPage * data.pagination.limit, data.pagination.total) + ' of ' + data.pagination.total + ' items' : 'No items match this view';
     $('krMaterialPrev').disabled = state.materialPage <= 1; $('krMaterialNext').disabled = state.materialPage >= state.materialPages;
     $('krMaterials').innerHTML = state.materials.map(row => {
-      const action = row.returnPendingQuantity ? '<span class="badge bg-warning text-dark">Awaiting admin receipt</span>' : '<button class="btn btn-outline-success btn-sm" type="button" data-material="' + escape(row.kitId) + ':' + escape(row._id) + '">Report materials</button>';
+      const action = row.returnPendingQuantity ? '<span class="badge bg-warning text-dark">Awaiting admin receipt</span>' : '<button class="btn btn-outline-success btn-sm" type="button" data-material="' + escape(row.kitId) + ':' + escape(row._id) + '" aria-label="Report quantities for ' + escape(row.name) + '">Report</button>';
       const checkbox = returnable(row) ? '<label class="kr-material-choice"><input type="checkbox" class="form-check-input kr-material-check" data-select-material="' + escape(materialKey(row)) + '" aria-label="Select ' + escape(row.name) + ' for ' + escape(date(row.workDate)) + '"></label>' : '';
       return '<tr><td class="kr-report-item"><div class="kr-material-name">' + checkbox + '<div><strong>' + escape(row.name) + '</strong><small>' + escape(date(row.workDate)) + ' &middot; ' + escape(row.unit || 'pcs') + '</small>' + (row.cancelledWork ? '<small class="text-danger">Cancelled job &middot; Check unused materials</small>' : '') + '</div></div></td><td data-label="Issued">' + amount(row.quantityIssued) + '</td><td data-label="Recorded used">' + amount(row.quantityUsed) + '</td><td data-label="Still with you">' + amount(row.outstanding) + (row.returnPendingQuantity ? '<small>' + amount(row.returnPendingQuantity) + ' awaiting receipt</small>' : '') + '</td><td>' + action + '</td></tr>';
     }).join('') || '<tr><td colspan="5" class="kr-empty"><i class="bi bi-check2-circle" aria-hidden="true"></i>No materials waiting for a report.</td></tr>';
   }
   async function load() {
-    if (state.loading || state.saving || state.selecting) return;
-    state.loading = true; $('krRefresh').disabled = true; $('krStatus').disabled = true;
+    if (state.loading || state.saving || state.selecting || state.filterPending) { state.reloadRequested = true; return; }
+    const revision = state.revision;
+    state.reloadRequested = false;
+    state.loading = true; $('krRefresh').disabled = true; $('krStatus').disabled = true; if ($('krTechnician')) $('krTechnician').disabled = true;
     selectionControls();
     try {
-      const results = await Promise.allSettled([request(`${base}?status=${encodeURIComponent($('krStatus').value)}&page=${state.page}`), technician ? request(`${base}/materials?page=${state.materialPage}`) : Promise.resolve(null)]);
+      const results = await Promise.allSettled([request(reportUrl()), technician ? request(materialUrl()) : Promise.resolve(null)]);
+      if (revision !== state.revision) return;
       const errors = [];
       if (results[0].status === 'fulfilled') {
         let reports = results[0].value;
-        if (state.page > reports.pagination.pages) { state.page = reports.pagination.pages; reports = await request(`${base}?status=${encodeURIComponent($('krStatus').value)}&page=${state.page}`); }
+        if (state.page > reports.pagination.pages) { state.page = reports.pagination.pages; reports = await request(reportUrl()); }
+        if (revision !== state.revision) return;
         renderReports(reports);
       } else errors.push(results[0].reason.message);
-      if (technician && results[1].status === 'fulfilled') renderMaterials(results[1].value); else if (results[1].status === 'rejected') errors.push(results[1].reason.message);
+      if (technician && results[1].status === 'fulfilled') {
+        let materials = results[1].value;
+        if (state.materialPage > materials.pagination.pages) { state.materialPage = materials.pagination.pages; materials = await request(materialUrl()); }
+        if (revision !== state.revision) return;
+        renderMaterials(materials);
+      } else if (results[1].status === 'rejected') errors.push(results[1].reason.message);
       message('krError', errors.join(' '));
     } catch (error) { message('krError', error.message); }
-    finally { state.loading = false; $('krRefresh').disabled = false; $('krStatus').disabled = false; selectionControls(); }
+    finally {
+      state.loading = false; $('krRefresh').disabled = false; $('krStatus').disabled = false; if ($('krTechnician')) $('krTechnician').disabled = false; selectionControls();
+      if (state.reloadRequested) { state.reloadRequested = false; load(); }
+    }
   }
   function open(row, reporting) {
     state.selected = { row, reporting }; $('krForm').reset(); message('krModalError', '');
@@ -128,13 +159,15 @@
     bootstrap.Modal.getOrCreateInstance($('krModal')).show();
   }
   async function selectAllMaterials() {
-    if (state.loading || state.saving || state.selecting) return;
+    if (state.loading || state.saving || state.selecting || state.filterPending) return;
+    const revision = state.revision;
     state.selecting = true; selectionControls(); message('krError', '');
     try {
-      const data = await request(`${base}/materials?selection=all`);
+      const data = await request(materialUrl(true));
+      if (revision !== state.revision) return;
       openBatch((data.items || []).filter(returnable));
     } catch (error) { message('krError', error.message); }
-    finally { state.selecting = false; selectionControls(); }
+    finally { state.selecting = false; selectionControls(); if (state.reloadRequested) { state.reloadRequested = false; load(); } }
   }
   function openReviewBatch(rows) {
     if (!rows.length) { message('krError', 'There are no pending reports to review.'); return; }
@@ -157,10 +190,10 @@
   }
   async function selectAllReports() {
     if (state.loading || state.saving || state.selecting || !canReview) return;
-    state.selecting = true; selectionControls(); message('krError', '');
-    try { const data = await request(`${base}?selection=all`); openReviewBatch((data.items || []).filter(row => row.status === 'pending')); }
+    state.selecting = true; const revision = state.revision; selectionControls(); message('krError', '');
+    try { const data = await request(reportUrl(true)); if (revision !== state.revision) return; openReviewBatch((data.items || []).filter(row => row.status === 'pending')); }
     catch (error) { message('krError', error.message); }
-    finally { state.selecting = false; selectionControls(); }
+    finally { state.selecting = false; selectionControls(); if (state.reloadRequested) { state.reloadRequested = false; load(); } }
   }
   async function save(decision) {
     if (state.saving || !state.selected) return;
@@ -213,10 +246,34 @@
   $('krForm').addEventListener('submit', event => { event.preventDefault(); save('receive'); });
   $('krReject').addEventListener('click', () => save('reject'));
   $('krRefresh').addEventListener('click', load);
-  $('krStatus').addEventListener('change', () => { state.page = 1; state.reviewSelection.clear(); selectionControls(); load(); });
+  const reportFilterChanged = () => { state.revision++; state.page = 1; state.reviewSelection.clear(); selectionControls(); load(); };
+  $('krStatus').addEventListener('change', reportFilterChanged);
+  $('krTechnician')?.addEventListener('change', reportFilterChanged);
   $('krPrev').addEventListener('click', () => { if (!state.loading && state.page > 1) { state.page--; load(); } });
   $('krNext').addEventListener('click', () => { if (!state.loading && state.page < state.pages) { state.page++; load(); } });
   if (technician) {
+    if (categorized) {
+      $('krMaterialsSection').setAttribute('role', 'tabpanel');
+      $('krReportsSection').setAttribute('role', 'tabpanel');
+      const clearMaterialList = () => {
+        state.materialSelection.clear(); state.materials = []; state.materialTotal = 0;
+        $('krMaterials').innerHTML = '<tr><td colspan="5" class="kr-empty"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Loading items…</td></tr>';
+      };
+      window.addEventListener('technician-kit-search-pending', event => {
+        state.search = String(event.detail?.search || '').slice(0, 100); state.filterPending = true; state.revision++;
+        clearMaterialList(); selectionControls();
+      });
+      window.addEventListener('technician-kit-filter', event => {
+        const category = ['repair_part', 'consumable'].includes(event.detail?.category) ? event.detail.category : '';
+        const search = String(event.detail?.search || '').slice(0, 100);
+        state.category = category; state.search = search; state.filterPending = false; state.materialPage = 1; state.revision++;
+        clearMaterialList();
+        $('krMaterialsTitle').textContent = category === 'repair_part' ? 'Repair parts still with you' : category === 'consumable' ? 'Consumables still with you' : 'Materials still with you';
+        $('krMaterialSelectionHint').textContent = 'Return all matches includes only the selected category and search, across every page. Items awaiting admin receipt are skipped.';
+        selectionControls(); load();
+      });
+      window.addEventListener('technician-kit-refresh', load);
+    }
     panel.addEventListener('change', event => {
       const input = event.target.closest('[data-select-material]');
       if (!input || state.loading || state.saving || state.selecting) return;

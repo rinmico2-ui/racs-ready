@@ -820,6 +820,14 @@
       const travelFee = Math.max(0, Number(b.travelFare || 0));
       const serviceFee = Math.max(0, total - travelFee);
       const balanceAfterDeposit = Math.max(0, Number(b.balanceAmount ?? (total - Math.max(dp, amountPaid))));
+      if (pm === 'cash_after_service') {
+        return section('Payment Details', 'bi-cash-coin', `
+          ${kv('Payment plan', '100% Cash After Service')}
+          ${kv('Advance payment', 'Not required')}
+          ${kv('Paid so far', fmtCurrency(amountPaid))}
+          ${kv('Cash due after service', fmtCurrency(Math.max(0, total - amountPaid)))}
+        `, '', 'blue');
+      }
       if (b.maintenance?.paymentOnSite === true) {
         return section('Payment Details', 'bi-cash-coin', `
           ${kv('Payment plan', 'Pay on site after service')}
@@ -830,7 +838,7 @@
       }
       const inPersonCard = b.paymentChannel === 'card';
       const channelName = ({ card: 'Card at RACS store', gcash: 'GCash', maya: 'Maya', bank_transfer: 'Bank Transfer', other: 'Other Transfer' })[b.paymentChannel] || 'selected method';
-      const methodName = pm === 'cod' ? `${channelName} downpayment + balance at completion`
+      const methodName = pm === 'cash_after_service' ? '100% Cash After Service (no advance payment)' : pm === 'cod' ? `${channelName} downpayment + balance at completion`
           : pm === 'gcash' ? (inPersonCard ? 'Full card payment at RACS store' : `Full payment via ${channelName}`) : pm.toUpperCase();
   
       let breakdown = '';
@@ -1313,7 +1321,7 @@
                       <li class="nav-item"><button class="nav-link active" id="bh-core-tab" data-bs-toggle="pill" data-bs-target="#bh-core-pane" type="button" role="tab"><span class="bh-service-tab-icon"><i class="bi bi-gear-fill"></i></span><span><strong>Core Services</strong><small>Cleaning, installation and maintenance</small></span></button></li>
                       <li class="nav-item"><button class="nav-link" id="bh-repair-tab" data-bs-toggle="pill" data-bs-target="#bh-repair-pane" type="button" role="tab"><span class="bh-service-tab-icon"><i class="bi bi-tools"></i></span><span><strong>Repair Services</strong><small>Inspection and appliance diagnosis</small></span></button></li>
                     </ul>
-                    <p class="small text-muted mb-2" id="bhServiceTypePolicy" role="status">Choose Core Services or Repair Service for this booking. Book the other category for a different booking.</p>
+                    <p class="small text-muted mb-2" id="bhServiceTypePolicy">You can combine Core and Repair services in one booking.</p>
                     <div class="tab-content" id="bhAddTabContent">
                       <div class="tab-pane fade show active" id="bh-core-pane" role="tabpanel"><div id="bhCoreApplianceBuilder"></div></div>
                       <div class="tab-pane fade" id="bh-repair-pane" role="tabpanel"><div id="bhRepairApplianceBuilder"></div></div>
@@ -1402,31 +1410,6 @@
       });
 
       let coreBuilder = null, repairBuilder = null;
-      const rowCategory = row => {
-        const type = String(row?.type || row?.serviceType || 'core').trim().toLowerCase();
-        return ['repair', 'repairservices', 'repair_service'].includes(type) ? 'repair' : type === 'mixed' ? 'mixed' : 'core';
-      };
-      const rowsAreMixed = () => {
-        const categories = new Set(rows.map(rowCategory));
-        return categories.has('mixed') || categories.size > 1;
-      };
-      function syncServiceTypeTabs() {
-        const mixed = rowsAreMixed();
-        const picked = mixed || !rows.length ? null : rowCategory(rows[0]);
-        const policy = host.querySelector('#bhServiceTypePolicy');
-        if (policy) policy.textContent = mixed
-          ? 'This booking already combines Core and Repair. Remove one category and save it before adding more services.'
-          : picked ? `This booking is for ${picked === 'core' ? 'Core Services' : 'Repair Service'}. Book the other category separately, or remove the added services to switch.`
-            : 'Choose Core Services or Repair Service for this booking. Book the other category for a different booking.';
-        for (const category of ['core', 'repair']) {
-          const tab = host.querySelector(`#bh-${category}-tab`);
-          if (!tab) continue;
-          const blocked = mixed || Boolean(picked && category !== picked);
-          tab.disabled = blocked;
-          tab.setAttribute('aria-disabled', String(blocked));
-          tab.title = blocked ? 'Remove the added services before switching category, or book the other category for a different booking.' : '';
-        }
-      }
       let editorCalendarQueue = Promise.resolve();
       function refreshEditorScheduleMode() {
         const project = needsProjectSchedule();
@@ -1470,7 +1453,6 @@
       }
 
       function updateServiceCount() {
-        syncServiceTypeTabs();
         const badge = host.querySelector("#bhServiceCount");
         if (badge) badge.textContent = rows.length;
         const cartCount = host.querySelector("#bhEditorCartCount");
@@ -1621,7 +1603,6 @@
 
       function syncBuilders() { coreBuilder?.sync(); repairBuilder?.sync(); }
       function initializeServiceBuilders() {
-        const preExistingMix = rowsAreMixed();
         const editorState = { get selectedServices() { return rows; } };
         const assistance = async (payload, photos = []) => {
           const form = new FormData();
@@ -1642,7 +1623,7 @@
           commit: (added, editingId) => {
             const previous = rows.filter(row => (row.applianceGroupId || String(row.id || row._id || '')) === String(editingId));
             const next = rows.filter(row => !previous.includes(row)).concat(added);
-            if (!preExistingMix) window.ApplianceServices.assertSingleServiceType(next);
+            window.ApplianceServices.assertServiceTypes(next);
             window.ApplianceServices.assertStandaloneServices(next);
             const updated = added.map(row => ({ ...row, ...(previous.find(item => String(item.serviceId) === String(row.serviceId))?._id ? { _id: previous.find(item => String(item.serviceId) === String(row.serviceId))._id } : {}) }));
             for (let i = rows.length - 1; i >= 0; i--) if (previous.includes(rows[i])) rows.splice(i, 1);
@@ -1657,7 +1638,7 @@
           photos: false, assistance, review, next,
           commit: (row, editingId) => {
             const next = rows.filter(item => String(item.id || item._id || '') !== String(editingId)).concat(row);
-            if (!preExistingMix) window.ApplianceServices.assertSingleServiceType(next);
+            window.ApplianceServices.assertServiceTypes(next);
             window.ApplianceServices.assertStandaloneServices(next);
             const index = rows.findIndex(item => String(item.id || item._id || '') === String(editingId));
             if (index >= 0) rows.splice(index, 1, row); else rows.push(row);

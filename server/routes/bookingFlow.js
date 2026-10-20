@@ -90,6 +90,9 @@ const { calculatePaymentBreakdown } = require("../utils/paymentPolicy");
 
     // Update booking
     const totalAmount = booking.totalPrice || booking.estimatedFee || 0;
+    if (booking.paymentMethod === 'cash_after_service') {
+      return res.status(400).json({ error: 'Approve this Cash After Service booking in Booking Requests. There is no upfront payment to verify.' });
+    }
     const isCOD = booking.paymentMethod === 'cod';
 
     if (isCOD) {

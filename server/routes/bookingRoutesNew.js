@@ -70,7 +70,7 @@ const bookingSubmissionLimiter = rateLimit({
  */
 router.post('/loyalty-quote', async (req, res, next) => {
   try {
-    require('../public/js/appliance-services').assertSingleServiceType(req.body.services);
+    require('../public/js/appliance-services').assertServiceTypes(req.body.services);
     const lines = await loyaltyRewards.serviceLines(req.body.services);
     const excluded = req.body.isProject === true;
     const reward = await loyaltyRewards.rewardFor(req.user._id, 'services', lines, excluded);
@@ -120,6 +120,7 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
     // Keep legacy `cod` storage compatibility. It represents the reservation
     // plan (GCash downpayment + balance at completion), not the transfer channel.
     const bookingPaymentMethod = paymentMethod === 'cash' ? 'cod' : paymentMethod;
+    const payAfterService = bookingPaymentMethod === 'cash_after_service';
 
     // Check if services is stringified and needs parsing
     let parsedServices = services;
@@ -139,7 +140,7 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
       return res.status(400).json({ error: 'At least one service is required' });
     }
     if (parsedServices.length > 320) return res.status(400).json({ error: 'Choose up to 320 service items across a maximum of 40 appliances.' });
-    try { require('../public/js/appliance-services').assertSingleServiceType(parsedServices); }
+    try { require('../public/js/appliance-services').assertServiceTypes(parsedServices); }
     catch (error) { return res.status(400).json({ error:error.message, code:error.code }); }
     if (parsedServices.some(item => item?.type === 'repair' && item.relocation)) {
       return res.status(400).json({ error: 'Relocation details are only valid for Aircon Relocation.' });
@@ -183,15 +184,15 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
     }
 
     
-    if (!['gcash', 'cod'].includes(bookingPaymentMethod)) {
+    if (!['gcash', 'cod', 'cash_after_service'].includes(bookingPaymentMethod)) {
       return res.status(400).json({ error: 'Choose a supported payment option.' });
     }
-    const normalizedPaymentChannel = normalizePaymentChannel(paymentChannel);
-    if (!MANUAL_PAYMENT_CHANNELS.includes(normalizedPaymentChannel)) {
+    const normalizedPaymentChannel = payAfterService ? 'cash' : normalizePaymentChannel(paymentChannel);
+    if (!payAfterService && !MANUAL_PAYMENT_CHANNELS.includes(normalizedPaymentChannel)) {
       return res.status(400).json({ error: 'Choose a supported payment method.' });
     }
     const configuredPaymentMethods = await getPaymentMethods();
-    if (!configuredPaymentMethods[normalizedPaymentChannel]?.available) {
+    if (!payAfterService && !configuredPaymentMethods[normalizedPaymentChannel]?.available) {
       return res.status(503).json({ error: 'That payment method is currently unavailable. Choose another method or contact the store.' });
     }
     const senderDigits = String(gcashNumber || '').replace(/\D/g, '');
@@ -202,14 +203,17 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
       ? (senderDigits.startsWith('63') ? `0${senderDigits.slice(2)}` : senderDigits)
       : null;
     const normalizedPaymentReference = String(paymentReference || '').trim().slice(0, 120);
-    if (normalizedPaymentChannel !== 'gcash' && normalizedPaymentReference.length < 3) {
+    if (!payAfterService && normalizedPaymentChannel !== 'gcash' && normalizedPaymentReference.length < 3) {
       return res.status(400).json({ error: 'Enter the transaction or payment reference for the selected payment method.' });
     }
-    if (!req.file && !hasValidImageDataUrl(proofImageBase64)) {
+    if (!payAfterService && !req.file && !hasValidImageDataUrl(proofImageBase64)) {
       return res.status(400).json({ error: 'Upload a valid JPG, PNG, or WEBP payment receipt no larger than 5 MB.' });
     }
     if (proofImageBase64 && process.env.NODE_ENV === 'production') {
       return res.status(400).json({ error: 'Refresh the booking page and upload the payment receipt again.' });
+    }
+    if (payAfterService && (req.file || proofImageBase64 || paymentReference || gcashNumber)) {
+      return res.status(400).json({ error: 'Cash After Service does not require a transfer, receipt or payment reference. Clear the previous payment details and try again.' });
     }
     
     // ========================================
@@ -683,9 +687,9 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
       paymentStatus: 'pending',
       paymentReference: normalizedPaymentReference || normalizedGcashNumber,
       gcashNumber: normalizedGcashNumber,
-      downpaymentPercentage: bookingPaymentMethod === 'cod' ? paymentBreakdown.downpaymentPercentage : 100,
-      downpaymentAmount: bookingPaymentMethod === 'cod' ? paymentBreakdown.downpaymentAmount : authoritativeTotal,
-      balanceAmount: bookingPaymentMethod === 'cod' ? paymentBreakdown.balanceAmount : 0,
+      downpaymentPercentage: payAfterService ? 0 : bookingPaymentMethod === 'cod' ? paymentBreakdown.downpaymentPercentage : 100,
+      downpaymentAmount: payAfterService ? 0 : bookingPaymentMethod === 'cod' ? paymentBreakdown.downpaymentAmount : authoritativeTotal,
+      balanceAmount: payAfterService ? authoritativeTotal : bookingPaymentMethod === 'cod' ? paymentBreakdown.balanceAmount : 0,
       amountPaid: 0,
       paymentNotes: paymentNotes || null,
       paymentProof: proofImageBase64 || null,
@@ -701,7 +705,7 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
       } : undefined,
       
       // Legacy payment fields
-      gateway: paymentRecordMethod(normalizedPaymentChannel),
+      gateway: payAfterService ? 'cod' : paymentRecordMethod(normalizedPaymentChannel),
       
       // Timestamps
       createdAt: new Date(),
@@ -739,7 +743,7 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
       ? paymentBreakdown.downpaymentAmount
       : authoritativeTotal;
     const paymentSchemaMethod = paymentRecordMethod(normalizedPaymentChannel);
-    const paymentDoc = new Payment({
+    const paymentDoc = payAfterService ? null : new Payment({
       bookingId: booking._id,
       amount: paymentAmount,
       method: paymentSchemaMethod,
@@ -2046,7 +2050,7 @@ router.post('/:id/service-change-requests', async (req, res) => {
 
     const beforeServices = bookingServices(booking);
     const proposedServices = await validatedServiceItems(req.body.services, booking);
-    require('../public/js/appliance-services').assertSingleServiceType(proposedServices);
+    require('../public/js/appliance-services').assertServiceTypes(proposedServices);
     const summary = summarizeChanges(beforeServices, proposedServices);
     const inspectionDuration = await getInspectionDurationMinutes();
     const totalUnits = validateBookingUnitLimit(proposedServices);
@@ -2156,7 +2160,7 @@ router.post('/:id/service-change-requests', async (req, res) => {
       booking.totalInitialCost = totals.totalInitialCost;
       booking.totalFinalCost = totals.totalFinalCost;
       booking.totalPrice = totals.totalPrice;
-      if (booking.paymentMethod === 'cod' && booking.totalPrice > 0) {
+      if (['cod', 'cash_after_service'].includes(booking.paymentMethod) && booking.totalPrice > 0) {
         const dp = Number(booking.downpaymentAmount) || 0;
         booking.balanceAmount = Math.max(0, booking.totalPrice - dp);
         booking.amountPaid = dp;

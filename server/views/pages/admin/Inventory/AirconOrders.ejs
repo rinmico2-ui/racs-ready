@@ -321,6 +321,7 @@
           <div class="workflow-overview-toolbar">
             <input type="search" class="form-control form-control-sm" id="aoSearch" placeholder="Search reference, customer or product..." style="width:260px;">
             <select class="form-select form-select-sm" id="aoStatusFilter" style="width:180px;"><option value="all">All Statuses</option><option value="pending_payment">Pending Payment</option><option value="preparing_unit">Preparation Queue</option><option value="ready_for_pickup">Ready for Pickup</option><option value="technician_assigned">Technician Assigned</option><option value="technician_accepted">Technician Accepted</option><option value="out_for_delivery">En Route</option><option value="arrived">Arrived</option><option value="installing">Installing</option><option value="completed">Completed</option><option value="technician_declined">Technician Declined</option><option value="cancelled">Cancelled</option></select>
+            <select class="form-select form-select-sm" id="aoTechnicianIssue" aria-label="Technician issue" style="width:210px;"><option value="">All technician issues</option><option value="declined">Technician declined / Needs reassignment</option><option value="emergency">Technician emergency</option></select>
             <select class="form-select form-select-sm" id="aoFulfillFilter" style="width:185px;"><option value="all">All Delivery Orders</option><option value="delivery_installation">Delivery + Installation</option><option value="delivery_only">Delivery Only (Legacy)</option></select>
             <select class="form-select form-select-sm" id="aoPreparationFilter" style="width:180px;"><option value="all">All Preparation</option><option value="ready">Fully Prepared</option><option value="dispatch_pending">Unit Not Prepared</option><option value="dispatch_ready">Unit Prepared</option><option value="kit_pending">Daily Kit Pending</option><option value="kit_blocked">Daily Kit Blocked</option><option value="kit_confirmed">Daily Kit Confirmed</option></select>
             <button class="btn btn-sm btn-primary fw-semibold" id="aoFilterBtn" type="button"><i class="bi bi-funnel me-1"></i>Apply</button>
@@ -421,7 +422,7 @@
       <div class="modal-body ent-modal-body" id="aoModalBody">
         <div class="text-center py-4"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Loading order details...</p></div>
       </div>
-      <div class="modal-footer ent-modal-footer" id="aoModalFooter"></div>
+      <div class="modal-footer ent-modal-footer operations-detail-footer" id="aoModalFooter"></div>
     </div>
   </div>
 </div>
@@ -555,4 +556,6 @@
 window.RACSOrdersSocket = window.socket || (typeof window.io === 'function' ? window.io() : null);
 </script>
 <script src="/js/operations-request.js?v=20260926"></script>
-<script src="/js/admin-aircon-orders.js?v=20261016-team-responses-v4"></script>
+<link rel="stylesheet" href="/css/operations-detail-actions.css?v=20261019">
+<script src="/js/operations-detail-actions.js?v=20261019"></script>
+<script src="/js/admin-aircon-orders.js?v=20261019-technician-issues"></script>

@@ -1,29 +1,38 @@
-<link rel="stylesheet" href="/css/technician/technician-tools.css?v=20261013-clean-workspace">
+<link rel="stylesheet" href="/css/technician/technician-tools.css?v=20261020-categorized-kit">
 <section class="technician-page tt-page" id="technicianToolsPage">
   <div class="tt-shell">
     <header class="tt-header">
-      <div><span class="tt-eyebrow">TECHNICIAN WORKSPACE</span><h1>My tools</h1><p>Manage your equipment, materials, and returns in one place.</p></div>
+      <div><span class="tt-eyebrow">TECHNICIAN WORKSPACE</span><h1>My tools</h1><p>Choose a category to find what is with you, check quantities, and manage returns.</p></div>
       <div class="tt-header-actions"><button class="tt-button tt-button-secondary" id="ttRefresh" type="button"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i>Refresh</button><button class="tt-button tt-button-primary" id="ttLogUsage" type="button"><i class="bi bi-plus-lg" aria-hidden="true"></i>Log equipment use</button></div>
     </header>
-    <div class="tt-summary" aria-label="Your equipment summary">
+    <nav class="tt-categories" role="tablist" aria-label="Items and returns">
+      <button type="button" class="tt-category is-active" id="ttCategoryEquipment" role="tab" aria-selected="true" aria-controls="ttEquipmentPanel" data-category="equipment"><i class="bi bi-tools" aria-hidden="true"></i><span><strong>Equipment</strong><small>Reusable tools</small></span><b id="ttEquipmentBadge">&mdash;</b></button>
+      <button type="button" class="tt-category" id="ttCategoryParts" role="tab" aria-selected="false" tabindex="-1" aria-controls="krMaterialsSection" data-category="repair_part"><i class="bi bi-gear" aria-hidden="true"></i><span><strong>Repair parts</strong><small>Parts still with you</small></span><b id="ttPartsBadge">&mdash;</b></button>
+      <button type="button" class="tt-category" id="ttCategoryConsumables" role="tab" aria-selected="false" tabindex="-1" aria-controls="krMaterialsSection" data-category="consumable"><i class="bi bi-droplet" aria-hidden="true"></i><span><strong>Consumables</strong><small>Supplies still with you</small></span><b id="ttConsumablesBadge">&mdash;</b></button>
+      <button type="button" class="tt-category" id="ttCategoryReturns" role="tab" aria-selected="false" tabindex="-1" aria-controls="krReportsSection" data-category="returns"><i class="bi bi-arrow-return-left" aria-hidden="true"></i><span><strong>Returns</strong><small>Reports and feedback</small></span></button>
+    </nav>
+      <div class="tt-toolbar tt-category-toolbar" id="ttCategoryToolbar"><label class="tt-search"><i class="bi bi-search" aria-hidden="true"></i><span class="visually-hidden">Search items</span><input id="ttSearch" type="search" maxlength="100" placeholder="Search by item name" autocomplete="off"></label><label class="tt-filter"><span class="visually-hidden">Equipment status</span><select id="ttStatus"><option value="all">All equipment</option><option value="active">In your care</option><option value="reserved">Reserved</option></select></label></div>
+    <section class="tt-workspace" id="ttEquipmentPanel" role="tabpanel" aria-labelledby="ttCategoryEquipment">
+    <div class="tt-summary tt-summary-compact" aria-label="Your equipment summary">
       <div class="tt-stat"><span class="tt-stat-icon tt-blue"><i class="bi bi-tools" aria-hidden="true"></i></span><div><span class="tt-stat-label">In your care</span><strong id="ttActiveCount">&mdash;</strong><small>Equipment units issued</small></div></div>
       <div class="tt-stat"><span class="tt-stat-icon tt-amber"><i class="bi bi-box-seam" aria-hidden="true"></i></span><div><span class="tt-stat-label">Reserved</span><strong id="ttReservedCount">&mdash;</strong><small>Waiting to be issued</small></div></div>
       <div class="tt-stat"><span class="tt-stat-icon tt-green"><i class="bi bi-calendar-check" aria-hidden="true"></i></span><div><span class="tt-stat-label">Used today</span><strong id="ttUsageCount">&mdash;</strong><small>Equipment use records</small></div></div>
     </div>
-    <section class="tt-workspace" aria-label="Equipment records">
+
       <div class="tt-section-heading"><span class="tt-section-icon"><i class="bi bi-tools" aria-hidden="true"></i></span><div><h2>Equipment</h2><p>See what is issued to you and track its use.</p></div></div>
       <div class="tt-tabs" role="tablist" aria-label="Tool records">
-        <button type="button" class="tt-tab is-active" id="ttTabEquipment" role="tab" aria-selected="true" aria-controls="ttRecords" data-tab="equipment">Equipment <span id="ttEquipmentBadge">&mdash;</span></button>
+        <button type="button" class="tt-tab is-active" id="ttTabEquipment" role="tab" aria-selected="true" aria-controls="ttRecords" data-tab="equipment">Current items</button>
         <button type="button" class="tt-tab" id="ttTabUsage" role="tab" aria-selected="false" tabindex="-1" aria-controls="ttRecords" data-tab="usage">Usage log</button>
         <button type="button" class="tt-tab" id="ttTabHistory" role="tab" aria-selected="false" tabindex="-1" aria-controls="ttRecords" data-tab="history">History</button>
       </div>
-      <div class="tt-toolbar"><label class="tt-search"><i class="bi bi-search" aria-hidden="true"></i><span class="visually-hidden">Search equipment records</span><input id="ttSearch" type="search" placeholder="Search equipment or job reference" autocomplete="off"></label><label class="tt-filter"><span class="visually-hidden">Equipment status</span><select id="ttStatus"><option value="all">All equipment</option><option value="active">In your care</option><option value="reserved">Reserved</option></select></label></div>
+
       <div class="tt-context"><p id="ttResultContext" aria-live="polite">Loading your equipment...</p><span><i class="bi bi-info-circle" aria-hidden="true"></i><span id="ttContextHelp">Return reusable equipment after the linked work is finished.</span></span></div>
       <div id="ttNotice" class="tt-notice" role="status" hidden></div>
       <div id="ttRecords" class="tt-records" role="tabpanel" aria-labelledby="ttTabEquipment" aria-busy="true"><div class="tt-empty"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span><p>Loading your equipment...</p></div></div>
+      <nav class="tt-pagination" id="ttPagination" aria-label="Equipment records pagination"></nav>
       <footer class="tt-workspace-footer"><i class="bi bi-shield-check" aria-hidden="true"></i>Admin confirms receipt before returned items become available again.</footer>
     </section>
-    <%- include('../../partials/kit-return-panel', { kitReturnMode: 'technician' }) %>
+    <%- include('../../partials/kit-return-panel', { kitReturnMode: 'technician', kitReturnTabbed: true }) %>
   </div>
 </section>
 <div class="modal fade tt-modal" id="ttUsageModal" tabindex="-1" aria-labelledby="ttUsageTitle" aria-hidden="true">
@@ -42,4 +51,4 @@
     <div class="modal-footer"><button class="tt-button tt-button-secondary" type="button" data-bs-dismiss="modal">Cancel</button><button class="tt-button tt-button-primary" id="ttReturnSave" type="submit">Send report</button></div>
   </form></div></div>
 </div>
-<script src="/js/technician-tools.js?v=20261013-admin-receipt" defer></script>
+<script src="/js/technician-tools.js?v=20261020-categorized-kit" defer></script>

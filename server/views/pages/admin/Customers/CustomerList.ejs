@@ -3,7 +3,7 @@
   const resolvedCustomerCanBlock = typeof customerCanBlock === "boolean" ? customerCanBlock : true;
   const resolvedCustomerCanUnblock = typeof customerCanUnblock === "boolean" ? customerCanUnblock : true;
 %>
-<div class="admin-dashboard container-fluid py-4 inventory-premium">
+<div class="admin-dashboard container-fluid py-4 inventory-premium customer-directory">
   <%- include('../../../partials/dashboard-styles') %>
   <style>
     .inventory-premium .dash-card {
@@ -86,7 +86,7 @@
         <div class="au-hero-icon"><i class="bi bi-people-fill"></i></div>
         <div>
           <h1>Customer Directory</h1>
-          <p>Manage customer records, lifecycle status, and account health</p>
+          <p>Find customers, assist with account concerns, and manage access.</p>
         </div>
       </div>
       <% if (resolvedCustomerApiBase === '/api/admin/customers') { %><a href="/admin/reports/customers" class="btn btn-light btn-sm fw-semibold"><i class="bi bi-bar-chart-line me-1" aria-hidden="true"></i> Customer Performance</a><% } %>
@@ -121,7 +121,7 @@
               <span class="inv-kpi-value mb-0" id="custActive">--</span>
               <span class="badge inv-kpi-pill bg-info-subtle text-info">Active</span>
             </div>
-            <span class="inv-kpi-sub">In good standing</span>
+            <span class="inv-kpi-sub">Unblocked accounts</span>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #06b6d4, #0891b2);">
             <i class="bi bi-person-check-fill"></i>
@@ -131,23 +131,6 @@
     </div>
     <div class="col-lg col-md-6">
       <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="200">
-        <div class="d-flex justify-content-between align-items-start mb-2">
-          <div>
-            <div class="kpi-title">VIP Customers</div>
-            <div class="d-flex align-items-center gap-2">
-              <span class="inv-kpi-value mb-0" id="custVIP">--</span>
-              <span class="badge inv-kpi-pill bg-warning-subtle text-warning">VIP</span>
-            </div>
-            <span class="inv-kpi-sub">Priority accounts</span>
-          </div>
-          <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
-            <i class="bi bi-star-fill"></i>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="col-lg col-md-6">
-      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="300">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
             <div class="kpi-title">Blocked Accounts</div>
@@ -170,7 +153,7 @@
       <label class="rp-filter-label" for="customerSearchInput"><i class="bi bi-search me-1"></i>Search Customer</label>
       <div class="input-group">
         <span class="input-group-text"><i class="bi bi-search"></i></span>
-        <input type="text" class="form-control" id="customerSearchInput" placeholder="Name, email, or phone" />
+        <input type="text" class="form-control" id="customerSearchInput" placeholder="Name, email, or phone" maxlength="100" autocomplete="off" />
       </div>
     </div>
     <div class="rp-filter-group">
@@ -178,25 +161,25 @@
       <select class="form-select rp-filter-input" id="customerStatusFilter" style="height:42px;">
         <option value="all">All Status</option>
         <option value="active">Active</option>
-        <option value="vip">VIP</option>
         <option value="blocked">Blocked</option>
       </select>
     </div>
     <button class="btn btn-primary rp-filter-btn" type="button" id="customerFilterBtn" title="Apply filters"><i class="bi bi-funnel-fill me-2"></i>Filter</button>
   </div>
 
+  <p class="customer-privacy-note"><i class="bi bi-shield-lock me-1" aria-hidden="true"></i>Contact details are masked. Open a customer record to view details when needed.</p>
+
   <div class="card border-0 shadow-sm">
-    <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+    <div class="card-header bg-white py-3 border-bottom customer-records-heading">
       <h6 class="mb-0 fw-bold">Customer Records</h6>
-      <span class="text-muted small fw-normal" id="customerCountLabel">Loading...</span>
+      <span class="text-muted small fw-normal" id="customerCountLabel" aria-live="polite">Loading...</span>
     </div>
     <div class="table-responsive">
       <table class="table table-hover table-dense align-middle mb-0">
         <thead class="bg-light">
           <tr>
             <th class="ps-4">Customer</th>
-            <th>Contact</th>
-            <th>Address</th>
+            <th>Contact (masked)</th>
             <th>Status</th>
             <th>Joined</th>
             <th class="text-end pe-4">Actions</th>
@@ -204,7 +187,7 @@
         </thead>
         <tbody id="customerTableBody">
           <tr>
-            <td colspan="6">
+            <td colspan="5">
               <div class="loading-spinner">
                 <div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>
               </div>
@@ -230,386 +213,26 @@
           <div class="ent-modal-icon bg-info-subtle"><i class="bi bi-person-badge text-info"></i></div>
           <div>
             <h6 class="modal-title fw-bold mb-0" id="customerDetailModalLabel">Customer Details</h6>
-            <small class="text-white-50">Account overview and management</small>
+            <small class="customer-modal-subtitle">Account overview and assistance</small>
           </div>
         </div>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body ent-modal-body" id="customerModalBody">
         <div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>
       </div>
+      <div class="ent-modal-footer" id="customerModalFooter"></div>
     </div>
   </div>
 </div>
 
+<link rel="stylesheet" href="/css/customer-directory.css?v=20261019-private-directory">
+<script src="/js/customer-directory.js?v=20261020-directory-init"></script>
 <script>
 (function(){
   const customerApiBase = <%- JSON.stringify(resolvedCustomerApiBase).replace(/</g, "\\u003c") %>;
   const customerCanBlock = <%- (JSON.stringify(resolvedCustomerCanBlock)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;
   const customerCanUnblock = <%- (JSON.stringify(resolvedCustomerCanUnblock)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;
-  var allCustomers = [];
-  var filteredCustomers = [];
-  var currentPage = 1;
-  var perPage = 10;
-
-  function getInitials(firstName, lastName) {
-    return ((firstName || '')[0] || '') + ((lastName || '')[0] || '');
-  }
-
-  function getStatusInfo(c) {
-    if (c.blocked) return { label: 'Blocked', cls: 'bg-danger-subtle text-danger border border-danger-subtle' };
-    if (c.vip) return { label: 'VIP', cls: 'bg-warning-subtle text-warning border border-warning-subtle' };
-    return { label: 'Active', cls: 'bg-success-subtle text-success border border-success-subtle' };
-  }
-
-  function getAvatarColor(c) {
-    if (c.blocked) return 'bg-danger-subtle text-danger';
-    if (c.vip) return 'bg-warning-subtle text-warning';
-    return 'bg-primary-subtle text-primary';
-  }
-
-  function formatDate(d) {
-    if (!d) return '--';
-    var dt = new Date(d);
-    return dt.toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
-  }
-
-  function renderKPIs() {
-    var total = allCustomers.length;
-    var active = allCustomers.filter(function(c){ return !c.blocked; }).length;
-    var vip = allCustomers.filter(function(c){ return c.vip; }).length;
-    var blocked = allCustomers.filter(function(c){ return c.blocked; }).length;
-    document.getElementById('custTotal').textContent = total.toLocaleString();
-    document.getElementById('custActive').textContent = active.toLocaleString();
-    document.getElementById('custVIP').textContent = vip.toLocaleString();
-    document.getElementById('custBlocked').textContent = blocked.toLocaleString();
-  }
-
-  function applyFilter() {
-    var q = document.getElementById('customerSearchInput').value.toLowerCase().trim();
-    var status = document.getElementById('customerStatusFilter').value;
-    filteredCustomers = allCustomers.filter(function(c) {
-      var name = ((c.firstName || '') + ' ' + (c.lastName || '')).toLowerCase();
-      var email = (c.email || '').toLowerCase();
-      var phone = (c.phone || '').toLowerCase();
-      var matchSearch = !q || name.indexOf(q) !== -1 || email.indexOf(q) !== -1 || phone.indexOf(q) !== -1;
-      var matchStatus = true;
-      if (status === 'active') matchStatus = !c.blocked;
-      else if (status === 'blocked') matchStatus = c.blocked;
-      else if (status === 'vip') matchStatus = c.vip;
-      return matchSearch && matchStatus;
-    });
-    currentPage = 1;
-    renderTable();
-    renderPagination();
-  }
-
-  function renderTable() {
-    var tbody = document.getElementById('customerTableBody');
-    var start = (currentPage - 1) * perPage;
-    var pageItems = filteredCustomers.slice(start, start + perPage);
-    var total = filteredCustomers.length;
-    document.getElementById('customerCountLabel').textContent = total + ' total records';
-
-    if (pageItems.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><i class="bi bi-people"></i><p>No customers found</p></div></td></tr>';
-      return;
-    }
-
-    var html = '';
-    pageItems.forEach(function(c) {
-      var initials = getInitials(c.firstName, c.lastName);
-      var fullName = ((c.firstName || '') + ' ' + (c.lastName || '')).trim() || 'Unknown';
-      var status = getStatusInfo(c);
-      var avatarCls = getAvatarColor(c);
-      var addr = [c.address && c.address.city, c.address && c.address.province].filter(Boolean).join(', ') || '--';
-
-      html += '<tr>' +
-        '<td class="ps-4">' +
-          '<div class="d-flex align-items-center">' +
-            '<div class="customer-avatar ' + avatarCls + ' me-2">' + initials + '</div>' +
-            '<div>' +
-              '<div class="fw-bold text-dark">' + fullName + '</div>' +
-              '<div class="text-muted text-micro">ID: ' + c._id.slice(-6).toUpperCase() + '</div>' +
-            '</div>' +
-          '</div>' +
-        '</td>' +
-        '<td>' +
-          '<div class="text-dark text-micro">' + (c.email || '--') + '</div>' +
-          '<div class="text-muted text-micro">' + (c.phone || '--') + '</div>' +
-        '</td>' +
-        '<td class="text-muted text-micro">' + addr + '</td>' +
-        '<td><span class="badge ' + status.cls + '">' + status.label + '</span></td>' +
-        '<td class="text-muted text-micro">' + formatDate(c.createdAt) + '</td>' +
-        '<td class="text-end pe-4">' +
-          '<button class="btn btn-micro btn-light border view-customer-btn" data-id="' + c._id + '" title="View">' +
-            '<i class="bi bi-eye text-primary"></i>' +
-          '</button>' +
-        '</td>' +
-      '</tr>';
-    });
-    tbody.innerHTML = html;
-  }
-
-  function renderPagination() {
-    var totalPages = Math.ceil(filteredCustomers.length / perPage) || 1;
-    var pag = document.getElementById('customerPagination');
-    var html = '';
-
-    html += '<li class="page-item' + (currentPage <= 1 ? ' disabled' : '') + '">' +
-      '<a class="page-link" data-page="' + (currentPage - 1) + '">Previous</a></li>';
-
-    for (var i = 1; i <= totalPages; i++) {
-      if (totalPages > 7) {
-        if (i === 1 || i === totalPages || (i >= currentPage - 1 && i <= currentPage + 1)) {
-          html += '<li class="page-item' + (i === currentPage ? ' active' : '') + '">' +
-            '<a class="page-link" data-page="' + i + '">' + i + '</a></li>';
-        } else if (i === currentPage - 2 || i === currentPage + 2) {
-          html += '<li class="page-item disabled"><a class="page-link">...</a></li>';
-        }
-      } else {
-        html += '<li class="page-item' + (i === currentPage ? ' active' : '') + '">' +
-          '<a class="page-link" data-page="' + i + '">' + i + '</a></li>';
-      }
-    }
-
-    html += '<li class="page-item' + (currentPage >= totalPages ? ' disabled' : '') + '">' +
-      '<a class="page-link" data-page="' + (currentPage + 1) + '">Next</a></li>';
-
-    pag.innerHTML = html;
-  }
-
-  document.getElementById('customerPagination').addEventListener('click', function(e) {
-    var link = e.target.closest('.page-link');
-    if (!link) return;
-    var page = parseInt(link.getAttribute('data-page'));
-    if (isNaN(page) || page < 1) return;
-    var totalPages = Math.ceil(filteredCustomers.length / perPage) || 1;
-    if (page > totalPages) return;
-    currentPage = page;
-    renderTable();
-    renderPagination();
-  });
-
-  document.getElementById('customerFilterBtn').addEventListener('click', applyFilter);
-  document.getElementById('customerSearchInput').addEventListener('keyup', function(e) {
-    if (e.key === 'Enter') applyFilter();
-  });
-
-  document.getElementById('customerTableBody').addEventListener('click', function(e) {
-    var btn = e.target.closest('.view-customer-btn');
-    if (!btn) return;
-    var id = btn.getAttribute('data-id');
-    openCustomerModal(id);
-  });
-
-  function openCustomerModal(id) {
-    var modal = document.getElementById('customerDetailModal');
-    var bsModal = new bootstrap.Modal(modal);
-    var body = document.getElementById('customerModalBody');
-    body.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>';
-    bsModal.show();
-
-    fetch(customerApiBase + '/' + id, { credentials: 'same-origin' })
-      .then(function(r) { if (!r.ok) throw new Error('Not found'); return r.json(); })
-      .then(function(data) {
-        var c = data.user;
-        if (!c) { body.innerHTML = '<p class="text-danger">Customer not found.</p>'; return; }
-
-        // Collect PSGC codes to resolve
-        var codesToResolve = [];
-        if (c.address && c.address.barangay) codesToResolve.push(c.address.barangay);
-        if (c.address && c.address.city) codesToResolve.push(c.address.city);
-        if (c.address && c.address.province) codesToResolve.push(c.address.province);
-
-        var resolvePromise = codesToResolve.length > 0
-          ? fetch('/api/psgc/resolve?codes=' + encodeURIComponent(codesToResolve.join(',')), { credentials: 'same-origin' })
-              .then(function(r) { return r.json(); })
-              .then(function(d) { return d.resolved || {}; })
-              .catch(function() { return {}; })
-          : Promise.resolve({});
-
-        return resolvePromise.then(function(resolved) {
-          var fullName = ((c.firstName || '') + ' ' + (c.lastName || '')).trim() || 'Unknown';
-          var initials = ((c.firstName || '')[0] || '') + ((c.lastName || '')[0] || '');
-          var statusLabel = c.blocked ? 'Blocked' : c.vip ? 'VIP' : 'Active';
-          var statusCls = c.blocked ? 'bg-danger-subtle text-danger' : c.vip ? 'bg-warning-subtle text-warning' : 'bg-success-subtle text-success';
-          var avatarBg = c.blocked ? 'bg-danger-subtle text-danger' : c.vip ? 'bg-warning-subtle text-warning' : 'bg-primary-subtle text-primary';
-          var barangay = resolved[(c.address && c.address.barangay)] || (c.address && c.address.barangay) || '--';
-          var city = resolved[(c.address && c.address.city)] || (c.address && c.address.city) || '--';
-          var province = resolved[(c.address && c.address.province)] || (c.address && c.address.province) || '--';
-          var postal = (c.address && c.address.postalCode) || '--';
-          var joined = c.createdAt ? new Date(c.createdAt).toLocaleDateString('en', { year: 'numeric', month: 'long', day: 'numeric' }) : '--';
-          var lastLogin = c.lastLogin ? new Date(c.lastLogin).toLocaleString('en', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Never';
-          var violations = c.violations || [];
-
-          var html = '';
-
-          // Profile header
-          html += '<div class="d-flex align-items-center mb-4 p-3 rounded-3" style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border: 1px solid #e2e8f0;">' +
-            '<div class="cust-modal-avatar ' + avatarBg + ' me-3">' + initials + '</div>' +
-            '<div class="flex-grow-1">' +
-              '<h5 class="mb-1 fw-bold text-dark">' + fullName + '</h5>' +
-              '<div class="d-flex align-items-center gap-2 flex-wrap">' +
-                '<span class="badge ' + statusCls + '">' + statusLabel + '</span>' +
-                (c.vip ? '<span class="badge bg-warning-subtle text-warning"><i class="bi bi-star-fill me-1"></i>VIP</span>' : '') +
-                '<span class="text-muted" style="font-size:0.75rem;">ID: ' + c._id.slice(-8).toUpperCase() + '</span>' +
-              '</div>' +
-            '</div>' +
-          '</div>';
-
-          // Contact Information
-          html += '<div class="mb-4">' +
-            '<div class="cust-modal-section-title"><i class="bi bi-person-lines-fill me-1"></i>Contact Information</div>' +
-            '<div class="row g-3">' +
-              '<div class="col-sm-6"><div class="ent-detail-card h-100">' +
-                '<div class="ent-detail-label mb-1"><i class="bi bi-envelope me-1"></i>Email</div>' +
-                '<div class="ent-detail-value">' + (c.email || '--') + '</div>' +
-              '</div></div>' +
-              '<div class="col-sm-6"><div class="ent-detail-card h-100">' +
-                '<div class="ent-detail-label mb-1"><i class="bi bi-phone me-1"></i>Phone</div>' +
-                '<div class="ent-detail-value">' + (c.phone || '--') + '</div>' +
-              '</div></div>' +
-            '</div>' +
-          '</div>';
-
-          // Address
-          html += '<div class="mb-4">' +
-            '<div class="cust-modal-section-title"><i class="bi bi-geo-alt me-1"></i>Address</div>' +
-            '<div class="row g-3">' +
-              '<div class="col-sm-6"><div class="ent-detail-card h-100">' +
-                '<div class="ent-detail-label mb-1">Barangay</div>' +
-                '<div class="ent-detail-value">' + barangay + '</div>' +
-              '</div></div>' +
-              '<div class="col-sm-6"><div class="ent-detail-card h-100">' +
-                '<div class="ent-detail-label mb-1">City</div>' +
-                '<div class="ent-detail-value">' + city + '</div>' +
-              '</div></div>' +
-              '<div class="col-sm-6"><div class="ent-detail-card h-100">' +
-                '<div class="ent-detail-label mb-1">Province</div>' +
-                '<div class="ent-detail-value">' + province + '</div>' +
-              '</div></div>' +
-              '<div class="col-sm-6"><div class="ent-detail-card h-100">' +
-                '<div class="ent-detail-label mb-1">Postal Code</div>' +
-                '<div class="ent-detail-value">' + postal + '</div>' +
-              '</div></div>' +
-            '</div>' +
-          '</div>';
-
-          // Account Activity
-          html += '<div class="mb-4">' +
-            '<div class="cust-modal-section-title"><i class="bi bi-activity me-1"></i>Account Activity</div>' +
-            '<div class="row g-3">' +
-              '<div class="col-sm-6"><div class="ent-detail-card h-100">' +
-                '<div class="ent-detail-label mb-1"><i class="bi bi-calendar-check me-1"></i>Date Joined</div>' +
-                '<div class="ent-detail-value">' + joined + '</div>' +
-              '</div></div>' +
-              '<div class="col-sm-6"><div class="ent-detail-card h-100">' +
-                '<div class="ent-detail-label mb-1"><i class="bi bi-clock-history me-1"></i>Last Login</div>' +
-                '<div class="ent-detail-value">' + lastLogin + '</div>' +
-              '</div></div>' +
-              '<div class="col-sm-6"><div class="ent-detail-card h-100">' +
-                '<div class="ent-detail-label mb-1"><i class="bi bi-exclamation-triangle me-1"></i>Violations</div>' +
-                '<div class="ent-detail-value">' + violations.length + (violations.length === 1 ? ' record' : ' records') + '</div>' +
-              '</div></div>' +
-              '<div class="col-sm-6"><div class="ent-detail-card h-100">' +
-                '<div class="ent-detail-label mb-1"><i class="bi bi-bookmark me-1"></i>Booking Limit</div>' +
-                '<div class="ent-detail-value">' + (c.bookingLimit || 'Unlimited') + '</div>' +
-              '</div></div>' +
-            '</div>' +
-          '</div>';
-
-          // Violations list (if any)
-          if (violations.length > 0) {
-            html += '<div class="mb-3">' +
-              '<div class="cust-modal-section-title"><i class="bi bi-shield-exclamation me-1"></i>Violation History</div>';
-            violations.forEach(function(v) {
-              var vDate = v.createdAt ? new Date(v.createdAt).toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-              html += '<div class="cust-violation-item">' +
-                '<div class="d-flex justify-content-between align-items-start">' +
-                  '<div><span class="fw-semibold text-danger">' + (v.type || 'Violation') + '</span>' +
-                  (v.message ? '<div class="text-muted mt-1" style="font-size:0.82rem;">' + v.message + '</div>' : '') + '</div>' +
-                  '<small class="text-muted">' + vDate + '</small>' +
-                '</div>' +
-              '</div>';
-            });
-            html += '</div>';
-          }
-
-          body.innerHTML = html;
-
-          // Build footer with action buttons
-          var existingFooter = modal.querySelector('.ent-modal-footer');
-          if (existingFooter) existingFooter.remove();
-
-          var footer = document.createElement('div');
-          footer.className = 'ent-modal-footer';
-          var canAccountAction = c.blocked ? customerCanUnblock : customerCanBlock;
-          footer.innerHTML =
-            (canAccountAction ? '<button class="btn ' + (c.blocked ? 'btn-success' : 'btn-outline-danger') + ' action-btn" data-action="' + (c.blocked ? 'unblock' : 'block') + '" data-id="' + c._id + '">' +
-              '<i class="bi ' + (c.blocked ? 'bi-unlock' : 'bi-lock') + ' me-1"></i>' + (c.blocked ? 'Unblock Account' : 'Block Account') +
-            '</button>' : '');
-          if (customerApiBase === '/api/admin/customers') {
-            var performanceLink = document.createElement('a');
-            performanceLink.className = 'btn btn-outline-primary';
-            performanceLink.href = '/admin/reports/customers/' + encodeURIComponent(c._id);
-            performanceLink.textContent = 'Customer Performance';
-            footer.appendChild(performanceLink);
-          }
-          if (footer.innerHTML.trim()) modal.querySelector('.modal-content').appendChild(footer);
-
-          footer.querySelectorAll('.action-btn').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-              var action = btn.getAttribute('data-action');
-              var custId = btn.getAttribute('data-id');
-              btn.disabled = true;
-              btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing...';
-              fetch(customerApiBase + '/' + custId, {
-                method: 'PATCH',
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: action })
-              })
-              .then(function(r) { return r.json(); })
-              .then(function() {
-                bsModal.hide();
-                return fetch(customerApiBase, { credentials: 'same-origin' });
-              })
-              .then(function(r) { return r.json(); })
-              .then(function(data) {
-                allCustomers = data.customers || [];
-                filteredCustomers = allCustomers.slice();
-                renderKPIs();
-                renderTable();
-                renderPagination();
-                applyFilter();
-              })
-              .catch(function(err) { alert('Action failed: ' + err.message); btn.disabled = false; });
-            });
-          });
-        });
-      })
-      .catch(function(err) {
-        body.innerHTML = '<div class="text-center py-4"><i class="bi bi-exclamation-triangle text-warning" style="font-size:2rem;"></i><p class="text-danger mt-2 mb-0">Failed to load customer details.</p></div>';
-      });
-  }
-
-  fetch(customerApiBase, { credentials: 'same-origin' })
-    .then(function(r) {
-      if (!r.ok) throw new Error('Failed to fetch customers');
-      return r.json();
-    })
-    .then(function(data) {
-      allCustomers = data.customers || [];
-      filteredCustomers = allCustomers.slice();
-      renderKPIs();
-      renderTable();
-      renderPagination();
-    })
-    .catch(function(err) {
-      console.error('Error loading customers:', err);
-      document.getElementById('customerTableBody').innerHTML =
-        '<tr><td colspan="6"><div class="empty-state"><i class="bi bi-exclamation-triangle"></i><p>Failed to load customers. Please try again.</p></div></td></tr>';
-    });
+  window.CustomerDirectory.init({ apiBase: customerApiBase, canBlock: customerCanBlock, canUnblock: customerCanUnblock });
 })();
 </script>

@@ -4,7 +4,9 @@
   const page = document.getElementById("technicianToolsPage");
   if (!page) return;
   const $ = id => document.getElementById(id);
-  const state = { tab: "equipment", equipment: [], legacy: [], usage: [], errors: {}, loading: true, selected: null, returning: false, saving: false, deleting: new Set(), optionSequence: 0, loadSequence: 0 };
+  const state = { category: 'equipment', page: 1, tab: "equipment", equipment: [], legacy: [], usage: [], errors: {}, loading: true, selected: null, returning: false, saving: false, deleting: new Set(), optionSequence: 0, loadSequence: 0 };
+  const pageSize = 6;
+  let searchTimer;
   const escape = value => String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
   const id = value => String(value?._id || value || "");
   const active = row => ["checked_out", "in_use", "assigned"].includes(row.status);
@@ -64,7 +66,8 @@
   function render() {
     const records = $("ttRecords");
     records.setAttribute("aria-busy", String(state.loading));
-    $("ttStatus").parentElement.hidden = state.tab !== "equipment";
+    $("ttStatus").parentElement.hidden = state.category !== 'equipment' || state.tab !== "equipment";
+    $("ttPagination").innerHTML = '';
     $("ttContextHelp").textContent = state.tab === "equipment" ? "Return reusable equipment after the linked work is finished." : state.tab === "usage" ? "Usage records do not change inventory stock." : "Showing the latest 200 equipment records and 100 general tool records.";
     const errorKeys = state.tab === "usage" ? ["usage"] : ["equipment", "legacy"];
     const error = errorKeys.filter(key => state.errors[key]).map(key => state.errors[key]).join(" ");
@@ -73,12 +76,18 @@
     const query = $("ttSearch").value.trim().toLowerCase();
     const all = [...state.equipment, ...state.legacy];
     const filter = row => [name(row), code(row), context(row).title, context(row).sub, row.notes || ""].join(" ").toLowerCase().includes(query);
+    const paginate = rows => {
+      const pages = Math.max(1, Math.ceil(rows.length / pageSize));
+      state.page = Math.min(state.page, pages);
+      $("ttPagination").innerHTML = rows.length > pageSize ? `<button type="button" class="tt-button tt-button-secondary" data-tt-page="${state.page - 1}" ${state.page === 1 ? 'disabled' : ''}>Previous</button><span>Page ${state.page} of ${pages}</span><button type="button" class="tt-button tt-button-secondary" data-tt-page="${state.page + 1}" ${state.page === pages ? 'disabled' : ''}>Next</button>` : '';
+      return rows.slice((state.page - 1) * pageSize, state.page * pageSize);
+    };
     if (state.tab === "usage") {
       const rows = state.usage.filter(row => [row.equipmentName, row.equipmentCode, row.notes].join(" ").toLowerCase().includes(query));
       $("ttResultContext").textContent = `${rows.length} usage record${rows.length === 1 ? "" : "s"} · Latest 200 records`;
       if (!rows.length) { records.innerHTML = empty(query ? "No matching records" : "No equipment use recorded", query ? "Try a different equipment name." : "Use Log equipment use to record equipment you used on a work date."); return; }
       let previous = "";
-      records.innerHTML = rows.map(row => {
+      records.innerHTML = paginate(rows).map(row => {
         const date = day(row.date);
         const heading = date !== previous ? `<div class="tt-usage-date">${escape(dateLabel(row.date))}</div>` : "";
         previous = date;
@@ -86,8 +95,9 @@
       }).join("");
     } else {
       const rows = all.filter(row => state.tab === "history" ? !active(row) && row.status !== "reserved" : active(row) || row.status === "reserved").filter(row => state.tab !== "equipment" || $("ttStatus").value === "all" || ($("ttStatus").value === "active" ? active(row) : row.status === "reserved")).filter(filter);
-      $("ttResultContext").textContent = `${rows.length} equipment record${rows.length === 1 ? "" : "s"}`;
-      records.innerHTML = equipmentRows(rows, state.tab === "history");
+      const visible = paginate(rows);
+      $("ttResultContext").textContent = rows.length ? `Showing ${(state.page - 1) * pageSize + 1}–${Math.min(state.page * pageSize, rows.length)} of ${rows.length} equipment records` : 'No equipment matches this view';
+      records.innerHTML = equipmentRows(visible, state.tab === "history");
     }
   }
   async function load() {
@@ -116,6 +126,7 @@
   }
   function tab(value) {
     state.tab = value;
+    state.page = 1;
     for (const button of page.querySelectorAll("[data-tab]")) {
       const selected = button.dataset.tab === value;
       button.classList.toggle("is-active", selected);
@@ -125,6 +136,30 @@
     }
     $("ttSearch").value = "";
     render();
+  }
+  function category(value) {
+    if (!['equipment', 'repair_part', 'consumable', 'returns'].includes(value)) return;
+    clearTimeout(searchTimer);
+    state.category = value; state.page = 1;
+    const equipment = value === 'equipment', returns = value === 'returns';
+    $('ttEquipmentPanel').hidden = !equipment;
+    $('kitReturnsPanel').hidden = equipment;
+    $('krMaterialsSection').hidden = equipment || returns;
+    $('krReportsSection').hidden = !returns;
+    $('ttCategoryToolbar').hidden = returns;
+    $('ttLogUsage').hidden = !equipment;
+    $('ttSearch').value = '';
+    $('ttSearch').placeholder = equipment ? 'Search equipment or job reference' : value === 'repair_part' ? 'Search repair parts' : 'Search consumables';
+    for (const button of page.querySelectorAll('[data-category]')) {
+      const selected = button.dataset.category === value;
+      button.classList.toggle('is-active', selected); button.setAttribute('aria-selected', String(selected)); button.tabIndex = selected ? 0 : -1;
+      if (selected && !equipment) $(returns ? 'krReportsSection' : 'krMaterialsSection').setAttribute('aria-labelledby', button.id);
+    }
+    const url = new URL(window.location.href);
+    if (equipment) url.searchParams.delete('category'); else url.searchParams.set('category', value);
+    window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+    render();
+    window.dispatchEvent(new CustomEvent('technician-kit-filter', { detail: { category: value, search: '' } }));
   }
   async function loadOptions() {
     const sequence = ++state.optionSequence;
@@ -207,6 +242,8 @@
   page.addEventListener("click", async event => {
     const button = event.target.closest("button");
     if (!button) return;
+    if (button.dataset.category) return category(button.dataset.category);
+    if (button.hasAttribute('data-tt-page')) { state.page = Number(button.dataset.ttPage); return render(); }
     if (button.dataset.tab) return tab(button.dataset.tab);
     if (button.hasAttribute("data-retry")) return load();
     if (button.dataset.return) {
@@ -246,9 +283,26 @@
     tab(buttons[index].dataset.tab);
     buttons[index].focus();
   });
-  $("ttRefresh").addEventListener("click", load);
-  $("ttSearch").addEventListener("input", render);
-  $("ttStatus").addEventListener("change", render);
+  page.querySelector('.tt-categories').addEventListener('keydown', event => {
+    if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return;
+    const buttons = [...page.querySelectorAll('[data-category]')], current = buttons.indexOf(document.activeElement);
+    if (current < 0) return;
+    event.preventDefault(); const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (current + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
+    buttons[next].focus(); category(buttons[next].dataset.category);
+  });
+  $("ttRefresh").addEventListener("click", () => { load(); window.dispatchEvent(new Event('technician-kit-refresh')); });
+  $("ttSearch").addEventListener("input", () => {
+    state.page = 1; render(); clearTimeout(searchTimer);
+    if (state.category !== 'equipment') {
+      window.dispatchEvent(new CustomEvent('technician-kit-search-pending', { detail: { search: $('ttSearch').value.trim() } }));
+      searchTimer = setTimeout(() => window.dispatchEvent(new CustomEvent('technician-kit-filter', { detail: { category: state.category, search: $('ttSearch').value.trim() } })), 250);
+    }
+  });
+  $("ttStatus").addEventListener("change", () => { state.page = 1; render(); });
+  window.addEventListener('technician-kit-counts', event => {
+    $('ttPartsBadge').textContent = event.detail?.repair_part ?? '—';
+    $('ttConsumablesBadge').textContent = event.detail?.consumable ?? '—';
+  });
   function refreshReceivedItems() {
     if (document.hidden || state.loading || state.returning || state.saving || $('ttReturnModal').classList.contains('show') || $('ttUsageModal').classList.contains('show')) return;
     load();
@@ -259,5 +313,6 @@
   if (window.socket) window.socket.on('notification:new', data => {
     if (['kit_return_reviewed', 'equipment_return_resolved'].includes(data?.type)) refreshReceivedItems();
   });
+  category(new URLSearchParams(window.location.search).get('category') || 'equipment');
   load();
 })();

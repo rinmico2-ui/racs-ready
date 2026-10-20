@@ -139,6 +139,7 @@ function presentOrderForRequest(req, order, technicianId) {
   const presented = withOrderPresentation(
     order && typeof order.toObject === "function" ? order.toObject() : order,
   );
+  if (req.user?.role === 'customer') return require('../utils/visitRecovery').customerOrder(presented);
   if (!["admin", "secretary"].includes(req.user?.role)) delete presented.cancellationStockReview;
   return req.user?.role === "technician"
     ? presentTechnicianOrder(presented, { technicianId })
@@ -398,6 +399,9 @@ router.get("/all", authenticate, requireRole(["admin", "secretary"]), async (req
       ];
     }
 
+    const technicianIssue = require('../utils/technicianIssueFilters').technicianIssueMatch('order', req.query.technicianIssue);
+    if (technicianIssue) filter.$and = [...filter.$and || [], technicianIssue];
+
     if (scheduledFrom || scheduledTo) {
       const scheduledRange = {};
       if (scheduledFrom) {
@@ -503,7 +507,7 @@ router.get("/all", authenticate, requireRole(["admin", "secretary"]), async (req
     });
   } catch (err) {
     console.error("GET /api/orders/all error:", err);
-    res.status(500).json({ error: err.message || "Failed to fetch orders" });
+    res.status(err.status === 400 ? 400 : 500).json({ error: err.message || "Failed to fetch orders" });
   }
 });
 const checkoutLimiter = rateLimit({
@@ -911,7 +915,7 @@ router.get("/my", authenticate, async (req, res) => {
       .sort({ createdAt: -1 })
       .populate("technicianId", "name phone")
       .lean();
-    res.json({ orders: orders.map((order) => withPayableOrderPricing(order)) });
+    res.json({ orders: orders.map((order) => require('../utils/visitRecovery').customerOrder(withPayableOrderPricing(order))) });
   } catch (err) {
     checkoutErrorResponse(res, err);
   }
@@ -1511,6 +1515,7 @@ router.get("/:id", authenticate, async (req, res) => {
     if (req.user.role === "technician") {
       return res.json({ order: presentTechnicianOrder(withOrderPresentation(order), { technicianId: viewerTechnicianId }) });
     }
+    if (req.user.role === 'customer') return res.json({ order: require('../utils/visitRecovery').customerOrder(withOrderPresentation(order)) });
     res.set('Cache-Control', 'private, no-store');
     if (modalView) return res.json({ order: withOrderPresentation(order), photosDeferred: true });
     res.json({ order: withOrderPresentation(order) });
@@ -1585,6 +1590,18 @@ router.post("/:id/dispatch-ready", authenticate, requireRole(["admin", "secretar
 /**
  * POST /api/orders/:id/accept â€” Technician accepts their assigned order
  */
+router.post('/:id/emergency', authenticate, requireRole('technician'), async (req, res) => {
+  try {
+    const technician = await Technician.findOne({ user: req.user._id }).select('_id name').lean();
+    if (!technician) return res.status(403).json({ error: 'Technician account not found.' });
+    const emergency = require('../utils/orderEmergency');
+    const result = await emergency.createService().report(req.params.id, technician, req.body || {});
+    await emergency.publish(result, req);
+    await require('../utils/audit').logEvent({ actor: req.user._id, target: result.order._id, action: 'order.technician_emergency',
+      module: 'orders', req, details: { incidentId: result.incident._id, reporterRole: result.incident.reporterRole } }).catch(() => {});
+    res.json({ success: true, message: 'Emergency reported. Admin will contact the customer and arrange the replacement visit.' });
+  } catch (error) { res.status(error.status || 500).json({ error: error.status ? error.message : 'Could not report the emergency. Try again.' }); }
+});
 router.post("/:id/accept", authenticate, requireRole("technician"), async (req, res) => {
   if (await respondToOrderTeam(req, res, 'accept')) return;
   try {
@@ -2246,7 +2263,8 @@ router.post("/:id/cancel", authenticate, async (req, res) => {
 
       const HVACProduct = require("../models/HVACProduct");
       cancelledOrder.cancellationStockReview = await restoreCancelledOrderStock(
-        cancelledOrder.items, { Inventory, HVACProduct }, session,
+        cancelledOrder.items, { Inventory, HVACProduct,
+          holdForReturn: cancelledOrder.staffingEmergencies?.some(report => ['out_for_delivery', 'arrived'].includes(report.previousStatus)) === true }, session,
       );
 
       if (cancelledOrder.bookingId) {
@@ -2652,6 +2670,7 @@ async function saveResolutionOrderSchedule(req, res) {
     if (!order || !REVIEWABLE_ORDER_STATUSES.has(order.status)) {
       return res.status(409).json({ error: "This order is no longer available for rescheduling." });
     }
+    if (!req.orderCustomerReschedule && require('../utils/visitRecovery').emergency('order', order)) return res.status(409).json({ error: 'Record the customer agreement through Resolve and reassign in the Resolution Center.', code: 'CUSTOMER_CONTACT_REQUIRED' });
     if (req.orderCustomerReschedule) require('../utils/orderRescheduleInvitation').assertCustomerOrderReschedule(order, req.user);
     let totalEstimatedMinutes;
     if (!isPickup) {
@@ -2728,6 +2747,12 @@ async function saveResolutionOrderSchedule(req, res) {
       `${req.user.role === 'customer' ? 'Customer' : 'Staff'} rescheduled order to ${scheduledDate}${isPickup ? "" : ` at ${timeSlot}`}. ${reason || "Customer schedule updated after admin delay."}`,
       { actor: req.user._id, actorRole: req.user.role, actorName: req.user.name || req.user.email || "Admin" }
     );
+    if (req.orderCustomerReschedule && require('../utils/visitRecovery').emergency('order', order)) {
+      order.visitRecoveryHistory ||= [];
+      order.visitRecoveryHistory.push({ requestId: crypto.randomUUID(), incidentId: order.staffingEmergencies.at(-1)._id,
+        decision: 'new_schedule', contactMethod: 'customer_portal', customerConfirmed: true, date: parsedDate, time: timeSlot,
+        notes: 'Customer selected and confirmed the replacement schedule in their account.', recordedAt: new Date(), recordedBy: req.user._id, recordedByName: req.user.name || 'Customer' });
+    }
     require('../utils/orderRescheduleInvitation').finishOrderRescheduleInvitation(order, req.user);
     await order.save();
 
@@ -2893,6 +2918,8 @@ router.post("/:id/assign-technician", authenticate, requireRole(["admin", "secre
 
     let order = await Order.findById(id);
     if (!order) return res.status(404).json({ error: "Order not found" });
+    require('../utils/visitRecovery').assertContact('order', order);
+    require('../utils/visitRecovery').assertRecoverySchedule('order', order, req.body);
     if (assignmentSource === 'reviewed_plan' && order.fulfillmentType === 'delivery_installation') { req.body.technicianIds = [String(technicianId)]; return require('../utils/standardJobTeamService').assignmentResponse('order', req, res); }
     if (order.technicianTeam?.length) { req.body.technicianIds = [String(technicianId)]; return require('../utils/standardJobTeamService').assignmentResponse('order', req, res); }
     if (order.isProject) return res.status(409).json({ error: "This installation is managed through its project crew and daily work plan.", code: "ORDER_PROJECT_WORKFLOW_REQUIRED" });

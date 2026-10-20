@@ -96,6 +96,7 @@ test("admin and secretary order details offer preparation after technician accep
       niceStatus: value => value, orderStatusLabel: order => order.status, paymentLabel: () => 'GCash',
       FULFILL_LABELS: { delivery_installation: 'Delivery + Installation' }, canAssign: () => false,
       isAdminWorkspace: role === 'admin', canResolveOrders: true,
+      paymentIsVerified: order => ['paid','partial','verified','remitted'].includes(order.paymentStatus),
       operationsFetchJson: async () => ({ photosDeferred: true, order: { _id: 'order-1', orderReference: 'ORD-TEST',
         fulfillmentType: 'delivery_installation', status: 'technician_accepted', paymentStatus: 'partial',
         paymentMethod: 'gcash', items: [], total: 5000,

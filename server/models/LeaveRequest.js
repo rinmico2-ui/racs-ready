@@ -32,6 +32,8 @@ leaveRequestSchema.pre("save", async function () {
   this.updatedAt = new Date();
 });
 
+leaveRequestSchema.index({ technicianId: 1, status: 1, startDate: 1, endDate: 1 });
+
 // virtual: human-readable date range label
 leaveRequestSchema.virtual("dateLabel").get(function () {
   const opts = { year: "numeric", month: "short", day: "numeric" };

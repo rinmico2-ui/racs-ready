@@ -112,7 +112,7 @@ body:has(#serviceSelection:not(.d-none) #repair-tab.active):has(#repairAppliance
 .cab-form [name="kind"]:is(select) { min-height: 46px; width: 100%; margin: 10px 0 18px; padding: 12px; border: 1px solid #cbd5e1; border-radius: 9px; background: #fff; font: inherit; }
 .cab-appliances:has(select[name="kind"]) { display: block; }
 .cab-selected-request { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid #c9dfd1; font-size: .85rem; }
-.cab-assistance [data-identification-heading] { scroll-margin-top: 90px; }
+.cab-step-meta, .cab-assistance [data-identification-heading] { scroll-margin-top: 90px; }
 .cab-photo-feedback { color: #b33041; font-size: .78rem; margin: 8px 0 0; }
 .cab-photo-feedback:empty { display: none; }
 #serviceSelection #serviceTabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 2px !important; background: transparent; border: 0; }
@@ -128,10 +128,6 @@ body:has(#serviceSelection:not(.d-none) #repair-tab.active):has(#repairAppliance
 #serviceSelection #serviceTabs small { font-size: .72rem; font-weight: 500; line-height: 1.45; }
 #serviceSelection #serviceTabs .service-type-check { position: absolute; top: 9px; right: 9px; visibility: hidden; font-size: .8rem; }
 #serviceSelection #serviceTabs .active .service-type-check { visibility: visible; }
-#serviceSelection #serviceTabs .nav-link:disabled { background: #f1f5f9 !important; color: #64748b !important; border-color: #cbd5e1 !important; box-shadow: none; opacity: 1; cursor: not-allowed; }
-#serviceSelection #serviceTabs .nav-link:disabled .service-type-icon { background: #e2e8f0; color: #64748b; }
-#serviceSelection #serviceTabs .service-type-lock { position: absolute; top: 9px; right: 9px; display: none; font-size: .8rem; }
-#serviceSelection #serviceTabs .nav-link:disabled .service-type-lock { display: block; }
 @media (max-width: 575px) {
   #serviceSelection #serviceTabs { gap: 8px; }
   #serviceSelection #serviceTabs .nav-link { flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px !important; min-height: 138px; }

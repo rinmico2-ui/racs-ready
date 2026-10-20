@@ -30,4 +30,24 @@ function attendanceRange(from, to) {
   return { start: startDay.start, end: endDay.end };
 }
 
-module.exports = { attendanceDay, attendanceRange };
+/** Keep scan lateness and roster reminders on the same saved shift. */
+function attendanceShift(day, { schedule, shift } = {}) {
+  const weekday = new Date(day.start.getTime() + MANILA_OFFSET_MS).getUTCDay();
+  const working = schedule?.workingDays?.find(item => item.dayOfWeek === weekday);
+  const minutes = (value, fallback) => Number.isFinite(value) && value >= 0 && value <= 2880 ? value : fallback;
+  let start = minutes(working?.startMinutes, 480), end = minutes(working?.endMinutes, 1080);
+  const match = String(shift || '').trim().match(/^([01]\d|2[0-3]):([0-5]\d)\s*-\s*([01]\d|2[0-3]):([0-5]\d)$/);
+  if (match) { start = Number(match[1]) * 60 + Number(match[2]); end = Number(match[3]) * 60 + Number(match[4]); }
+  const rest = schedule?.restDates?.some(item => attendanceDay(item.date).key === day.key)
+    || schedule?.nonWorkingWeekdays?.some(item => item.dayOfWeek === weekday);
+  return {
+    scheduled: !rest && (schedule ? !!working : weekday !== 0),
+    startsAt: new Date(day.start.getTime() + start * 60000),
+    // Preserve the existing 9 AM cutoff for daytime shifts; later shifts use
+    // their saved start, rather than marking everybody late after 9 AM.
+    checkInDueAt: new Date(day.start.getTime() + Math.max(540, start) * 60000),
+    checkOutDueAt: new Date(day.start.getTime() + (end <= start ? end + 1440 : end) * 60000),
+  };
+}
+
+module.exports = { attendanceDay, attendanceRange, attendanceShift };

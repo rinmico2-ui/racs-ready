@@ -74,6 +74,18 @@ test("payment guide requires the amount choice, then the actual payment channel"
   assert.equal(get("confirmBookingBtn").disabled, false);
 });
 
+test('cash after service needs neither a transfer channel nor an uploaded receipt',()=>{
+  const {context,state,get}=setupGuide();
+  state.paymentMethod='cash_after_service';state.paymentChannel='cash';
+  context.syncPaymentChoiceGuide();
+  assert.equal(get('paymentChoiceGuide').dataset.stage,'3');
+  assert.equal(get('confirmBookingBtn').disabled,false);
+  assert.equal(get('bookingPaymentChannelSection').classList.contains('d-none'),true);
+  assert.equal(get('gcashFields').classList.contains('d-none'),true);
+  assert.equal(get('cashFields').classList.contains('d-none'),true);
+  assert.equal(get('cashAfterServiceFields').classList.contains('d-none'),false);
+});
+
 test("an unavailable payment channel does not unlock confirmation", () => {
   const { context, state, get, channelButton } = setupGuide();
   state.paymentMethod = "gcash";
@@ -87,7 +99,7 @@ test("an unavailable payment channel does not unlock confirmation", () => {
 });
 
 test("payment screen shows explicit guidance and map next action is centered", () => {
-  assert.match(view, /id="paymentChoiceGuide"[\s\S]*?Choose Full Payment or Down Payment below/);
+  assert.match(view, /id="paymentChoiceGuide"[\s\S]*?Choose a payment option below/);
   assert.match(view, /id="bookingPaymentChannelSection"[\s\S]*?Where will you send the payment/);
   assert.match(view, /id="downpaymentReason"/);
   assert.doesNotMatch(view, /preferredChannel=\['gcash','maya','bank_transfer','other'\]\.find/);
@@ -153,7 +165,7 @@ test("large-scale projects show the final action before it is ready and unlock i
   assert.equal(action.hidden, false);
   assert.equal(action.classList.contains("is-visible"), true);
   assert.equal(make("confirmBookingBtn").disabled, true);
-  assert.match(make("paymentConfirmTitle").textContent, /Choose Full Payment/);
+  assert.match(make("paymentConfirmTitle").textContent, /Choose how you will pay/);
 
   state.paymentMethod = "cod";
   state.paymentChannel = "bank_transfer";

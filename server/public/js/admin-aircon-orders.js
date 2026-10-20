@@ -102,6 +102,7 @@ document.addEventListener("DOMContentLoaded", function () {
   // ═══ DOM REFS ════════════════════════════════════════════════════════════════
   const searchInput   = document.getElementById("aoSearch");
   const statusFilter  = document.getElementById("aoStatusFilter");
+  const technicianIssueFilter = document.getElementById('aoTechnicianIssue');
   const fulfillFilter = document.getElementById("aoFulfillFilter");
   const preparationFilter = document.getElementById("aoPreparationFilter");
   const scheduledFrom = document.getElementById("aoScheduledFrom");
@@ -167,6 +168,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const modalFooter = document.getElementById("aoModalFooter");
   const modalSubtitle = document.getElementById("aoModalSubtitle");
   let viewedOrderId = null;
+  const paymentReviews = new Set();
   modalEl?.addEventListener('hidden.bs.modal', () => {
     window.closeAoImage?.();
     orderDetailRequest++;
@@ -458,7 +460,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
   function unitPreparedBtn(o) {
     const status = o.preparation?.dispatch?.status || "pending";
-    if (o.fulfillmentType === "customer_pickup" || status === "ready" || ["out_for_delivery","arrived","installing","completed","cancelled"].includes(o.status)) return "";
+    if (o.fulfillmentType === "customer_pickup" || status === "ready" || !paymentIsVerified(o) || !["preparing_unit","technician_assigned","technician_accepted","technician_declined"].includes(o.status)) return "";
     return `<button class="btn btn-sm btn-success ao-action-btn" onclick="window._aoMarkDispatchReady('${esc(o._id)}')"><i class="bi bi-box-seam me-1"></i>Confirm Unit Prepared</button>`;
   }
 
@@ -542,6 +544,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const params = new URLSearchParams({ page: currentPage, limit: LIMIT });
     if (searchInput.value.trim()) params.set("search", searchInput.value.trim());
     if (statusFilter.value !== "all") params.set("status", statusFilter.value);
+    if (technicianIssueFilter?.value) params.set('technicianIssue', technicianIssueFilter.value);
     if (preparationFilter && preparationFilter.value !== "all") params.set("preparation", preparationFilter.value);
     if (scheduledFrom && scheduledFrom.value) params.set("scheduledFrom", scheduledFrom.value);
     if (scheduledTo && scheduledTo.value) params.set("scheduledTo", scheduledTo.value);
@@ -1020,14 +1023,7 @@ document.addEventListener("DOMContentLoaded", function () {
           if (action === "view") window._aoViewOrder(record.id);
           if (action === "requeue") window._aoRequeueAssignment(record.id, record.reference);
           if (action === "recover") window.location.href = resolutionUrl(record.source);
-          if (action === "extend") {
-            const minutes = await RACSAcceptance.askExtension();
-            if (minutes === null) return;
-            try {
-              await fetch(`/api/orders/${encodeURIComponent(record.id)}/extend-deadline`, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({minutes})}).then(RACSAcceptance.readJson);
-              loadWaitingAcceptTab();
-            } catch (error) { Swal.fire({icon:"error",title:"Deadline not extended",text:error.message}); }
-          }
+          if (action === "extend") await window._aoExtendDeadline(record.id);
         }});
     } catch (error) {
       if (request === waitingAcceptRequest) container.innerHTML = '<div class="alert alert-danger" role="alert">Could not load assignments. Refresh and try again.</div>';
@@ -1137,6 +1133,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
   window._aoViewOrder = async function (id) {
     if (!modal) return;
+    if(modal._isTransitioning&&modal._isShown===false){
+      return RACSDetailActions.afterClose(modalEl,()=>window._aoViewOrder(id),modal);
+    }
     window.closeAoImage?.();
     viewedOrderId = String(id);
     orderDetailController?.abort();
@@ -1257,7 +1256,7 @@ document.addEventListener("DOMContentLoaded", function () {
             </div>
           </div>` : ''}
 
-          ${data.photosDeferred ? `<div class="pm-card"><div class="pm-card-head"><div class="pm-icon" style="background:#f0fdf4;color:#15803d;"><i class="bi bi-camera"></i></div><h3 class="pm-card-title">Photos &amp; Payment Proofs</h3></div><div class="pm-card-body d-flex flex-wrap gap-2"><button type="button" class="btn btn-sm btn-outline-primary" onclick="window._aoLoadPhotos('${esc(o._id)}',this)"><i class="bi bi-images me-1"></i>View photos and receipts</button></div></div>` : ''}
+          ${data.photosDeferred ? `<div class="pm-card"><div class="pm-card-head"><div class="pm-icon" style="background:#f0fdf4;color:#15803d;"><i class="bi bi-camera"></i></div><h3 class="pm-card-title">Photos &amp; Payment Proofs</h3></div><div class="pm-card-body d-flex flex-wrap gap-2"><button type="button" class="btn btn-sm btn-outline-primary" data-order-photos onclick="window._aoLoadPhotos('${esc(o._id)}',this)"><i class="bi bi-images me-1"></i>View photos and receipts</button></div></div>` : ''}
           ${o.arrivalProofUrl || o.startProofUrl || o.proofPhoto ? `
           <div class="pm-card">
             <div class="pm-card-head"><div class="pm-icon" style="background:#f0fdf4;color:#15803d;"><i class="bi bi-camera"></i></div><h3 class="pm-card-title">Field Evidence</h3></div>
@@ -1301,9 +1300,8 @@ document.addEventListener("DOMContentLoaded", function () {
       const isPickup = o.fulfillmentType === 'customer_pickup';
       if (o.isPastDate) {
         if (canResolveOrders) footerBtns += `<a class="btn btn-sm btn-warning fw-bold" href="${esc(resolutionUrl(o))}" style="border-radius:8px;"><i class="bi bi-exclamation-diamond me-1"></i>Open Resolution Center</a>`;
-        footerBtns += '<button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Close</button>';
       } else if (o.status === "pending_payment" && o.paymentMethod !== "cash_onsite" && (o.paymentStatus||"pending") === "pending") {
-        footerBtns += `<button type="button" class="btn btn-sm btn-success fw-bold" onclick="window._aoVerifyPayment('${esc(o._id)}')" style="border-radius:8px;"><i class="bi bi-check2-circle me-1"></i>Verify Payment</button>`;
+        footerBtns += `<button type="button" class="btn btn-sm btn-success fw-bold" data-detail-action="verify" onclick="window._aoVerifyPayment('${esc(o._id)}',this)" style="border-radius:8px;"><i class="bi bi-check2-circle me-1"></i>Verify Payment</button>`;
       }
       if (!o.isPastDate && isPickup && o.status === "preparing_unit") {
         footerBtns += `<button type="button" class="btn btn-sm btn-success fw-bold" onclick="window._aoMarkReadyForPickup('${esc(o._id)}')" style="border-radius:8px;"><i class="bi bi-check2-circle me-1"></i>Mark Ready for Pickup</button>`;
@@ -1316,11 +1314,23 @@ document.addEventListener("DOMContentLoaded", function () {
         footerBtns += assignBtn(o);
       }
       if (!o.isPastDate) footerBtns += unitPreparedBtn(o);
+      if (!o.isPastDate && o.status === 'technician_assigned') {
+        footerBtns += `<button type="button" class="btn btn-sm btn-outline-primary" data-detail-action="extend" onclick="window._aoExtendDeadline('${esc(o._id)}')">Extend Deadline</button>`;
+        if (o.isAcceptanceOverdue) footerBtns += `<button type="button" class="btn btn-sm btn-outline-warning" data-detail-action="requeue" onclick="${esc(`window._aoRequeueAssignment(${JSON.stringify(String(o._id))},${JSON.stringify(refText)})`)}">Return to Assignment Queue</button>`;
+      }
       if (isAdminWorkspace && o.customerAccount?.state === 'invited' && o.customerAccount?.canManageInvitation) {
         footerBtns += `<button type="button" class="btn btn-sm btn-outline-primary fw-bold" onclick="window._aoResendCustomerActivation('${esc(o._id)}')"><i class="bi bi-envelope-arrow-up me-1"></i>Resend Activation</button>`;
       }
-      modalFooter.innerHTML = footerBtns;
-      modalFooter.style.display = footerBtns ? '' : 'none';
+      if(data.photosDeferred) footerBtns += `<button type="button" class="btn btn-sm btn-outline-secondary" data-detail-action="photos" onclick="window._aoShowDetailEvidence('${esc(o._id)}')">View Photos &amp; Receipts</button>`;
+      footerBtns += '<button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Close</button>';
+      const nextStep = o.isPastDate ? 'Resolve the schedule issue before assigning or dispatching this order.'
+        : o.status === 'pending_payment' ? 'Review the submitted payment. Verification opens the next preparation and assignment step.'
+        : o.status === 'preparing_unit' ? isPickup ? 'Confirm the unit is ready for the customer to collect.' : o.isProject ? 'Continue scheduling in the installation project.' : 'Choose a technician and confirm the ordered units are prepared before departure.'
+        : o.status === 'technician_assigned' ? 'Review technician responses and acceptance deadlines.'
+        : ['completed','cancelled'].includes(o.status) ? 'Review the final order details, payment records and field evidence.'
+        : 'Review preparation and the technician’s latest delivery updates.';
+      modalFooter.innerHTML = '<p class="detail-action-help">'+esc(nextStep)+'</p>'+footerBtns;
+      modalFooter.style.display = '';
     } catch(err) {
       if (request !== orderDetailRequest || err.name === 'AbortError') return;
       modalSubtitle.textContent = 'Unable to load order';
@@ -1336,6 +1346,14 @@ document.addEventListener("DOMContentLoaded", function () {
   };
 
   // ═══ ADMIN RESCHEDULE ═══════════════════════════════════════════════════════
+  window._aoShowDetailEvidence = async function(orderId) {
+    if(viewedOrderId !== String(orderId)) return;
+    const button=modalBody.querySelector('[data-order-photos]');
+    const section=button?button.closest('.pm-card'):modalBody.querySelector('[data-detail-photos]');
+    if(button){section.dataset.detailPhotos='true';await window._aoLoadPhotos(orderId,button);}
+    section?.scrollIntoView({block:'nearest',behavior:'smooth'});
+  };
+
   window._aoResendCustomerActivation = async function(orderId) {
     try {
       const response = await fetch(`/api/walk-in-aircon/orders/${encodeURIComponent(orderId)}/resend-invitation`, { method:'POST', credentials:'same-origin' });
@@ -1427,9 +1445,27 @@ document.addEventListener("DOMContentLoaded", function () {
   };
 
   // ═══ VERIFY PAYMENT ══════════════════════════════════════════════════════════
-  window._aoVerifyPayment = async function (orderId) {
+  window._aoExtendDeadline = async function(orderId) {
+    const minutes=await RACSAcceptance.askExtension();
+    if(minutes===null)return;
+    try{
+      await fetch(`/api/orders/${encodeURIComponent(orderId)}/extend-deadline`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({minutes})}).then(RACSAcceptance.readJson);
+      loadWaitingAcceptTab();
+      if(modalEl?.classList.contains('show')&&viewedOrderId===String(orderId))await window._aoViewOrder(orderId);
+    }catch(error){Swal.fire({icon:'error',title:'Deadline not extended',text:error.message});}
+  };
+
+  function showOrderWorkflowTab(tab) {
+    RACSDetailActions.showTab('.ao-tab-btn[data-bs-target="#ao-tab-'+tab+'"]',()=>loadTab(tab));
+  }
+
+  window._aoVerifyPayment = async function (orderId, button) {
+    if(paymentReviews.has(String(orderId)))return;
+    paymentReviews.add(String(orderId));
+    if(button)button.disabled=true;
+    try {
     const result = await Swal.fire({
-      title:"Verify Payment?",html:`Mark payment as <strong>Paid</strong>?<br><small class="text-muted">This moves the order to its preparation and assignment queue.</small>`,
+      title:"Verify Submitted Payment?",html:`Confirm that the submitted payment was received?<br><small class="text-muted">A deposit stays a partial payment. Next: preparation and technician assignment.</small>`,
       icon:"question",showCancelButton:true,confirmButtonText:"Yes, Verify Payment",cancelButtonText:"Cancel",
       input:"text",inputPlaceholder:"Verification note (optional)...",
       buttonsStyling:false,
@@ -1437,18 +1473,27 @@ document.addEventListener("DOMContentLoaded", function () {
     });
     if (!result.isConfirmed) return;
 
-    try {
       const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}/payment`, {
         method:"PATCH",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({paymentStatus:"paid",note:result.value||"Payment verified by admin"})
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error||"Failed");
-      Swal.fire({title:"Payment Verified!",text:"Order is now being prepared.",icon:"success",timer:1500,showConfirmButton:false,customClass:{popup:"rounded-4"}});
-      loadTab(currentTab);
-      if (modalEl?.classList.contains("show") && viewedOrderId === String(orderId)) window._aoViewOrder(orderId);
+      if (!res.ok || !data.success || !data.order) throw new Error(data.error||"The payment could not be verified. Refresh and try again.");
+      const order=data.order;
+      const pickup=order.fulfillmentType==='customer_pickup';
+      const projectId=order.projectId?._id||order.projectId;
+      await RACSDetailActions.afterClose(viewedOrderId===String(orderId)?modalEl:null,()=>{
+        if(order.isProject){window.location.href=(isAdminWorkspace?'/admin':'/secretary')+'/projects'+(projectId?'/'+encodeURIComponent(projectId):'');return;}
+        const scope=pickup?'pickup':'delivery';
+        if(currentFulfillmentScope!==scope)setFulfillmentScope(scope,{load:false});
+        showOrderWorkflowTab(pickup?'pickup':'assign');
+      },modal);
+      Swal.fire({title:"Payment Verified",text:pickup?"Continue preparing the unit in Pickup Orders.":order.isProject?"Continue planning the installation project.":"Choose a technician in the Assignment Queue.",icon:"success",timer:1500,showConfirmButton:false,customClass:{popup:"rounded-4"}});
     } catch(err) {
       Swal.fire({title:"Error",text:err.message||"Network error",icon:"error",buttonsStyling:false,customClass:{confirmButton:"btn btn-primary px-4 py-2 rounded-pill fw-bold",popup:"rounded-4"}});
+    } finally {
+      paymentReviews.delete(String(orderId));
+      if(button?.isConnected)button.disabled=false;
     }
   };
 
@@ -1667,8 +1712,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const timeSelect = document.getElementById("aoAssignTimeSlot");
     const noteInput  = document.getElementById("aoAssignNote");
     if (dateInput) {
-      const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
-      dateInput.min = toLocalDateStr(tomorrow);
+      dateInput.min = toLocalDateStr(new Date());
       dateInput.value = prefDate ? toLocalDateStr(prefDate) : "";
     }
     if (timeSelect) timeSelect.value = prefTime || "";
@@ -1833,7 +1877,7 @@ document.addEventListener("DOMContentLoaded", function () {
     window.clearTimeout(overviewSearchTimer);
     overviewSearchTimer = window.setTimeout(() => loadOverview(1), 350);
   });
-  [statusFilter, fulfillFilter, preparationFilter, sortFilter].filter(Boolean).forEach(control => control.addEventListener("change", () => loadOverview(1)));
+  [statusFilter, technicianIssueFilter, fulfillFilter, preparationFilter, sortFilter].filter(Boolean).forEach(control => control.addEventListener("change", () => loadOverview(1)));
   document.getElementById("aoClearDates")?.addEventListener("click", () => {
     scheduledFrom.value = "";
     scheduledTo.value = "";
@@ -1887,6 +1931,14 @@ document.addEventListener("DOMContentLoaded", function () {
   loadOverview(1);
   const linkedOrderId = new URLSearchParams(window.location.search).get("order");
   if (linkedOrderId && /^[a-f\d]{24}$/i.test(linkedOrderId)) {
-    window.setTimeout(() => window._aoViewOrder(linkedOrderId), 150);
+    window.setTimeout(async () => {
+      if (new URLSearchParams(window.location.search).get('assign') !== '1') return window._aoViewOrder(linkedOrderId);
+      try {
+        const response = await fetch(`/api/orders/${encodeURIComponent(linkedOrderId)}`), data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Could not load the replacement order.');
+        const order = data.order;
+        await window._aoAssignTechnician(linkedOrderId, order.orderReference, order.customer?.name, order.delivery?.preferredDate, order.timeSlot);
+      } catch (error) { Swal.fire({ icon: 'error', text: error.message }); }
+    }, 150);
   }
 });

@@ -35,7 +35,7 @@ test("draft persistence uses the active booking fields and actual current step",
   assert.match(servicesScript, /currentStep: normalizeBookingStep\(BookingState\.currentStep, 1\)/);
   assert.match(servicesScript, /BookingState\.selectedDate = parsedDate/);
   assert.match(servicesScript, /BookingState\.selectedTimeSlot = data\.selectedTimeSlot \|\| null/);
-  assert.match(servicesScript, /BookingState\.paymentMethod = \['gcash', 'cod'\]\.includes\(data\.paymentMethod\)/);
+  assert.match(servicesScript, /BookingState\.paymentMethod = \['gcash', 'cod', 'cash_after_service'\]\.includes\(data\.paymentMethod\)/);
   assert.match(servicesScript, /BookingState\.currentStep = normalizeBookingStep\(data\.currentStep \|\| data\.maxReachedStep, 1\)/);
 });
 

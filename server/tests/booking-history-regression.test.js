@@ -159,33 +159,37 @@ test("booking history starts promptly and keeps list queries lightweight", () =>
   assert.match(bookingModel, /customerId: 1, status: 1, bookingDate: -1, createdAt: -1/);
 });
 
-test("edit booking locks Core Services and Repair Service to one category", () => {
-  const view = read("views/pages/book-history.ejs");
+test("booking edits can add either category and preserve the other service's details", () => {
   const script = read("public/js/book-history.js");
-  const routes = read("routes/bookingRoutesNew.js");
-  const builders = script.slice(
-    script.indexOf("function initializeServiceBuilders()"),
-    script.indexOf("async function showEditorFeedback"),
-  );
-  const route = routes.slice(
-    routes.indexOf("router.post('/:id/service-change-requests'"),
-    routes.indexOf("router.post('/:id/service-change-requests/:requestId/schedule-response'"),
-  );
-
-  assert.equal((builders.match(/window\.ApplianceServices\.assertSingleServiceType\(next\);/g) || []).length, 2);
-  assert.equal((builders.match(/window\.ApplianceServices\.assertStandaloneServices\(next\);/g) || []).length, 2);
-  assert.match(builders, /const preExistingMix = rowsAreMixed\(\);/);
-  assert.match(builders, /if \(!preExistingMix\) window\.ApplianceServices\.assertSingleServiceType\(next\);/);
-  assert.match(script, /const rowsAreMixed = \(\) => \{/);
-  assert.match(script, /function syncServiceTypeTabs\(\)/);
-  assert.match(script, /function updateServiceCount\(\) \{\s*syncServiceTypeTabs\(\);/);
-  assert.match(script, /\$\{category\}-tab\`/);
-  assert.match(script, /tab\.disabled = blocked;/);
-  assert.match(script, /tab\.setAttribute\('aria-disabled', String\(blocked\)\);/);
-  assert.match(script, /id="bhServiceTypePolicy" role="status"[\s\S]*?Book the other category for a different booking\./);
-  assert.match(script, /This booking already combines Core and Repair\. Remove one category and save it before adding more services\./);
-  assert.match(route, /require\('\.\.\/public\/js\/appliance-services'\)\.assertSingleServiceType\(proposedServices\);/);
-  assert.match(route, /const proposedServices = await validatedServiceItems\(req\.body\.services, booking\);[\s\S]*?assertSingleServiceType/);
-  assert.match(view, /\/js\/book-history\.js\?v=20261017-service-category-lock/);
+  const start = script.indexOf("function initializeServiceBuilders()");
+  const end = script.indexOf("async function showEditorFeedback", start);
+  const policy = require('../public/js/appliance-services');
+  const core = { id:'core-1', serviceId:'cleaning', type:'core', brand:'Carrier', quantity:1 };
+  const repair = { id:'repair-1', type:'repair', brand:'Midea', hp:2, quantity:1 };
+  for (const initial of [core, repair]) {
+    const rows = [structuredClone(initial)];
+    let coreOptions, repairOptions;
+    const context = { rows, core:[], categories:[], defaultRepairInspectionFee:500,
+      state:{inspectionDurationMinutes:90}, bookingId:'booking-1',
+      host:{querySelector:()=>({})}, selectedUnits:()=>policy.unitCount(rows), renderCurrentItems(){},
+      coreBuilder:null, repairBuilder:null,
+      window:{ApplianceServices:policy,
+        CoreApplianceBooking:{create:()=>({mount(_catalog, options){coreOptions=options;}})},
+        RepairApplianceBooking:{create:()=>({mount(options){repairOptions=options;}})},
+      },
+    };
+    require('node:vm').runInNewContext(script.slice(start,end)+'; initializeServiceBuilders();',context);
+    if (initial.type === 'core') {
+      repairOptions.commit(structuredClone(repair));
+      repairOptions.commit({...repair,brand:'Daikin'},repair.id);
+      assert.deepEqual(rows.find(row=>row.type==='core'),core);
+      assert.equal(rows.find(row=>row.type==='repair').brand,'Daikin');
+    } else {
+      coreOptions.commit([structuredClone(core)]);
+      coreOptions.commit([{...core,brand:'LG'}],core.id);
+      assert.deepEqual(rows.find(row=>row.type==='repair'),repair);
+      assert.equal(rows.find(row=>row.type==='core').brand,'LG');
+    }
+    assert.equal(rows.length,2);
+  }
 });
-

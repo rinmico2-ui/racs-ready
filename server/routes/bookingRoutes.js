@@ -39,7 +39,7 @@ router.post('/create', async (req, res) => {
       console.error('❌ Services is not an array after parsing:', typeof services);
       return res.status(400).json({ error: 'Services must be an array' });
     }
-    try { require('../public/js/appliance-services').assertSingleServiceType(services); }
+    try { require('../public/js/appliance-services').assertServiceTypes(services); }
     catch (error) { return res.status(400).json({ error:error.message, code:error.code }); }
     
     // Create clean service objects to avoid any casting issues

@@ -1,0 +1,13 @@
+.operations-detail-footer {
+  flex: 0 0 auto; gap: .75rem; padding: .85rem 1rem;
+  border-top: 1px solid #e2e8f0; background: #f8fafc;
+}
+.operations-detail-footer[hidden] { display: none !important; }
+.operations-detail-footer .detail-action-help { width: 100%; margin: 0; color: #64748b; font-size: .77rem; line-height: 1.45; }
+.operations-detail-footer .detail-action-buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .5rem; width: 100%; }
+.operations-detail-footer .btn { min-height: 40px; white-space: normal; }
+@media (max-width: 575.98px) {
+  .operations-detail-footer { padding: .75rem; gap: .6rem; }
+  .operations-detail-footer .detail-action-buttons > .btn,
+  #aoModalFooter > .btn { flex: 1 1 140px; }
+}

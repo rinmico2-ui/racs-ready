@@ -109,9 +109,10 @@ router.put('/customers/loyalty-rules', requirePermission('customers.manage'), as
     next(err);
   }
 });
-router.get("/customers", admin.listCustomers);
-router.get("/customers/:id", admin.getCustomer);
-router.get("/customers/:id/violations", admin.getCustomerViolations);
+router.get("/customers", requirePermission("customers.view"), admin.listCustomers);
+router.get("/customers/:id", requirePermission("customers.view"), admin.getCustomer);
+router.get("/customers/:id/contact", requirePermission("customers.view"), admin.getCustomerContact);
+router.get("/customers/:id/violations", requirePermission("customers.view"), admin.getCustomerViolations);
 router.get("/customers/:id/bookings", admin.getCustomerBookingHistory);
 router.patch("/customers/:id", admin.updateCustomer);
 
@@ -3115,7 +3116,8 @@ const Technician = require("../models/Technician");
 const TechnicianAttendance = require("../models/TechnicianAttendance");
 const SecretaryAttendance = require("../models/SecretaryAttendance");
 const { attendanceDay, attendanceRange } = require("../utils/attendanceTime");
-const { createAttendanceChallenge, securityConfig } = require("../utils/attendanceSecurity");
+const { createAttendanceChallenge, securityConfig, safeAttendanceRecord } = require("../utils/attendanceSecurity");
+const staffAttendance = require("../utils/staffAttendanceSessions").createService();
 
 async function buildAttendanceQrResponse() {
   const now = new Date();
@@ -3194,8 +3196,12 @@ router.get("/attendance/today", async (req, res, next) => {
 router.patch("/attendance/:staffId", async (req, res, next) => {
   try {
     const { staffId } = req.params;
-    const { status, availabilityStatus, staffType } = req.body;
-    const overrideReason = String(req.body.overrideReason || "").trim();
+    const { status, availabilityStatus, staffType } = req.body || {};
+    const overrideReason = typeof req.body.overrideReason === "string" ? req.body.overrideReason.trim() : "";
+    const type = staffType || "technician";
+    if (!["technician", "secretary"].includes(type)) return res.status(400).json({ error: "Choose a valid staff role." });
+    if (!status && !availabilityStatus) return res.status(400).json({ error: "Choose an attendance or availability change." });
+    if (availabilityStatus && !["Offline", "Available", "Assigned", "On The Way", "In Progress", "Unavailable"].includes(availabilityStatus)) return res.status(400).json({ error: "Invalid availability status" });
 
     if (!mongoose.Types.ObjectId.isValid(staffId)) {
       return res.status(400).json({ error: "Invalid staff ID" });
@@ -3209,6 +3215,11 @@ router.patch("/attendance/:staffId", async (req, res, next) => {
       return res.status(400).json({ error: "An override reason between 5 and 500 characters is required." });
     }
 
+    return await staffAttendance.withLock(type, staffId, async () => {
+    if (["Present", "Late"].includes(status)) {
+      const session = await staffAttendance.read(type, staffId);
+      if (session.isOvernight) return res.status(409).json({ error: 'Close the previous open shift before recording a new check-in.', code: 'OPEN_SHIFT_REVIEW_REQUIRED' });
+    }
     if (staffType === "secretary") {
       const secretary = await User.findOne({ _id: staffId, role: "secretary", active: { $ne: false } }).lean();
       if (!secretary) return res.status(404).json({ error: "Secretary not found" });
@@ -3220,6 +3231,7 @@ router.patch("/attendance/:staffId", async (req, res, next) => {
       const day = attendanceDay();
       const now = new Date();
       const current = await SecretaryAttendance.findOne({ userId: secretary._id, date: day.start }).lean();
+      if (status === "Checked Out" && (!current?.checkInTime || current.checkOutTime || !["Present", "Late"].includes(current.status))) return res.status(409).json({ error: "Refresh the roster and record a check-in before checking out." });
       const storedStatus = status === "Checked Out"
         ? (["Present", "Late"].includes(current?.status) ? current.status : "Present")
         : status;
@@ -3281,8 +3293,9 @@ router.patch("/attendance/:staffId", async (req, res, next) => {
       const currentAttendance = await TechnicianAttendance.findOne({
         technicianId: tech._id,
         date: startOfToday,
-      }).select("checkInTime").lean();
+      }).select("status checkInTime checkOutTime").lean();
 
+      if (status === "Checked Out" && (!currentAttendance?.checkInTime || currentAttendance.checkOutTime || !["Present", "Late"].includes(currentAttendance.status))) return res.status(409).json({ error: "Refresh the roster and record a check-in before checking out." });
       const updateData = {
         $set: {
           method: "manual",
@@ -3296,7 +3309,7 @@ router.patch("/attendance/:staffId", async (req, res, next) => {
       };
 
       if (status === "Checked Out") {
-        updateData.$set.status = "Present"; // Keep standard present/late status for reports
+        updateData.$set.status = currentAttendance.status; // Checkout preserves lateness for reports and payroll.
         updateData.$set.checkOutTime = new Date();
       } else {
         updateData.$set.status = status;
@@ -3312,15 +3325,11 @@ router.patch("/attendance/:staffId", async (req, res, next) => {
       await TechnicianAttendance.findOneAndUpdate(
         { technicianId: tech._id, date: startOfToday },
         updateData,
-        { upsert: true }
+        { upsert: true, runValidators: true }
       );
     }
 
     if (availabilityStatus) {
-      const validAvail = ["Offline", "Available", "Assigned", "On The Way", "In Progress", "Unavailable"];
-      if (!validAvail.includes(availabilityStatus)) {
-        return res.status(400).json({ error: "Invalid availability status" });
-      }
       tech.availabilityStatus = availabilityStatus;
       updates.availabilityStatus = availabilityStatus;
     }
@@ -3337,8 +3346,40 @@ router.patch("/attendance/:staffId", async (req, res, next) => {
     }).catch(() => { });
 
     return res.json({ message: "Technician attendance/availability updated", technician: tech });
+    });
   } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message, code: err.code });
     next(err);
+  }
+});
+
+/** Close an existing shift using its verified finish time; never invent worked hours. */
+router.post('/attendance/:staffId/close-shift', async (req, res, next) => {
+  try {
+    const { staffId } = req.params, { staffType, recordId, checkOutLocal, overrideReason } = req.body || {};
+    if (!mongoose.isObjectIdOrHexString(staffId) || !mongoose.isObjectIdOrHexString(recordId)) return res.status(400).json({ error: 'Choose a valid attendance record.' });
+    if (!['technician', 'secretary'].includes(staffType)) return res.status(400).json({ error: 'Choose a valid staff role.' });
+    const technician = staffType === 'technician' ? await Technician.findById(staffId) : null;
+    if (staffType === 'technician' && !technician) return res.status(404).json({ error: 'Technician not found.' });
+    if (staffType === 'secretary' && !await User.exists({ _id: staffId, role: 'secretary' })) return res.status(404).json({ error: 'Secretary not found.' });
+    const record = await staffAttendance.closeByAdmin(staffType, staffId, {
+      recordId, checkOutLocal, reason: overrideReason, userId: req.user._id,
+      onSaved: async () => {
+        if (!technician) return;
+        const current = await staffAttendance.read('technician', staffId);
+        if (!current.record?.checkInTime || current.record.checkOutTime || current.needsAdminReview) {
+          technician.availabilityStatus = 'Offline'; await technician.save();
+        }
+      },
+    });
+    await audit.logEvent({ actor: req.user._id, target: staffId, action: 'attendance.manual.close_shift', module: 'admin', req,
+      entityId: record._id, entityType: staffType === 'technician' ? 'TechnicianAttendance' : 'SecretaryAttendance',
+      details: { staffType, workDate: attendanceDay(record.date).key, checkOutTime: record.checkOutTime, preservedStatus: record.status, overrideReason: record.remarks },
+    }).catch(() => {});
+    return res.json({ message: 'Shift closed using the verified finish time.', attendance: safeAttendanceRecord(record) });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message, code: error.code });
+    next(error);
   }
 });
 
@@ -7113,8 +7154,8 @@ router.get("/resolution-center", async (req, res, next) => {
       sortResolutionCases,
       summarizeResolutionCases,
     } = require("../utils/resolutionCenter");
-    const bookingFields = "status paymentStatus paymentMethod bookingDate preferredDate startTime endTime selectedTimeLabel preferredTime serviceDurationMinutes isProject projectScheduling services.quantity services.duration services.schedule services.type service.duration travelTime resolutionCases.issueType resolutionCases.sourceStatus resolutionCases.state customerId customer.name customer.email customer.phone customer.mobile noShowReport.reviewStatus noShowReport.arrivedAt noShowReport.contactAttempts noShowReport.waitedMinutes noShowReport.arrivalProofUrl noShowReport.reportedAt noShowReport.reportedByName assignmentId technicianId technician.name technicianName bookingReference workOrderNumber service.name service.price serviceName serviceModel quantity proposedReschedule cancellationHistory.technicianName cancellationHistory.action cancellationHistory.reason cancellationReason rescheduleAccessExpiry noShowRescheduleExpiry quotation.totalAmount estimatedTotal payment.downpaymentAmount downpaymentAmount rescheduleRequest.status rescheduleRequest.requested rescheduleRequest.requestedDate rescheduleReason autoReschedulePending duration maintenance paymentNotes amountPaid";
-    const orderFields = "bookingId orderReference status fulfillmentType pickupDate delivery.preferredDate delivery.contactNumber timeSlot statusHistory.status statusHistory.timestamp items.modelLine items.brand items.quantity isProject projectScheduling technicianId technician.name customer.name customer.email customer.phone paymentStatus paymentMethod total preparation routeDurationMin rescheduleInvitation";
+    const bookingFields = "status paymentStatus paymentMethod bookingDate preferredDate startTime endTime selectedTimeLabel preferredTime serviceDurationMinutes isProject projectScheduling services.quantity services.duration services.schedule services.type service.duration travelTime resolutionCases.issueType resolutionCases.sourceStatus resolutionCases.state customerId customer.name customer.email customer.phone customer.mobile noShowReport.reviewStatus noShowReport.arrivedAt noShowReport.contactAttempts noShowReport.waitedMinutes noShowReport.arrivalProofUrl noShowReport.reportedAt noShowReport.reportedByName assignmentId technicianId technician.name technicianName bookingReference workOrderNumber service.name service.price serviceName serviceModel quantity proposedReschedule cancellationHistory.technicianName cancellationHistory.action cancellationHistory.reason cancellationReason rescheduleAccessExpiry noShowRescheduleExpiry quotation.totalAmount estimatedTotal payment.downpaymentAmount downpaymentAmount rescheduleRequest.status rescheduleRequest.requested rescheduleRequest.requestedDate rescheduleReason autoReschedulePending duration maintenance paymentNotes amountPaid staffingEmergencies updatedAt visitRecoveryHistory";
+    const orderFields = "bookingId orderReference status fulfillmentType pickupDate delivery.preferredDate delivery.contactNumber timeSlot statusHistory.status statusHistory.timestamp items.modelLine items.brand items.quantity isProject projectScheduling technicianId technician.name customer.name customer.email customer.phone paymentStatus paymentMethod total preparation routeDurationMin rescheduleInvitation updatedAt staffingEmergencies visitRecoveryHistory";
     const focus = parseResolutionFocus(req.query.focus);
     if (req.query.focus && !focus) return res.status(400).json({ error: "Invalid booking or order link." });
     const now = new Date();
@@ -7139,6 +7180,8 @@ router.get("/resolution-center", async (req, res, next) => {
         ? Order.find({
           status: { $in: [...REVIEWABLE_ORDER_STATUSES] },
           $or: [
+            { status: 'technician_declined', technicianId: null, 'staffingEmergencies.0': { $exists: true } },
+            { status: 'preparing_unit', technicianId: null, 'visitRecoveryHistory.0': { $exists: true } },
             { fulfillmentType: "customer_pickup", pickupDate: { $lt: orderScheduleUpperBound } },
             { fulfillmentType: { $ne: "customer_pickup" }, "delivery.preferredDate": { $lt: orderScheduleUpperBound } },
           ],
@@ -7294,6 +7337,9 @@ router.get("/resolution-center", async (req, res, next) => {
         quantity: workload.totalUnits,
         capacityQuantity: 1,
         status: booking.status,
+        updatedAt: booking.updatedAt,
+        recoveryAvailable: !workload.isProject && require('../utils/visitRecovery').eligible('booking', booking),
+        recoveryContact: booking.visitRecoveryHistory?.at(-1) || null,
         issueType,
         severity: details.severity || (isPastDate ? (daysPast >= 2 ? "critical" : "high") : "medium"),
         reason: details.reason || "Admin decision required",
@@ -7308,6 +7354,7 @@ router.get("/resolution-center", async (req, res, next) => {
         canReassign: !isCancelled && !workload.isProject && (details.canReassign ?? (!isPastDate && issueType !== "cancelled" && issueType !== "no_show")),
         proposedReschedule: pendingResolutionProposal(booking),
         cancellationReason: booking.cancellationReason || lastAction?.reason || "",
+        staffingEmergency: booking.status === 'pending_reassignment' && !booking.technicianId ? booking.staffingEmergencies?.at(-1) || null : null,
         noShowReport: issueType === "no_show" ? {
           arrivedAt: report.arrivedAt || null,
           contactAttempts: report.contactAttempts || [],
@@ -7323,6 +7370,7 @@ router.get("/resolution-center", async (req, res, next) => {
         paymentStatus: booking.paymentStatus || 'pending',
         paymentMethod: booking.paymentMethod || '',
         allowedActions: [
+          ...(!workload.isProject && require('../utils/visitRecovery').eligible('booking', booking) ? ['recover'] : []),
           "view", ...(!bookingIssueRequiresOutcome(booking, issueType, now) ? ['close'] : []), ...(!isCancelled ? ['reschedule'] : []),
           ...(resolutionPaymentNeedsReview(booking) ? ['verify_payment'] : []),
           ...((!isCancelled && !workload.isProject && (details.canReassign ?? (!isPastDate && issueType !== "cancelled" && issueType !== "no_show"))) ? ["reassign"] : []),
@@ -7385,9 +7433,11 @@ router.get("/resolution-center", async (req, res, next) => {
       }
       if (booking.status === "pending_reassignment") {
         const lastAction = booking.cancellationHistory?.length ? booking.cancellationHistory[booking.cancellationHistory.length - 1] : null;
+        const emergency = !booking.technicianId && booking.staffingEmergencies?.at(-1);
         addCase(booking, "technician_issue", {
           severity: "high",
-          reason: lastAction ? `${lastAction.technicianName || "Technician"} ${lastAction.action}: ${lastAction.reason || "No reason provided"}` : "Technician declined or cancelled; a new technician is required",
+          reason: emergency ? `${emergency.reporterName} (${emergency.reporterRole === 'support' ? 'Supporting' : 'Primary'}) reported ${emergency.reason}. The whole visit is paused; review the crew before reassignment.`
+            : lastAction ? `${lastAction.technicianName || "Technician"} ${lastAction.action}: ${lastAction.reason || "No reason provided"}` : "Technician declined or cancelled; a new technician is required",
           requiresReschedule: isPastDate,
           canReassign: !isPastDate,
         });
@@ -7512,22 +7562,9 @@ router.post("/resolution-center/:id/reassign", async (req, res, next) => {
 
     const booking = await BookingService.findById(id);
     if (!booking) return res.status(404).json({ error: "Booking not found" });
-    const scheduledAt = booking.bookingDate ? new Date(booking.bookingDate) : null;
-    if (scheduledAt) {
-      const match = String(booking.startTime || "").trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
-      if (match) {
-        let hour = Number(match[1]);
-        const minute = Number(match[2]);
-        if (match[3]) {
-          const ap = match[3].toUpperCase();
-          if (ap === "PM" && hour < 12) hour += 12;
-          if (ap === "AM" && hour === 12) hour = 0;
-        }
-        scheduledAt.setHours(hour, minute, 0, 0);
-      } else {
-        scheduledAt.setHours(23, 59, 59, 999);
-      }
-    }
+    require('../utils/visitRecovery').assertContact('booking', booking);
+    const { manilaDateTime, parseAppointmentTime } = require('../utils/bookingDateTime');
+    const scheduledAt = manilaDateTime(booking.bookingDate, parseAppointmentTime(booking.startTime));
     if (scheduledAt && scheduledAt < new Date()) {
       return res.status(409).json({ error: "This booking date has passed. Reschedule the visit before assigning a technician.", code: "RESCHEDULE_REQUIRED" });
     }
@@ -8655,6 +8692,7 @@ router.post("/review-reschedule/:id/reschedule", async (req, res, next) => {
     if (!booking) return res.status(404).json({ error: "Booking not found" });
 
     const { validateResolutionSchedule, syncResolutionProject, commitResolutionSchedule } = require("../utils/resolutionScheduling");
+    if (require('../utils/visitRecovery').emergency('booking', booking)) return res.status(409).json({ error: 'Record the customer agreement through Resolve and reassign in the Resolution Center.', code: 'CUSTOMER_CONTACT_REQUIRED' });
     const schedule = await validateResolutionSchedule(booking, req.body);
     booking.$where = { ...(booking.$where || {}), status:booking.status };
     const { date, dateObj, time } = schedule;
@@ -9563,7 +9601,7 @@ router.get("/settings/email-status", async (_req, res, next) => {
         { $match: { createdAt: { $gte: since } } },
         { $group: { _id: "$status", count: { $sum: 1 } } },
       ]),
-      EmailDeliveryLog.findOne().sort({ createdAt: -1 }).lean(),
+      EmailDeliveryLog.findOne().sort({ createdAt: -1 }).select('status provider createdAt').lean(),
       EmailOutbox.aggregate([
         { $match: { status: { $in: ["pending", "processing", "failed"] } } },
         { $group: { _id: "$status", count: { $sum: 1 }, oldest: { $min: "$createdAt" } } },
@@ -9573,7 +9611,7 @@ router.get("/settings/email-status", async (_req, res, next) => {
     const outbox = Object.fromEntries(outboxSummary.map((row) => [row._id, row]));
     res.set("Cache-Control", "no-store");
     return res.json({
-      configuration: mailer.buildMailerStatus(process.env),
+      configuration: require('../utils/emailOperationsPresentation').configuration(mailer.buildMailerStatus(process.env)),
       last24Hours: { accepted: counts.accepted || 0, failed: counts.failed || 0 },
       outbox: {
         pending: outbox.pending?.count || 0,
@@ -9588,11 +9626,12 @@ router.get("/settings/email-status", async (_req, res, next) => {
       } : null,
     });
   } catch (error) {
-    next(error);
+    return res.status(503).json({ error: "Email service information is unavailable. Please try again shortly." });
   }
 });
 
 router.post("/settings/email-verify", async (req, res, next) => {
+  res.set('Cache-Control', 'private, no-store');
   try {
     const result = await require("../utils/mailer").verifyMailerConfiguration();
     await audit.logEvent({
@@ -9605,11 +9644,12 @@ router.post("/settings/email-verify", async (req, res, next) => {
     });
     return res.json({ message: `${result.provider === "brevo" ? "Brevo API" : "SMTP"} credentials and network connection verified.`, provider: result.provider });
   } catch (error) {
-    return res.status(502).json({ error: String(error.message || "Email provider verification failed.").slice(0, 500) });
+    return res.status(502).json({ error: require('../utils/emailOperationsPresentation').problem(error.message) });
   }
 });
 
 router.post("/settings/email-test", async (req, res, next) => {
+  res.set('Cache-Control', 'private, no-store');
   try {
     const recipient = String(req.body?.recipient || "").trim().toLowerCase();
     if (recipient.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
@@ -9643,12 +9683,12 @@ router.post("/settings/email-test", async (req, res, next) => {
     return res.json({
       message: result.queued
         ? "The test email was queued. Refresh this page to see when the provider accepts it, then check the inbox and spam folder."
-        : "The provider accepted the test email. Check the recipient inbox and spam folder.",
+        : "The email service accepted the test message. Check the recipient inbox and spam folder.",
       provider: result.provider || null,
-      messageId: result.messageId || null,
+      queued: Boolean(result.queued),
     });
   } catch (error) {
-    next(error);
+    return res.status(502).json({ error: require('../utils/emailOperationsPresentation').problem(error.message) });
   }
 });
 
@@ -9660,20 +9700,10 @@ router.get("/settings/email-logs", async (req, res, next) => {
     const records = await EmailDeliveryLog.find(filter).sort({ createdAt: -1 }).limit(limit).lean();
     res.set("Cache-Control", "no-store");
     return res.json({
-      records: records.map((record) => ({
-        id: record._id,
-        provider: record.provider,
-        recipient: record.recipient,
-        subject: record.subject,
-        status: record.status,
-        messageId: record.messageId,
-        error: record.error,
-        source: record.source,
-        createdAt: record.createdAt,
-      })),
+      records: records.map(require('../utils/emailOperationsPresentation').record),
     });
   } catch (error) {
-    next(error);
+    return res.status(503).json({ error: "Email sending records are unavailable. Please try again shortly." });
   }
 });
 
@@ -9687,9 +9717,9 @@ router.get("/settings/email-logs/:id/delivery", async (req, res) => {
     if (record.provider !== "brevo" || record.status !== "accepted" || !record.messageId) {
       return res.status(400).json({ error: "Delivery events are available for emails accepted by Brevo." });
     }
-    return res.json(await require("../utils/brevoDelivery").lookupDelivery(record.messageId));
+    return res.json(require('../utils/emailOperationsPresentation').delivery(await require("../utils/brevoDelivery").lookupDelivery(record.messageId)));
   } catch {
-    return res.status(502).json({ error: "Unable to check delivery right now. Open Brevo transactional logs and search by the provider message ID." });
+    return res.status(502).json({ error: "Delivery confirmation is unavailable right now. Try again later or ask the server administrator to check the email service." });
   }
 });
 

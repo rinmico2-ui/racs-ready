@@ -1614,7 +1614,7 @@ router.get("/activate-account", (req, res) => {
 });
 router.get("/admin/inventory/equipment-returns", pageAuth.requireRole("admin"), (req, res) => {
   res.render("pages/admin/Inventory/EquipmentReturns", {
-    title: "Equipment Returns Queue",
+    title: "Technician Inventory Tracking",
     layout: "layouts/admin",
   });
 });

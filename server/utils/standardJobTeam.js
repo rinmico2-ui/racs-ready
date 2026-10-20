@@ -112,6 +112,7 @@ async function prepareSchedule(source, job, slots = (...args) => require('../rou
 }
 function installHooks(schema, source) {
   schema.add(fields(require('mongoose')));
+  schema.add(require('./visitRecovery').fields(require('mongoose')));
   schema.index({ 'technicianTeam.technicianId': 1, status: 1, [source === 'booking' ? 'bookingDate' : 'delivery.preferredDate']: 1 });
   schema.path('technicianTeam').validate(value => !value || value.length <= 10 && new Set(value.map(row => ref(row.technicianId))).size === value.length, 'A technician team must contain at most ten distinct technicians.');
   async function synchronize(document, session) {
@@ -173,4 +174,4 @@ function installHooks(schema, source) {
     if (document) await synchronize(document, this.getOptions().session);
   });
 }
-module.exports = { ref, members, ids, member, isPrimary, scope, normalize, readiness, assertReady, bookingAssignmentStatus, assignServiceItems, acceptServiceItems, publicTeam, fields, capacityRows, scheduleKey, prepareSchedule, installHooks, failure, closed };
+module.exports = { ref, members, ids, member, isPrimary, scope, normalize, readiness, assertReady, repairVisit, serviceReadyForVisit, bookingAssignmentStatus, assignServiceItems, acceptServiceItems, publicTeam, fields, capacityRows, scheduleKey, prepareSchedule, installHooks, failure, closed };

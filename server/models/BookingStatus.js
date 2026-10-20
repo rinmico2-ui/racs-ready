@@ -106,6 +106,7 @@ const AssignmentStatus = {
  */
 const StatusTransitions = {
   [BookingStatus.PENDING]: [
+    BookingStatus.AWAITING_ASSIGNMENT,
     BookingStatus.PAYMENT_VERIFIED,
     BookingStatus.REJECTED,
     BookingStatus.CANCELLED,

@@ -929,13 +929,16 @@ router.get("/leave-requests", async (req, res, next) => {
     const tech = await Technician.findOne({ user: req.user._id }).lean();
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
 
-    const items = await LeaveRequest.find({ technicianId: tech._id })
-      .sort({ createdAt: -1 })
-      .limit(100)
-      .lean();
-
-    return res.json({ items, count: items.length });
+    const today = require('../utils/bookingDateTime').manilaDateTime(new Date(), 0);
+    const [items, unavailableRanges] = await Promise.all([
+      LeaveRequest.find({ technicianId: tech._id }).sort({ createdAt: -1 }).limit(100).lean(),
+      LeaveRequest.find({ technicianId: tech._id, status: { $in: ['pending', 'approved'] }, endDate: { $gte: today } })
+        .select('_id startDate endDate status').sort({ startDate: 1 }).lean(),
+    ]);
+    res.set('Cache-Control', 'private, no-store');
+    return res.json({ items, count: items.length, unavailableRanges });
   } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message, code: err.code, fields: err.fields });
     next(err);
   }
 });
@@ -943,7 +946,7 @@ router.get("/leave-requests", async (req, res, next) => {
 /**
  * POST /api/technician/leave-requests
  * Body: { startDate: "YYYY-MM-DD", endDate?: "YYYY-MM-DD", reason?: string }
- * Creates a new pending leave request. Rejects overlapping pending requests.
+ * Creates pending leave for dates outside existing pending/approved ranges.
  */
 router.post("/leave-requests", async (req, res, next) => {
   try {
@@ -953,40 +956,9 @@ router.post("/leave-requests", async (req, res, next) => {
     const tech = await Technician.findOne({ user: req.user._id }).lean();
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
 
-    const { startDate, endDate, reason } = req.body;
-    if (reason !== undefined && (typeof reason !== 'string' || reason.length > 500)) return res.status(400).json({ error: 'Check your leave reason.', fields: { reason: 'Enter a reason up to 500 characters.' } });
-    if (!startDate) return res.status(400).json({ error: "Start date is required." });
-
-    const { validateLeaveDates } = require('../utils/leaveRequestValidation');
-    const { start, end, fields } = validateLeaveDates(startDate, endDate);
-    if (Object.keys(fields).length) return res.status(400).json({ error: 'Check your leave dates.', fields });
-
-    // Block overlapping pending and approved requests.
-    const conflict = await LeaveRequest.findOne({
-      technicianId: tech._id,
-      status: { $in: ["pending", "approved"] },
-      startDate: { $lte: end },
-      endDate: { $gte: start },
-    }).lean();
-
-    if (conflict) {
-      return res.status(409).json({
-        error: "You already have a pending or approved leave request that overlaps with these dates.",
-      });
-    }
-
-    const leave = new LeaveRequest({
-      technicianId: tech._id,
-      technician: {
-        name: tech.name || "",
-        email: tech.email || "",
-        phone: tech.phone || "",
-      },
-      startDate: start,
-      endDate: end,
-      reason: String(reason || "").trim().slice(0, 500),
-    });
-    await leave.save();
+    const leave = await require('../utils/technicianLeaveRequests').createService().submit(tech, req.body || {});
+    const { startDate, endDate, reason } = req.body || {};
+    const start = leave.startDate, end = leave.endDate;
 
     // Notify admins of new leave request
     const { createNotification } = require("../utils/notify");
@@ -994,7 +966,7 @@ router.post("/leave-requests", async (req, res, next) => {
     await createNotification({
       type: "leave_requested",
       title: "Leave Request",
-      message: `${tech.name} requested leave from ${new Date(start).toLocaleDateString()} to ${new Date(end || start).toLocaleDateString()}.`,
+      message: `${tech.name} requested leave from ${require('../utils/technicianLeaveRequests').dateLabel(start)} to ${require('../utils/technicianLeaveRequests').dateLabel(end)}.`,
       role: "admin",
       referenceId: leave._id,
       referenceModel: "LeaveRequest",
@@ -1014,6 +986,7 @@ router.post("/leave-requests", async (req, res, next) => {
 
     return res.status(201).json({ message: "Leave request submitted successfully.", leave });
   } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message, code: err.code, fields: err.fields });
     next(err);
   }
 });
@@ -1033,13 +1006,7 @@ router.delete("/leave-requests/:id", async (req, res, next) => {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid id" });
 
-    const leave = await LeaveRequest.findOne({ _id: id, technicianId: tech._id });
-    if (!leave) return res.status(404).json({ error: "Leave request not found" });
-    if (leave.status !== "pending") {
-      return res.status(400).json({ error: "Only pending requests can be cancelled." });
-    }
-
-    await leave.deleteOne();
+    await require('../utils/technicianLeaveRequests').createService().cancel(tech._id, id);
 
     await audit.logEvent({
       actor: req.user._id,
@@ -1052,6 +1019,7 @@ router.delete("/leave-requests/:id", async (req, res, next) => {
 
     return res.json({ message: "Leave request cancelled." });
   } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message, code: err.code, fields: err.fields });
     next(err);
   }
 });
@@ -1192,7 +1160,7 @@ router.get("/appointments/:id", async (req, res, next) => {
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
 
     const booking = await BookingService.findById(id)
-      .select("paymentNotes status quotation quotationReview repairUnitTracking inspection diagnosis serviceType services workOrderNumber bookingReference bookingDate startTime endTime customer.name customer.phone customer.address location technicianId unitInfo technicianAssistant partsRequest preventiveMaintenance previousRepairs warranty repairCompletion paymentMethod paymentStatus amountPaid balanceAmount balanceCollected downpaymentAmount totalPrice totalInitialCost estimatedFee initialCost servicePrice travelFare inspectionFeeCollected inspectionFeeAmount inspectionFeeDistanceFare inspectionFeeTotalCollected downpaymentAppliedToInspection coreServicePaymentCollected coreServicePaymentAmount coreServicePaymentCashCollected coreServicePaymentMethod coreServicePaymentCollectedAt repairPaymentCollected repairPaymentAmount repairPaymentMethod customerRating customerRatingComment service serviceId address completedAt")
+      .select("paymentNotes status quotation quotationReview repairUnitTracking inspection diagnosis serviceType services workOrderNumber bookingReference bookingDate startTime endTime customer.name customer.phone customer.address location technicianId unitInfo technicianAssistant partsRequest preventiveMaintenance previousRepairs warranty repairCompletion paymentMethod paymentChannel paymentStatus amountPaid balanceAmount balanceCollected downpaymentAmount totalPrice totalInitialCost estimatedFee initialCost servicePrice travelFare inspectionFeeCollected inspectionFeeAmount inspectionFeeDistanceFare inspectionFeeTotalCollected downpaymentAppliedToInspection coreServicePaymentCollected coreServicePaymentAmount coreServicePaymentCashCollected coreServicePaymentMethod coreServicePaymentCollectedAt repairPaymentCollected repairPaymentAmount repairPaymentMethod customerRating customerRatingComment service serviceId address completedAt")
       .lean();
     if (!booking) return res.status(404).json({ error: "Appointment not found" });
     if (!technicianIds.includes(String(booking.technicianId || ""))) {
@@ -1606,6 +1574,9 @@ const Technician = require("../models/Technician");
 const TechnicianAttendance = require("../models/TechnicianAttendance");
 const { attendanceDay } = require("../utils/attendanceTime");
 
+const staffAttendance = require('../utils/staffAttendanceSessions').createService();
+router.use('/attendance', (_req, res, next) => { res.set('Cache-Control', 'private, no-store'); next(); });
+
 const attendanceActionLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 12,
@@ -1645,23 +1616,15 @@ router.get("/attendance/status", async (req, res, next) => {
     const tech = await Technician.findOne({ user: req.user._id });
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
 
-    const startOfToday = attendanceDay().start;
-
-    // Check for approved leave covering today
-    const activeLeave = await LeaveRequest.findOne({
-      technicianId: tech._id,
-      status: "approved",
-      startDate: { $lte: startOfToday },
-      endDate: { $gte: startOfToday },
+    const session = await staffAttendance.read('technician', tech._id);
+    const { record } = session;
+    const startOfToday = session.workDay.start;
+    const activeLeave = await LeaveRequest.findOne({ technicianId: tech._id, status: "approved",
+      startDate: { $lte: startOfToday }, endDate: { $gte: startOfToday },
     }).lean();
 
-    const record = await TechnicianAttendance.findOne({
-      technicianId: tech._id,
-      date: startOfToday,
-    }).select("date status checkInTime checkOutTime qrVerified method remarks noExpensesTodayConfirmed noExpensesTodayConfirmedAt createdAt updatedAt").lean();
-
     // Compute effective availability from attendance state (single source of truth)
-    const availabilityStatus = await resolveAvailabilityStatus(tech, record, activeLeave, { syncDb: true });
+    const availabilityStatus = await resolveAvailabilityStatus(tech, record, activeLeave, { syncDb: true, attendanceLoaded: true, leaveLoaded: true });
 
     const attendanceStatus = computeAttendanceStatus(record, activeLeave);
 
@@ -1674,6 +1637,7 @@ router.get("/attendance/status", async (req, res, next) => {
     }
 
     return res.json({
+      attendanceDate: session.workDay.key, isOvernight: session.isOvernight, needsAdminReview: session.needsAdminReview,
       attendanceStatus,
       availabilityStatus,
       record: safeAttendanceRecord(record),
@@ -1704,22 +1668,19 @@ router.post("/attendance/checkin", attendanceActionLimiter, async (_req, res) =>
  */
 router.post("/attendance/checkout", attendanceActionLimiter, async (req, res, next) => {
   try {
-    const { noExpensesToday } = req.body;
+    const { noExpensesToday } = req.body || {};
     if (!(await verifyAttendanceDevice(req, res))) return;
 
     const now = new Date();
     const tech = await Technician.findOne({ user: req.user._id });
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
 
-    const day = attendanceDay(now);
-    const startOfToday = day.start;
+    const session = await staffAttendance.read('technician', tech._id, now);
+    const { record } = session;
+    const day = session.workDay, startOfToday = day.start;
+    if (session.needsAdminReview) return res.status(409).json({ code: 'OPEN_SHIFT_REVIEW_REQUIRED', error: 'This older shift needs admin review. Ask admin to record the verified finish time.' });
 
-    const record = await TechnicianAttendance.findOne({
-      technicianId: tech._id,
-      date: startOfToday,
-    });
-
-    if (!record || !["Present", "Late"].includes(record.status)) {
+    if (!record?.checkInTime || !["Present", "Late"].includes(record.status)) {
       return res.status(400).json({ error: "You must check in before checking out today." });
     }
 
@@ -1733,13 +1694,13 @@ router.post("/attendance/checkout", attendanceActionLimiter, async (req, res, ne
         technicianId: tech._id,
         $or: [
           { status: { $in: ["en_route", "on_site", "waiting_for_customer", "in_progress"] } },
-          { status: "accepted", bookingDate: { $lte: day.end } },
+          { status: "accepted", bookingDate: { $lte: attendanceDay(now).end } },
         ],
       }).select("_id status serviceName").lean(),
       Assignment.find({
         technicianId: tech._id,
         status: "completed",
-        completedAt: { $gte: day.start, $lte: day.end },
+        completedAt: { $gte: new Date(record.checkInTime), $lte: now },
       }).select("_id serviceName address coordinates").lean(),
     ]);
     if (activeAssignments.length) {
@@ -1750,7 +1711,7 @@ router.post("/attendance/checkout", attendanceActionLimiter, async (req, res, ne
       });
     }
 
-    const locationEvidence = await verifyAttendanceLocation(req.body.location || req.body, {
+    const locationEvidence = await verifyAttendanceLocation(req.body?.location || req.body, {
       now,
       enforceAllowedGeofence: true,
       allowedSites: completedAssignments.map(assignment => ({
@@ -1787,13 +1748,13 @@ router.post("/attendance/checkout", attendanceActionLimiter, async (req, res, ne
     }
 
     const Expense = require("../models/Expense");
-    const endOfToday = day.end;
+    const endOfToday = attendanceDay(now).end;
     const [todayExpenseCount, completedJobsToday] = await Promise.all([
       Expense.countDocuments({ technicianId: tech._id, expenseDate: { $gte: startOfToday, $lte: endOfToday } }),
-      Assignment.countDocuments({ technicianId: tech._id, status: "completed", completedAt: { $gte: startOfToday, $lte: endOfToday } }),
+      Assignment.countDocuments({ technicianId: tech._id, status: "completed", completedAt: { $gte: new Date(record.checkInTime), $lte: now } }),
     ]);
     if (todayExpenseCount === 0 && noExpensesToday !== true) {
-      return res.status(409).json({ code: "EXPENSE_CONFIRMATION_REQUIRED", error: "No expenses have been logged today.", completedJobsToday });
+      return res.status(409).json({ code: "EXPENSE_CONFIRMATION_REQUIRED", error: "No expenses have been logged for this shift.", completedJobsToday });
     }
     const attendanceUpdate = {
       checkOutTime: now,
@@ -1804,18 +1765,10 @@ router.post("/attendance/checkout", attendanceActionLimiter, async (req, res, ne
       attendanceUpdate.noExpensesTodayConfirmed = true;
       attendanceUpdate.noExpensesTodayConfirmedAt = now;
     }
-    const checkedOutRecord = await TechnicianAttendance.findOneAndUpdate(
-      { _id: record._id, checkOutTime: null },
-      { $set: attendanceUpdate },
-      { returnDocument: "after", runValidators: true },
-    );
-    if (!checkedOutRecord) {
-      return res.status(409).json({ error: "You have already checked out today." });
-    }
-
-    // Set technician availability status to Offline on checkout
-    tech.availabilityStatus = "Offline";
-    await tech.save();
+    const checkedOutRecord = await staffAttendance.checkOut('technician', tech._id, {
+      record, now, fields: attendanceUpdate,
+      onSaved: async () => { tech.availabilityStatus = 'Offline'; await tech.save(); },
+    });
 
     // Calculate total hours worked
     const hoursWorked = ((now - new Date(checkedOutRecord.checkInTime)) / 3600000).toFixed(2);
@@ -1859,6 +1812,7 @@ router.post("/attendance/checkout", attendanceActionLimiter, async (req, res, ne
       }).catch(() => {});
     }
     if (securityErrorResponse(res, err)) return;
+    if (err.status) return res.status(err.status).json({ error: err.message, code: err.code });
     next(err);
   }
 });
@@ -1891,13 +1845,13 @@ router.get("/attendance/history", async (req, res, next) => {
  */
 router.post("/attendance/scan", attendanceActionLimiter, async (req, res, next) => {
   try {
-    const { token } = req.body;
+    const { token } = req.body || {};
     if (!token) return res.status(400).json({ error: "QR Token is required" });
     if (!(await verifyAttendanceDevice(req, res))) return;
 
     const now = new Date();
     const challenge = verifyAttendanceChallenge(token, now);
-    const locationEvidence = await verifyAttendanceLocation(req.body.location || req.body, {
+    const locationEvidence = await verifyAttendanceLocation(req.body?.location || req.body, {
       now,
       enforceCompanyGeofence: true,
     });
@@ -1927,38 +1881,15 @@ router.post("/attendance/scan", attendanceActionLimiter, async (req, res, next) 
       return res.status(400).json({ error: "You are currently on approved leave. Scanning is disabled." });
     }
 
-    // Check if already checked in today
-    const existing = await TechnicianAttendance.findOne({ technicianId: tech._id, date: startOfToday });
-    if (existing && ["Present", "Late"].includes(existing.status)) {
-      return res.status(400).json({ error: "You have already scanned today's attendance." });
-    }
-
-    // Determine status against the business timezone, independent of server host.
-    const status = now > day.lateCutoff ? "Late" : "Present";
-
-    // Create or update attendance record
-    const attendanceRecord = await TechnicianAttendance.findOneAndUpdate(
-      {
-        technicianId: tech._id,
-        date: startOfToday,
-        $or: [{ checkInTime: null }, { checkInTime: { $exists: false } }],
+    const attendanceRecord = await staffAttendance.checkIn('technician', tech._id, {
+      now, fields: { userId: req.user._id, securityVersion: 2, checkInEvidence: evidence },
+      onSaved: async () => {
+        tech.availabilityStatus = 'Available';
+        tech.location = { type: 'Point', coordinates: [evidence.longitude, evidence.latitude] };
+        await tech.save();
       },
-      { $set: {
-        userId: req.user._id,
-        status,
-        checkInTime: now,
-        checkOutTime: null,
-        qrVerified: true,
-        method: "qr_scan",
-        securityVersion: 2,
-        checkInEvidence: evidence,
-      }, $unset: { token: 1 } },
-      { upsert: true, returnDocument: "after", runValidators: true }
-    );
-
-    tech.availabilityStatus = "Available";
-    tech.location = { type: "Point", coordinates: [evidence.longitude, evidence.latitude] };
-    await tech.save();
+    });
+    const status = attendanceRecord.status;
 
     await audit.logEvent({
       actor: req.user._id,
@@ -1999,6 +1930,7 @@ router.post("/attendance/scan", attendanceActionLimiter, async (req, res, next) 
       }).catch(() => {});
     }
     if (securityErrorResponse(res, err)) return;
+    if (err.status) return res.status(err.status).json({ error: err.message, code: err.code });
     if (err && err.code === 11000) {
       return res.status(409).json({ error: "Attendance has already been recorded for today." });
     }
@@ -2328,7 +2260,7 @@ router.get("/dashboard/overview", async (req, res, next) => {
     const activeBookingsMap = new Map();
     if (activeBookingIds.length > 0) {
       const activeBookings = await BookingService.find({ _id: { $in: activeBookingIds.map(id => new mongoose.Types.ObjectId(id)) } })
-        .select("paymentMethod paymentStatus amountPaid balanceAmount balanceCollected downpaymentAmount totalPrice estimatedFee isMultiService services service status serviceType initialCost travelFare inspectionFeeCollected repairPaymentCollected repairPaymentAmount quotation approval repairSchedule unitInfo technicianId")
+        .select("paymentMethod paymentChannel paymentStatus amountPaid balanceAmount balanceCollected downpaymentAmount totalPrice estimatedFee isMultiService services service status serviceType initialCost travelFare inspectionFeeCollected repairPaymentCollected repairPaymentAmount quotation approval repairSchedule unitInfo technicianId")
         .lean();
       for (const b of activeBookings) activeBookingsMap.set(String(b._id), b);
     }
@@ -2336,6 +2268,7 @@ router.get("/dashboard/overview", async (req, res, next) => {
       const bk = activeBookingsMap.get(String(activeJob.bookingId));
       if (bk) {
         activeJob.paymentMethod = bk.paymentMethod;
+        activeJob.paymentChannel = bk.paymentChannel;
         activeJob.paymentStatus = bk.paymentStatus;
         activeJob.amountPaid = bk.amountPaid;
         activeJob.balanceAmount = bk.balanceAmount;
@@ -2793,6 +2726,7 @@ router.get("/kpis", async (req, res, next) => {
       ]),
       BookingService.countDocuments({
         status: "pending_reassignment",
+        'staffingEmergencies.0': { $exists: false },
         bookingDate: { $gte: todayStart },
       }),
       ServiceToolUsage.aggregate([
@@ -2992,7 +2926,7 @@ router.get("/assignments", async (req, res, next) => {
     const BookingService = require("../models/BookingService");
     const bookingIds = items.map(a => a.bookingId).filter(Boolean);
     const bookings = await BookingService.find({ _id: { $in: bookingIds } })
-      .select("technicianId technicianTeam bookingReference workOrderNumber paymentMethod paymentStatus amountPaid balanceAmount balanceCollected downpaymentAmount totalPrice estimatedFee isMultiService services service status serviceType initialCost travelFare inspectionFeeCollected repairPaymentCollected repairPaymentAmount quotation airconType airconTypeName hp hpDescription quantity notes address location customerLocation serviceDurationMinutes description features customer.name customer.phone customer.address unitInfo maintenance.paymentOnSite")
+      .select("technicianId technicianTeam bookingReference workOrderNumber paymentMethod paymentChannel paymentStatus amountPaid balanceAmount balanceCollected downpaymentAmount totalPrice estimatedFee isMultiService services service status serviceType initialCost travelFare inspectionFeeCollected repairPaymentCollected repairPaymentAmount quotation airconType airconTypeName hp hpDescription quantity notes address location customerLocation serviceDurationMinutes description features customer.name customer.phone customer.address unitInfo maintenance.paymentOnSite")
       .lean();
     const bookingMap = new Map(bookings.map(b => [String(b._id), b]));
     for (const item of items) {
@@ -3000,6 +2934,7 @@ router.get("/assignments", async (req, res, next) => {
       if (bk) {
         item.technicianTeam = (bk.technicianTeam || []).map(row => ({ name: row.name, technicianId: row.technicianId, status: row.status, role: String(row.technicianId) === String(bk.technicianId) ? 'primary' : 'support' }));
         item.paymentMethod = bk.paymentMethod;
+        item.paymentChannel = bk.paymentChannel;
         item.paymentOnSite = bk.maintenance?.paymentOnSite === true;
         item.paymentStatus = bk.paymentStatus;
         item.amountPaid = bk.amountPaid;
@@ -3122,6 +3057,7 @@ router.get("/assignments/:id", async (req, res, next) => {
     if (assignment.bookingId && assignment.bookingId._id) {
       const bk = assignment.bookingId;
       assignment.paymentMethod = bk.paymentMethod;
+      assignment.paymentChannel = bk.paymentChannel;
       assignment.paymentOnSite = bk.maintenance?.paymentOnSite === true;
       assignment.paymentStatus = bk.paymentStatus;
       assignment.amountPaid = bk.amountPaid;
@@ -4456,6 +4392,7 @@ router.patch("/assignments/:id/status", async (req, res, next) => {
     const { status: newStatus, startProofUrl, startProofNotes, arrivalProofUrl } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid id" });
+    if (newStatus === 'cancelled') return res.status(409).json({ error: 'Use Report Emergency so admin can coordinate the whole team.', code: 'EMERGENCY_REPORT_REQUIRED' });
 
     const validTransitions = {
       accepted: ["en_route", "cancelled"],
@@ -4761,7 +4698,7 @@ router.patch("/assignments/:id/status", async (req, res, next) => {
  * Body: { amount: number, notes?: string }
  * Technician collects the final balance while work is in progress, before the
  * proof-of-completion commit. Payment and completion remain separate events.
- * Only allowed for COD bookings with remaining balance.
+ * Collects an outstanding booking balance and records actual money received.
  */
 router.post("/assignments/:id/collect-payment", async (req, res, next) => {
   let maintenancePaymentSession = null;
@@ -4781,12 +4718,12 @@ router.post("/assignments/:id/collect-payment", async (req, res, next) => {
     }
     let booking = await BookingService.findById(assignment.bookingId);
     if (!booking) return res.status(404).json({ error: "Booking not found" });
-    if (booking.maintenance?.isMaintenance && booking.maintenance?.paymentOnSite) {
+    if (booking.paymentMethod === 'cash_after_service' || booking.maintenance?.isMaintenance && booking.maintenance?.paymentOnSite) {
       maintenancePaymentSession = await mongoose.startSession();
       maintenancePaymentSession.startTransaction();
       booking = await BookingService.findById(assignment.bookingId).session(maintenancePaymentSession);
       if (!booking || ["cancelled", "repair_declined"].includes(booking.status)) {
-        return res.status(409).json({ error: "This maintenance visit can no longer receive payment." });
+        return res.status(409).json({ error: "This service visit can no longer receive payment." });
       }
       const activeAssignment = await Assignment.findOne({ _id: id, technicianId: tech._id,
         status: { $in: ["in_progress", "completed"] }, bookingId: booking._id }).session(maintenancePaymentSession);
@@ -4995,241 +4932,34 @@ router.post("/assignments/:id/collect-payment-legacy", async (req, res, next) =>
 });
 
 /**
- * POST /api/technician/assignments/:id/cancel
+ * POST /api/technician/assignments/:id/emergency (also accepts legacy /cancel)
  * Body: { reason: string, customReason?: string }
- * Technician cancels an active assignment. Booking goes back to reassignment queue.
- * Enterprise-level: validates status, notifies eligible techs, emails customer, audits.
+ * A primary or supporting technician reports a before-work emergency.
+ * Pause the shared visit atomically and send the whole team for admin review.
  */
-router.post("/assignments/:id/cancel", async (req, res, next) => {
+async function reportAssignmentEmergency(req, res, next) {
   try {
-    const Assignment = require("../models/Assignment");
-    const BookingService = require("../models/BookingService");
-    const TechnicianSchedule = require("../models/TechnicianSchedule");
-    const LeaveRequest = require("../models/LeaveRequest");
-    const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid id" });
-
-    const tech = await Technician.findOne({ user: req.user._id });
-    if (!tech) return res.status(404).json({ error: "Technician record not found" });
-
-    const assignment = await Assignment.findOne({ _id: id, technicianId: tech._id });
-    if (!assignment) return res.status(404).json({ error: "Assignment not found" });
-
-    const cancellableStatuses = ["accepted", "en_route", "on_site"];
-    if (!cancellableStatuses.includes(assignment.status)) {
-      return res.status(400).json({ error: `Cannot cancel assignment in "${assignment.status}" status. Only accepted, en route, or on site assignments can be cancelled.` });
-    }
-
-    const { reason, customReason } = req.body;
-    if (!reason) return res.status(400).json({ error: "Cancellation reason is required." });
-
-    const validReasons = ["emergency", "vehicle_breakdown", "personal", "weather", "overlapping_job", "other"];
-    if (!validReasons.includes(reason)) {
-      return res.status(400).json({ error: "Invalid cancellation reason." });
-    }
-
-    const reasonLabels = {
-      emergency: "Emergency",
-      vehicle_breakdown: "Vehicle Breakdown",
-      personal: "Personal Reason",
-      weather: "Weather Conditions",
-      overlapping_job: "Overlapping Job Conflict",
-      other: "Other",
-    };
-    const cancellationReason = reason === "other"
-      ? `Other: ${(customReason || "").trim().slice(0, 500) || "No details provided"}`
-      : reasonLabels[reason];
-
-    const now = new Date();
-    assignment.status = "cancelled";
-    assignment.cancelledAt = now;
-    assignment.cancellationReason = cancellationReason;
-    assignment.notes.push({
-      text: `Assignment cancelled by technician. Reason: ${cancellationReason}`,
-      by: req.user._id,
-      byName: tech.name,
-      createdAt: now,
-    });
-    await assignment.save();
-
-    // ── Sync Booking Status ──────────────────────────────────────────────
-    const cancelNote = `[Technician Cancelled] ${tech.name} cancelled: ${cancellationReason}`;
-    console.log("[CANCEL] Updating booking:", assignment.bookingId, "to status: pending_reassignment");
-    const bookingBeforeCancel = await BookingService.findById(assignment.bookingId).lean();
-    const newCancelCount = (bookingBeforeCancel?.reassignmentCount || 0) + 1;
-    const booking = await BookingService.findByIdAndUpdate(assignment.bookingId, {
-      $set: {
-        status: "pending_reassignment",
-        technicianId: null,
-        assignmentId: null,
-        cancellationReason: `[Technician Cancelled] ${tech.name}: ${cancellationReason}`,
-        notes: cancelNote,
-        ...(newCancelCount >= 3 ? { escalated: true } : {}),
-      },
-      $inc: { reassignmentCount: 1 },
-      $push: {
-        cancellationHistory: {
-          technicianId: tech._id,
-          technicianName: tech.name,
-          action: "cancelled",
-          reason: cancellationReason,
-          timestamp: new Date(),
-        },
-      },
-    }, { returnDocument: "after" }).lean();
-    console.log("[CANCEL] Booking updated:", booking ? { _id: booking._id, status: booking.status } : "NOT FOUND");
-
-    // ── Resolve Technician Availability ──────────────────────────────────
-    const { resolveAvailabilityStatus } = require("../utils/availability");
-    const resolvedStatus = await resolveAvailabilityStatus(tech, null, null, { syncDb: true });
-    tech.availabilityStatus = resolvedStatus;
-    await tech.save();
-
-    const io = req.app.get("io");
-
-    // ── Find Eligible Technicians & Push Vacancy Notification ────────────
-    try {
-      const allTechs = await Technician.find({ active: true, _id: { $ne: tech._id } }).lean();
-      const eligibleTechIds = [];
-
-      for (const candidate of allTechs) {
-        // Check leave
-        const onLeave = await LeaveRequest.findOne({
-          technicianId: candidate._id,
-          status: "approved",
-          startDate: { $lte: booking.bookingDate },
-          endDate: { $gte: booking.bookingDate },
-        }).lean();
-        if (onLeave) continue;
-
-        // Check schedule
-        const schedule = await TechnicianSchedule.findOne({ technicianId: candidate._id }).lean();
-        if (!schedule) continue;
-        const bookingDay = new Date(booking.bookingDate).getDay();
-        const isWorkingDay = (schedule.workingDays || []).some(wd => wd.dayOfWeek === bookingDay);
-        if (!isWorkingDay) continue;
-        const isRestDate = (schedule.restDates || []).some(rd => {
-          const rdDate = new Date(rd).toDateString();
-          return rdDate === new Date(booking.bookingDate).toDateString();
-        });
-        if (isRestDate) continue;
-
-        // Check capacity (< 3 active assignments)
-        const activeCount = await Assignment.countDocuments({
-          technicianId: candidate._id,
-          status: { $in: ["pending_acceptance", "accepted", "en_route", "on_site", "in_progress"] },
-        });
-        if (activeCount >= 3) continue;
-
-        eligibleTechIds.push(String(candidate._id));
-      }
-
-      // Push vacancy notification to each eligible technician
-      for (const techId of eligibleTechIds) {
-        if (io) {
-          io.to("tech:" + techId).emit("assignment:vacancy", {
-            bookingId: booking._id,
-            bookingReference: booking.bookingReference || `#${String(booking._id).slice(-6).toUpperCase()}`,
-            serviceName: assignment.serviceName || "Service",
-            customerName: assignment.customerName || "Customer",
-            bookingDate: booking.bookingDate,
-            startTime: assignment.startTime,
-            address: assignment.address,
-            estimatedFee: assignment.estimatedFee,
-            message: `New job available: ${assignment.serviceName || "Service"} for ${assignment.customerName || "Customer"}`,
-          });
-        }
-
-        // In-app notification for each eligible tech
-        const { createNotification } = require("../utils/notify");
-        await createNotification({
-          type: "assignment_new",
-          title: "New Job Available",
-          message: `A job was cancelled. Available: ${assignment.serviceName || "Service"} for ${assignment.customerName || "Customer"} on ${assignment.bookingDate ? new Date(assignment.bookingDate).toLocaleDateString("en-PH") : "TBD"}.`,
-          role: "technician",
-          referenceId: booking._id,
-          referenceModel: "BookingService",
-          link: "/technician/assignments?tab=available",
-          priority: "normal",
-          io,
-        }).catch(() => { });
-      }
-    } catch (vacancyErr) {
-      console.error("[CANCEL] Vacancy notification error:", vacancyErr.message);
-    }
-
-    // ── Notify Admins ────────────────────────────────────────────────────
-    if (io) {
-      io.to("admin-room").emit("assignment:cancelled", {
-        assignmentId: assignment._id,
-        bookingId: assignment.bookingId,
-        technicianName: tech.name,
-        reason: cancellationReason,
-        customerName: assignment.customerName,
-        serviceName: assignment.serviceName,
-        bookingDate: assignment.bookingDate,
-      });
-    }
-
-    const { createNotification } = require("../utils/notify");
-    await createNotification({
-      type: "booking_cancelled",
-      title: "Technician Cancelled Assignment",
-      message: `${tech.name} cancelled the assignment for ${assignment.serviceName || "a service"}. Reason: ${cancellationReason}`,
-      role: "admin",
-      referenceId: assignment._id,
-      referenceModel: "Assignment",
-      link: "/admin/appointments/attention?issue=technician_issue",
-      priority: "high",
-      io,
-    });
-
-    // ── Email: Notify Customer ───────────────────────────────────────────
-    try {
-      const { sendTechnicianCancelledEmail } = require("../utils/mailer");
-      if (booking?.customer?.email) {
-        const dateLabel = booking.bookingDate
-          ? new Date(booking.bookingDate).toLocaleDateString("en-PH", { weekday: "long", year: "numeric", month: "long", day: "numeric" })
-          : "TBD";
-        const timeLabel = booking.startTime || "TBD";
-        sendTechnicianCancelledEmail({
-          to: booking.customer.email,
-          customerName: booking.customer?.name || "Customer",
-          bookingReference: booking.bookingReference || `#${String(booking._id).slice(-6).toUpperCase()}`,
-          serviceName: booking.isMultiService && Array.isArray(booking.services) && booking.services.length > 0 ? booking.services.map(s => s.name).join(', ') : (booking.service?.name || assignment.serviceName || "Service"),
-          technicianName: tech.name,
-          dateLabel,
-          timeLabel,
-          reason: cancellationReason,
-        }).catch(err => console.error("[MAILER] Failed to send cancellation email:", err.message));
-      }
-    } catch (mailErr) {
-      console.error("[MAILER] Cancellation email error:", mailErr.message);
-    }
-
-    // ── Audit Log ────────────────────────────────────────────────────────
-    await audit.logEvent({
-      actor: req.user._id,
-      target: tech._id,
-      action: "assignment.cancel",
-      module: "technician",
-      req,
-      details: {
-        assignmentId: id,
-        bookingId: assignment.bookingId,
-        reason: cancellationReason,
-        previousStatus: assignment.status,
-      },
-    }).catch(() => { });
-
-    return res.json({
-      message: "Assignment cancelled. The booking has been returned to the reassignment queue.",
-      assignment,
-    });
-  } catch (err) {
-    next(err);
+    const technician = await Technician.findOne({ user: req.user._id }).lean();
+    if (!technician) return res.status(404).json({ error: "Technician record not found" });
+    const emergency = require('../utils/bookingEmergency');
+    const result = await emergency.createService().report(req.params.id, technician, req.body, req.user._id);
+    await emergency.publish(result, req).catch(error => console.warn('[emergency] Follow-up pending:', error.message));
+    if (!result.duplicate) await audit.logEvent({ actor: req.user._id, target: result.booking._id,
+      action: 'assignment.emergency_reported', module: 'technician', req,
+      details: { assignmentId: req.params.id, reason: result.incident.reason,
+        reporterRole: result.incident.reporterRole, affectedTechnicianIds: result.incident.team.map(row => String(row.technicianId)) }
+    }).catch(() => {});
+    return res.json({ success: true, duplicate: result.duplicate,
+      message: result.duplicate ? 'This visit already has an emergency report. Admin is reviewing the team.'
+        : 'Emergency reported. The visit is paused for the whole team. Admin will arrange reassignment or a new schedule.' });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    next(error);
   }
-});
+}
+router.post('/assignments/:id/emergency', reportAssignmentEmergency);
+// Older clients receive the same coordinated, atomic handling.
+router.post('/assignments/:id/cancel', reportAssignmentEmergency);
 
 /**
  * GET /api/technician/available-jobs
@@ -5278,6 +5008,7 @@ router.get("/available-jobs", async (req, res, next) => {
     // Find bookings in pending_reassignment
     const bookings = await BookingService.find({
       status: "pending_reassignment",
+      'staffingEmergencies.0': { $exists: false },
       bookingDate: { $gte: today },
     })
       .select("bookingReference isMultiService services.name service.name bookingDate startTime estimatedFee totalPrice travelFare priority")
@@ -5346,7 +5077,7 @@ router.post("/available-jobs/:bookingId/accept", async (req, res, next) => {
 
     const booking = await BookingService.findById(bookingId);
     if (!booking) return res.status(404).json({ error: "Booking not found" });
-    if (booking.technicianTeam?.length) return res.status(409).json({ error: "Operations must review and reassign this technician team before work resumes.", code: "TEAM_REVIEW_REQUIRED" });
+    if (booking.technicianTeam?.length || booking.staffingEmergencies?.length) return res.status(409).json({ error: "Operations must review and reassign this technician team before work resumes.", code: "TEAM_REVIEW_REQUIRED" });
     if (booking.status !== "pending_reassignment") {
       return res.status(400).json({ error: "This booking is no longer available for acceptance." });
     }
@@ -7242,7 +6973,7 @@ router.post("/appointments/:id/complete-inspection", async (req, res, next) => {
     }
 
     // Set balance amount for COD/cash bookings
-    if (["cod", "cash", "cash_onsite", "gcash_downpayment"].includes(booking.paymentMethod) && quotationTotal > 0) {
+    if (["cod", "cash", "cash_onsite", "gcash_downpayment", "cash_after_service"].includes(booking.paymentMethod) && quotationTotal > 0) {
       const isMixedBooking = booking.serviceType === 'mixed'
         || ((booking.services || []).some(item => item.type === 'core')
           && (booking.services || []).some(item => item.type === 'repair'));
@@ -10307,6 +10038,7 @@ router.post("/repairs/:bookingId/status", async (req, res, next) => {
     const { bookingId } = req.params;
     const { status: newStatus, startProofUrl, startProofNotes, arrivalProofUrl } = req.body;
     if (!mongoose.Types.ObjectId.isValid(bookingId)) return res.status(400).json({ error: "Invalid booking id" });
+    if (newStatus === 'cancelled') return res.status(409).json({ error: 'Use Report Emergency so admin can coordinate the whole team.', code: 'EMERGENCY_REPORT_REQUIRED' });
 
     const tech = await Technician.findOne({ user: req.user._id });
     if (!tech) return res.status(404).json({ error: "Technician record not found" });

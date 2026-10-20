@@ -12,7 +12,7 @@ const { validateLeaveDates } = require('../utils/leaveRequestValidation');
 const source = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 const id = '507f1f77bcf86cd799439011';
 const userId = '507f1f77bcf86cd799439012';
-const query = value => ({ lean: async () => value, sort() { return this; }, limit() { return this; } });
+const query = value => ({ lean: async () => value, select() { return this; }, sort() { return this; }, limit() { return this; } });
 
 function fixture(options = {}) {
   let leave = options.missing ? null : { _id: id, technicianId: userId, status: 'pending',
@@ -22,6 +22,7 @@ function fixture(options = {}) {
   const models = {
     find: () => query(leave ? [leave] : []),
     findById: () => query(leave && { ...leave }),
+    findOne: () => query(options.overlap || null),
     findOneAndUpdate(filter, change, config) {
       writes.push({ filter, change, config });
       if (options.race) return query(null);
@@ -35,6 +36,7 @@ function fixture(options = {}) {
   const nativeRequire = createRequire(filename);
   const module = { exports: {} };
   const overrides = { '../models/LeaveRequest': models,
+    '../utils/technicianLeaveRequests': { createService: () => require('../utils/technicianLeaveRequests').createService({ LeaveRequest: models, lock: async (_key, work) => work() }) },
     '../utils/notify': { createNotification: async data => { notices.push(data); } },
     '../utils/audit': { logEvent: async data => { audits.push(data); } },
   };
@@ -99,6 +101,16 @@ test('stale decisions and concurrent cancellations cannot overwrite another staf
   assert.equal((await invoke(race, { status: 'approved' })).status, 409);
   assert.equal(race.notices.length, 0);
   assert.equal(race.audits.length, 0);
+});
+
+test('staff cannot approve or reapprove leave that overlaps another pending or approved request', async () => {
+  const f = fixture({ overlap: { _id: 'another-request', status: 'pending', startDate: new Date('2030-01-01'), endDate: new Date('2030-01-02') } });
+  const blocked = await invoke(f, { status: 'approved' });
+  assert.equal(blocked.status, 409); assert.equal(blocked.payload.code, 'LEAVE_OVERLAP');
+  assert.equal(f.writes.length, 0); assert.equal(f.notices.length, 0);
+  assert.equal((await invoke(f, { status: 'rejected' })).status, 200);
+  assert.equal((await invoke(f, { status: 'approved' })).status, 409);
+  assert.equal(f.writes.length, 1);
 });
 
 test('leave list validates filters and returns private data without caching', async () => {
@@ -188,10 +200,10 @@ test('technician end-date minimum tracks start changes, rejects stale end dates 
   function input() { return { value: '', listeners: {}, addEventListener(name, callback) { this.listeners[name] = callback; }, setCustomValidity(value) { this.validationMessage = value; } }; }
   const start = input(), end = input();
   const document = { getElementById: key => key === 'leaveStart' ? start : end };
-  const view = source('views/pages/technician/Attendance.ejs');
+  const view = source('public/js/technician-leave-requests.js');
   const begin = view.indexOf("  const leaveStart = document.getElementById('leaveStart');");
   const context = { document, Intl, Date };
-  vm.runInNewContext(view.slice(begin, view.indexOf('// ── Load Status', begin)), context);
+  vm.runInNewContext(view.slice(begin, view.indexOf('// Leave request state', begin)), context);
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date());
   assert.equal(end.min, today);
   start.value = '2030-01-10'; start.listeners.input();

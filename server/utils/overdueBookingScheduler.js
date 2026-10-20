@@ -290,7 +290,7 @@ async function checkForUpcomingUnverifiedBookings() {
         ],
       },
       verificationReminderAt: null,
-    }).select('status bookingDate startTime serviceName customer customerId paymentStatus bookingReference verificationReminderAt maintenance paymentNotes amountPaid');
+    }).select('status bookingDate startTime serviceName customer customerId paymentStatus paymentMethod bookingReference verificationReminderAt maintenance paymentNotes amountPaid');
 
     if (!upcoming.length) return;
 
@@ -304,7 +304,7 @@ async function checkForUpcomingUnverifiedBookings() {
       const hoursAway = Math.round((scheduledDateTime - now) / 3600000 * 10) / 10;
 
       const issues = [];
-      if (!isUnpaidAftercareMaintenance(booking) && (booking.status === 'pending' || ['pending', 'failed', 'partial'].includes(booking.paymentStatus))) {
+      if (booking.paymentMethod !== 'cash_after_service' && !isUnpaidAftercareMaintenance(booking) && (booking.status === 'pending' || ['pending', 'failed', 'partial'].includes(booking.paymentStatus))) {
         issues.push('Payment is not yet verified');
       }
       if (['awaiting_assignment', 'assigned', 'pending_reassignment'].includes(booking.status)) {

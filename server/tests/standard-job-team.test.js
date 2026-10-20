@@ -9,7 +9,7 @@ const id = number => number.toString(16).padStart(24, '0');
 const lead = id(1), support = id(2), customer = id(3), bookingId = id(4), orderId = id(5);
 const copy = value => structuredClone(value);
 function query(value) { const result = { session() { return result; }, select() { return result; }, populate() { return result; }, lean: async () => value, then(resolve, reject) { return Promise.resolve(value).then(resolve, reject); } }; return result; }
-function fixture({ source = 'booking', unavailable, failWrite = 0, standalone = false } = {}) {
+function fixture({ source = 'booking', unavailable, failWrite = 0, standalone = false, slots } = {}) {
   const store = { bookings: new Map(), orders: new Map(), assignments: new Map() }, events = [], checks = [];
   let writes = 0, sequence = 100;
   class Document {
@@ -41,7 +41,7 @@ function fixture({ source = 'booking', unavailable, failWrite = 0, standalone = 
   const deps = { ...models, Technician: { find: filter => query(technicians.filter(row => !filter._id || filter._id.$in.includes(row._id))) }, lock: async (key, work) => { events.push(key); return work(); },
     mongoose: { isValidObjectId: mongoose.isValidObjectId, connection: standalone ? { getClient: () => ({ topology: { description: { servers: new Map([['local', { type: 'Standalone' }]]) } } }) } : {},
       startSession: async () => ({ async withTransaction(work) { const snapshot = copy(store); events.push('start'); try { await work(); events.push('commit'); } catch (error) { for (const key of Object.keys(store)) store[key] = snapshot[key]; events.push('abort'); throw error; } }, endSession: async () => events.push('end') }) },
-    slots: async (input, exclusions) => { checks.push({ input, exclusions }); return { statusCode: 200, payload: { timeSlots: [{ startTime: '08:00', available: input.technicianId !== unavailable }] } }; },
+    slots: async (input, exclusions) => { checks.push({ input, exclusions }); return slots ? slots(input, exclusions) : { statusCode: 200, payload: { timeSlots: [{ startTime: '08:00', available: input.technicianId !== unavailable }] } }; },
   };
   const service = createService(deps);
   return { service, store, events, checks, job, source, assign: input => service.assign(source, job._id, input || { technicianId: lead, technicianIds: [lead, support] }, { _id: id(9), name: 'Admin', role: 'admin' }), get current() { return store[source === 'booking' ? 'bookings' : 'orders'].get(String(job._id)); } };
@@ -203,7 +203,7 @@ test('expired and foreign responses cannot accept a team invitation', async () =
   const f = fixture(); await f.assign();
   await assert.rejects(f.service.respond('booking', bookingId, id(88), 'accept'), /no longer assigned/);
   f.current.technicianTeam[1].deadlineAt = new Date('2000-01-01');
-  await assert.rejects(f.service.respond('booking', bookingId, support, 'accept'), /no longer available/);
+  await assert.rejects(f.service.respond('booking', bookingId, support, 'accept'), error => error.code === 'TEAM_RESPONSE_EXPIRED');
 });
 test('installation teams create one linked booking and leave the order amounts and quantities unchanged', async () => {
   const f = fixture({ source: 'order' }); const result = await f.assign();
@@ -285,6 +285,39 @@ test('the grace period does not allow staff to assign a new order team after its
   await assert.rejects(f.assign(), /future appointment/);
   assert.equal(f.current.status, 'preparing_unit');
   assert.equal(f.current.technicianId, undefined);
+});
+test('booking teams can be assigned shortly after the start, reserve the full remaining visit and accept within grace', async t => {
+  t.mock.timers.enable({ apis:['Date'], now:new Date('2099-01-05T00:10:15Z') });
+  const f=fixture({slots:async()=>({statusCode:200,payload:{timeSlots:[{startTime:'08:11',available:true}]}})});
+  const result=await f.assign();
+  assert.equal(result.job.startTime,'08:00','Keep the customer appointment start');
+  assert.equal(result.job.endTime,'10:56','Reserve service, travel and buffer from the actual dispatch time');
+  assert.ok(f.checks.every(row=>row.exclusions.assignmentStartMinutes===491));
+  assert.ok(f.current.technicianTeam.every(row=>new Date(row.deadlineAt).toISOString()==='2099-01-05T00:30:00.000Z'));
+  await f.service.respond('booking',bookingId,lead,'accept');
+  t.mock.timers.setTime(new Date('2099-01-05T00:29:59Z').getTime());
+  await f.service.respond('booking',bookingId,support,'accept');
+  assert.equal(f.current.status,'confirmed');assert.equal(team.readiness(f.current).ready,true);
+});
+test('booking grace never bypasses a crew member conflict or issues a partial team', async t => {
+  t.mock.timers.enable({ apis:['Date'], now:new Date('2099-01-05T00:10:15Z') });
+  const f=fixture({slots:async input=>({statusCode:200,payload:{timeSlots:[{startTime:'08:11',available:input.technicianId!==support}]}})});
+  await assert.rejects(f.assign(),/no longer available/);assert.equal(f.store.assignments.size,0);assert.equal(f.current.status,'awaiting_assignment');
+});
+test('late dispatch does not shorten a longer saved booking reservation during its capacity check', async t => {
+  t.mock.timers.enable({apis:['Date'],now:new Date('2099-01-05T00:10:15Z')});
+  const f=fixture({slots:async()=>({statusCode:200,payload:{timeSlots:[{startTime:'08:11',available:true}]}})});
+  f.current.endTime='12:00';await f.assign();
+  assert.ok(f.checks.every(row=>row.input.duration==='154'));assert.equal(f.current.endTime,'12:00');
+});
+test('an expired booking window rejects assignment and acceptance before changing its team', async t => {
+  t.mock.timers.enable({ apis:['Date'], now:new Date('2099-01-04T23:55:00Z') });
+  const f=fixture();await f.assign();const before=copy(f.current);
+  t.mock.timers.setTime(new Date('2099-01-05T00:30:00.001Z').getTime());
+  await assert.rejects(f.service.respond('booking',bookingId,lead,'accept'),error=>error.code==='BOOKING_ASSIGNMENT_WINDOW_EXPIRED');
+  assert.deepEqual(f.current,before);
+  const unassigned=fixture();await assert.rejects(unassigned.assign(),error=>error.code==='BOOKING_ASSIGNMENT_WINDOW_EXPIRED');
+  assert.equal(unassigned.store.assignments.size,0);
 });
 
 test('an unscheduled continuation cannot be accepted using the previous order appointment', async () => {

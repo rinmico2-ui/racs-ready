@@ -2,6 +2,12 @@
   <%- include('../../partials/dashboard-styles') %>
 
   <style>
+    .at-details-group { margin-top:16px; padding:14px; border:1px solid #e2e8f0; border-radius:12px; }
+    .at-details-group h6 { font-size:.82rem; font-weight:700; color:#334155; }
+    .at-technical-reference { padding-top:12px; border-top:1px solid #e2e8f0; }
+    .at-technical-reference summary { font-size:.8rem; color:#64748b; cursor:pointer; }
+    .at-detail-modal .kv { overflow-wrap:anywhere; }
+    @media(max-width:575px) { .at-detail-modal .kv { flex-wrap:wrap; gap:4px; } .at-detail-modal .kv > span { width:100%; text-align:left!important; } .audit-page .filter-bar .fb-group { min-width:0!important; max-width:100%; } .audit-page .filter-bar input { min-width:0; width:100%; } }
     /* ═════════════════════════════════════════════════
        AUDIT TRAIL — Enterprise Activity Explorer
        ═════════════════════════════════════════════════ */
@@ -148,7 +154,6 @@
     .at-detail-modal .kv { display: flex; justify-content: space-between; padding: 0.45rem 0; border-bottom: 1px dashed #e2e8f0; font-size: 0.82rem; }
     .at-detail-modal .kv span:first-child { color: var(--at-muted); font-weight: 600; }
     .at-detail-modal .kv span:last-child { color: var(--at-text); text-align: right; word-break: break-word; }
-    .at-detail-modal pre { background: #0f172a; color: #e2e8f0; border-radius: 10px; padding: 0.9rem; font-size: 0.74rem; max-height: 220px; overflow: auto; }
 
     .at-toggle { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--at-muted); cursor: pointer; user-select: none; }
   </style>
@@ -229,21 +234,21 @@
   <div class="filter-bar">
     <div class="fb-group" style="min-width:200px; flex:1;">
       <i class="bi bi-search"></i>
-      <input id="at-q" type="text" placeholder="Search action, actor, role, entity...">
+      <input id="at-q" type="text" placeholder="Search event, person, role or record...">
     </div>
     <div class="fb-group">
       <i class="bi bi-box"></i>
       <select id="at-entity">
         <option value="">All Entities</option>
-        <option>BookingService</option>
+        <option value="BookingService">Service booking</option>
         <option>Order</option>
-        <option>WalkInSale</option>
+        <option value="WalkInSale">Store sale</option>
         <option>Payment</option>
-        <option>Assignment</option>
+        <option value="Assignment">Technician assignment</option>
         <option>Project</option>
         <option>Expense</option>
         <option>Technician</option>
-        <option>User</option>
+        <option value="User">Account</option>
       </select>
     </div>
     <div class="fb-group">
@@ -255,7 +260,7 @@
         <option value="status_change">Status Change</option>
         <option value="cancelled">Cancelled</option>
         <option value="deleted">Deleted / Void</option>
-        <option value="auth">Auth</option>
+        <option value="auth">Sign-in and access</option>
         <option value="security">Security</option>
         <option value="action">Other</option>
       </select>
@@ -299,6 +304,8 @@
     <button class="btn-filter primary" onclick="applyFilter()"><i class="bi bi-funnel-fill"></i> Apply</button>
   </div>
 
+  <p class="small text-muted mb-3"><i class="bi bi-shield-check me-1" aria-hidden="true"></i>Contact details and network addresses are masked in this view and exports. Passwords and verification secrets are hidden.</p>
+
   <!-- ═══ TABLE CARD ═══ -->
   <div class="table-card">
     <div class="tc-head">
@@ -319,10 +326,10 @@
             <th>Date / Time</th>
             <th>Risk</th>
             <th>Event</th>
-            <th>Actor / Source</th>
-            <th>Target / Entity</th>
+            <th>Performed By</th>
+            <th>Affected Account / Record</th>
             <th>Outcome</th>
-            <th>Request Context</th>
+            <th>Activity Source</th>
           </tr>
         </thead>
         <tbody id="at-body">
@@ -513,25 +520,29 @@
         .replace(/\b\w/g, function (letter) { return letter.toUpperCase(); });
     }
 
-    function sourceLabel(source) {
-      return String(source || 'system').replace(/_/g, ' ');
+    function readable(value) {
+      if (value === '[REDACTED]') return 'Sensitive information hidden';
+      if (value === '[PRIVATE]') return 'Private information hidden';
+      if (value === true) return 'Yes';
+      if (value === false) return 'No';
+      if (value == null || value === '') return 'Not recorded';
+      return String(value).replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
     }
-
-    function detailsText(d) {
-      if (!d) return '';
-      if (typeof d === 'string') return d;
-      var parts = [];
-      ['reason', 'note', 'fromStatus', 'toStatus', 'invoiceNumber', 'orderReference', 'bookingReference'].forEach(function (k) {
-        if (d[k] != null && d[k] !== '') parts.push(String(d[k]));
-      });
-      if (parts.length === 0) {
-        Object.keys(d).slice(0, 4).forEach(function (k) {
-          var v = d[k];
-          if (v && typeof v === 'object') v = JSON.stringify(v);
-          parts.push(k + '=' + v);
-        });
-      }
-      return parts.join(' · ');
+    function entityLabel(value) {
+      return { BookingService:'Service booking', WalkInSale:'Store sale', User:'Account', Assignment:'Technician assignment' }[value] || readable(value);
+    }
+    function sourceLabel(source) {
+      return { authenticated_user:'Signed-in activity', unauthenticated_request:'Public access attempt', system:'Automatic system activity', integration:'Connected service' }[source] || 'System activity';
+    }
+    function eventDetails(value, depth) {
+      depth = depth || 0;
+      if (depth > 4 || value == null) return '';
+      if (typeof value !== 'object') return '<p class="small mb-2">' + esc(readable(value)) + '</p>';
+      return Object.keys(value).filter(function(key) { return !['module','userAgent','headers','requestBody'].includes(key); }).slice(0, 40).map(function(key) {
+        var item = value[key], label = Array.isArray(value) ? 'Item ' + (Number(key) + 1) : readable(key);
+        if (item && typeof item === 'object') return '<section class="at-details-group"><h6>' + esc(label) + '</h6>' + eventDetails(item, depth + 1) + '</section>';
+        return '<div class="kv"><span>' + esc(label) + '</span><span>' + esc(typeof item === 'string' && !['[REDACTED]','[PRIVATE]'].includes(item) ? item : readable(item)) + '</span></div>';
+      }).join('');
     }
 
     function renderTable(data) {
@@ -543,24 +554,23 @@
       } else {
         body.innerHTML = items.map(function (l, idx) {
           var d = new Date(l.createdAt);
-          var dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-          var timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          var dateStr = d.toLocaleDateString('en-PH', { timeZone:'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' });
+          var timeStr = d.toLocaleTimeString('en-PH', { timeZone:'Asia/Manila', hour: '2-digit', minute: '2-digit', second: '2-digit' });
           var num = ((currentPage - 1) * PAGE_SIZE) + idx + 1;
           var actor = l.actorName || 'System';
           var role = l.actorRole || '';
           var entityId = l.entityId ? '#' + String(l.entityId).slice(-8).toUpperCase() : '';
-          var target = l.targetName || l.targetEmail || l.entityType || '—';
-          var targetMeta = l.targetName && l.targetEmail ? l.targetEmail : ((l.entityType || '') + (entityId ? ' ' + entityId : ''));
-          var requestPath = l.requestPath || '';
+          var target = l.targetName || l.targetEmail || entityLabel(l.entityType) || '—';
+          var targetMeta = l.targetName && l.targetEmail ? l.targetEmail : (entityLabel(l.entityType) + (entityId ? ' ' + entityId : ''));
           return '<tr tabindex="0" role="button" aria-label="View ' + esc(eventLabel(l.action)) + ' audit details" data-audit-index="' + idx + '" data-risk="' + esc(l.riskLevel || 'info') + '">' +
             '<td style="color:#94a3b8;font-size:0.72rem;">' + num + '</td>' +
             '<td class="date-cell">' + dateStr + '<span class="time-sub">' + timeStr + '</span></td>' +
             '<td>' + riskBadge(l.riskLevel) + '</td>' +
-            '<td><div class="event-name">' + esc(eventLabel(l.action)) + '</div><div class="event-meta">' + catBadge(l.category) + ' <span class="ms-1">' + esc(l.action) + '</span></div></td>' +
+            '<td><div class="event-name">' + esc(eventLabel(l.action)) + '</div><div class="event-meta">' + catBadge(l.category) + '</div></td>' +
             '<td class="actor-cell" title="' + esc(actor) + '">' + esc(actor) + '<span class="role-tag">' + esc(role || sourceLabel(l.source)) + '</span></td>' +
             '<td class="target-cell"><div class="actor-cell" title="' + esc(target) + '">' + esc(target) + '</div><span class="role-tag">' + esc(targetMeta || 'No linked record') + '</span></td>' +
             '<td>' + outcomeBadge(l.outcome) + '</td>' +
-            '<td><div class="request-path" title="' + esc(requestPath) + '">' + esc((l.requestMethod ? l.requestMethod + ' ' : '') + (requestPath || 'Background process')) + '</div><div class="request-meta">' + esc(l.ip || 'No IP') + '</div></td>' +
+            '<td><div class="request-path" title="' + esc(sourceLabel(l.source)) + '">' + esc(sourceLabel(l.source)) + '</div><div class="request-meta">' + esc(l.ip || 'No IP') + '</div></td>' +
             '</tr>';
         }).join('');
         body.querySelectorAll('tr[data-audit-index]').forEach(function (row) {
@@ -596,26 +606,22 @@
         return '<div class="kv"><span>' + k + '</span><span>' + esc(v) + '</span></div>';
       };
       body.innerHTML =
-        kv('Risk Level', l.riskLevel || 'info') +
-        kv('Outcome', l.outcome || 'unknown') +
-        kv('Category', l.category) +
-        kv('Action', l.action) +
-        kv('Action Type', l.actionType) +
-        kv('Module', l.module) +
-        kv('Actor', (l.actorName || 'System') + (l.actorRole ? ' (' + l.actorRole + ')' : '')) +
-        (l.actorEmail && l.actorEmail !== l.actorName ? kv('Actor Email', l.actorEmail) : '') +
-        kv('Source', sourceLabel(l.source)) +
-        (l.targetName || l.targetEmail ? kv('Affected Account', (l.targetName || '') + (l.targetEmail ? ' · ' + l.targetEmail : '')) : '') +
-        kv('Entity', l.entityType ? l.entityType + ' #' + (l.entityId || '') : '—') +
-        kv('Request', (l.requestMethod ? l.requestMethod + ' ' : '') + (l.requestPath || 'Background process')) +
-        kv('IP Address', l.ip || '—') +
-        kv('Request ID', l.requestId || '—') +
-        kv('Device / Browser', l.userAgent || 'Not captured') +
-        kv('Timestamp', d.toLocaleString('en-US')) +
-        '<div class="mt-3 mb-1" style="font-weight:700;font-size:0.82rem;color:#334155;">Redacted Event Details</div>' +
-        '<pre>' + esc(JSON.stringify(l.details, null, 2)) + '</pre>';
-      document.getElementById('atDetailTitle').textContent = l.action;
-      document.getElementById('atDetailTime').textContent = l.category + ' · ' + d.toLocaleString('en-US');
+        kv('Event', eventLabel(l.action)) +
+        kv('Result', readable(l.outcome || 'unknown')) +
+        kv('Review priority', readable(l.riskLevel || 'info')) +
+        kv('Category', readable(l.category)) +
+        kv('Performed by', (l.actorName || 'System') + (l.actorRole ? ' (' + readable(l.actorRole) + ')' : '')) +
+        (l.actorEmail && l.actorEmail !== l.actorName ? kv('Email (masked)', l.actorEmail) : '') +
+        (l.targetName || l.targetEmail ? kv('Affected account', [l.targetName, l.targetEmail].filter(Boolean).join(' \u00b7 ')) : '') +
+        (l.entityType ? kv('Related record', entityLabel(l.entityType) + (l.entityId ? ' #' + String(l.entityId).slice(-8).toUpperCase() : '')) : '') +
+        kv('Activity source', sourceLabel(l.source)) +
+        kv('Network address (masked)', l.ip || 'Not recorded') +
+        kv('Device', l.userAgent || 'Not recorded') +
+        kv('Time (Philippines)', d.toLocaleString('en-PH', { timeZone:'Asia/Manila' })) +
+        '<section class="at-details-group"><h6>Event details</h6>' + (eventDetails(l.details) || '<p class="small text-muted">No additional details recorded.</p>') + '</section>' +
+        '<details class="at-technical-reference mt-3"><summary>Support reference</summary>' + kv('Event reference', l._id || '') + kv('Request reference', l.requestId || 'Not recorded') + '</details>';
+      document.getElementById('atDetailTitle').textContent = eventLabel(l.action);
+      document.getElementById('atDetailTime').textContent = readable(l.category) + ' \u00b7 ' + d.toLocaleString('en-PH', { timeZone:'Asia/Manila' });
       new bootstrap.Modal(document.getElementById('atDetailModal')).show();
     }
 

@@ -151,3 +151,35 @@ test("secretary alerts use the secretary's account; failed saves retry without d
   assert.equal(saved.size, 2);
   assert.equal([...saved.values()].find(row => row.userId === "s1").link, "/secretary/attendance");
 });
+
+test('today roster carries an open prior-day shift with its actual work date and a targeted close action', async () => {
+  const previous = new Date(day.start.getTime() - 86400000), fields = [];
+  const data = {
+    Technician: [{ _id:'night-tech', name:'Night Technician', availabilityStatus:'Available', user:{_id:'night-user',role:'technician',active:true} }],
+    User: [{_id:'night-secretary',firstName:'Night',lastName:'Secretary'}],
+    TechnicianAttendance: [{_id:'tech-record',technicianId:'night-tech',date:previous,status:'Late',checkInTime:new Date(previous.getTime()+22*3600000),checkOutTime:null}],
+    SecretaryAttendance: [{_id:'secretary-record',userId:'night-secretary',date:previous,status:'Present',checkInTime:new Date(previous.getTime()+22*3600000),checkOutTime:null}],
+    LeaveRequest: [], TechnicianSchedule:[{technicianId:'night-tech',workingDays:[{dayOfWeek:0,startMinutes:1320,endMinutes:360}]}],
+    Secretary:[{user:'night-secretary',shift:'22:00-06:00'}], NonWorkingDay:[],
+  };
+  const models = Object.fromEntries(Object.entries(data).map(([name, rows]) => [name, {find() {
+    return {select(value){fields.push({name,value});return this;},populate(){return this;},lean:async()=>rows};
+  }}]));
+  const rows = await loadStaffAttendanceRoster({date:day.key,now,models});
+  assert.equal(rows.length,2);
+  for (const row of rows) {
+    assert.equal(row.date,attendanceDay(previous).key);assert.equal(row.isOvernight,true);
+    assert.equal(row.missingCheckIn,false);assert.equal(row.canEdit,false);assert.equal(row.canCloseShift,true);
+    assert.ok(row.attendanceRecordId);assert.equal(row.missingCheckOut,true);
+  }
+  for (const name of ['TechnicianAttendance','SecretaryAttendance']) assert.ok(fields.find(item=>item.name===name).value.split(' ').includes('date'));
+});
+
+test('overnight missing-checkout alerts use the original work date and do not duplicate the case across day views', async () => {
+  const workDate = attendanceDay(new Date(day.start.getTime()-86400000)).key, keys = new Set(), records=[];
+  const row={staffId:'night',userId:'night-account',staffType:'secretary',role:'secretary',name:'Night Staff',issue:'missing_checkout',date:workDate};
+  const inserted=await checkAttendanceAlerts({now,loadRoster:async()=>[row],notificationModel:{async updateOne(filter,update){if(keys.has(filter.attendanceAlertKey))return{upsertedCount:0};keys.add(filter.attendanceAlertKey);records.push(update.$setOnInsert);return{upsertedCount:1};}},io:null});
+  assert.equal(inserted,2);
+  assert.ok([...keys].every(key=>key.startsWith(workDate+':')));
+  assert.ok(records.find(record=>record.role==='admin').link.endsWith('?date='+workDate));
+});

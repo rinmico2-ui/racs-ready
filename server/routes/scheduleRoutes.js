@@ -929,9 +929,11 @@ async function handleTimeSlots(req, res) {
       // Internal on-site repair checks may test the current minute. Public
       // query parameters cannot enable this mode or bypass advance notice.
       const ongoingStart = req._trustedOngoingStart;
-      for (let slotStart = ongoingStart ?? workStartMin; slotStart < workEndMin; slotStart += SLOT_INTERVAL) {
+      const exactStart = ongoingStart ?? req._trustedAssignmentStart;
+      for (let slotStart = exactStart ?? workStartMin; slotStart < workEndMin; slotStart += SLOT_INTERVAL) {
         const slotEnd = slotStart + capacityPerSlot;
-        if (ongoingStart != null && (slotStart !== ongoingStart || slotStart < workStartMin || slotEnd > workEndMin)) break;
+        if (exactStart != null && (slotStart !== exactStart || slotStart < workStartMin
+          || slotEnd > (ongoingStart != null ? workEndMin : latestAllowedFinish(workEndMin)))) break;
         if (overtimeMinutesForWindow(slotStart, slotEnd, workStartMin, workEndMin) === null) continue;
 
         if (!manilaSlotTiming(requestedDateKey, slotStart, {
@@ -1210,6 +1212,9 @@ function schedulingResult(handler, query, trustedExclusions = {}) {
       _trustedOngoingStart: trustedExclusions.existingAppointment === true && trustedExclusions.excludeBookingId
         && Number.isInteger(trustedExclusions.ongoingStartMinutes) && trustedExclusions.ongoingStartMinutes >= 0 && trustedExclusions.ongoingStartMinutes < 1440
         ? trustedExclusions.ongoingStartMinutes : undefined,
+      _trustedAssignmentStart: trustedExclusions.existingAppointment === true && trustedExclusions.excludeBookingId
+        && Number.isInteger(trustedExclusions.assignmentStartMinutes) && trustedExclusions.assignmentStartMinutes >= 0 && trustedExclusions.assignmentStartMinutes < 1440
+        ? trustedExclusions.assignmentStartMinutes : undefined,
     }, response)).catch(reject);
   });
 }

@@ -11,6 +11,7 @@ const audit = require("../utils/audit");
 const Inventory = require("../models/Inventory");
 const SecretaryAttendance = require("../models/SecretaryAttendance");
 const { attendanceDay } = require("../utils/attendanceTime");
+const staffAttendance = require("../utils/staffAttendanceSessions").createService();
 const {
 	verifyAttendanceChallenge,
 	securityErrorResponse,
@@ -47,16 +48,15 @@ const secretaryServiceImageUpload = multer({
 
 // Secretary timekeeping uses the same rotating QR shown by the administrator,
 // but does not inherit technician-only availability, expense, or remittance rules.
+router.use("/attendance", (_req, res, next) => { res.set("Cache-Control", "private, no-store"); next(); });
 router.get("/attendance/status", async (req, res, next) => {
 	try {
-		const day = attendanceDay();
-		const record = await SecretaryAttendance.findOne({
-			userId: req.user._id,
-			date: day.start,
-		}).lean();
+		const session = await staffAttendance.read('secretary', req.user._id);
+		const { record } = session;
 
 		return res.json({
-			date: day.key,
+			date: session.workDay.key,
+			isOvernight: session.isOvernight, needsAdminReview: session.needsAdminReview,
 			attendanceStatus: record
 				? (record.checkOutTime ? "Checked Out" : record.status)
 				: "Not Checked In",
@@ -69,35 +69,16 @@ router.get("/attendance/status", async (req, res, next) => {
 
 router.post("/attendance/scan", async (req, res, next) => {
 	try {
-		const token = String(req.body.token || "").trim();
+		const token = String(req.body?.token || "").trim();
 		if (!token) return res.status(400).json({ error: "QR token is required." });
 
 		const now = new Date();
-		const day = attendanceDay(now);
 		const challenge = verifyAttendanceChallenge(token, now);
 
-		const existing = await SecretaryAttendance.findOne({ userId: req.user._id, date: day.start });
-		if (existing && existing.checkInTime) {
-			return res.status(409).json({ error: "You have already checked in today." });
-		}
-
-		const status = now > day.lateCutoff ? "Late" : "Present";
-		const record = await SecretaryAttendance.findOneAndUpdate(
-			{ userId: req.user._id, date: day.start },
-			{
-				$set: {
-					status,
-					checkInTime: now,
-					checkOutTime: null,
-					qrVerified: true,
-					method: "qr_scan",
-					qrChallengeId: challenge.challengeId,
-					updatedBy: req.user._id,
-				},
-				$unset: { token: 1 },
-			},
-			{ upsert: true, returnDocument: "after", runValidators: true },
-		);
+		const record = await staffAttendance.checkIn('secretary', req.user._id, {
+			now, fields: { qrChallengeId: challenge.challengeId, updatedBy: req.user._id },
+		});
+		const status = record.status;
 
 		await audit.logEvent({
 			actor: req.user._id,
@@ -113,6 +94,7 @@ router.post("/attendance/scan", async (req, res, next) => {
 		return res.json({ message: `Checked in as ${status}.`, attendanceStatus: status, record: safeAttendanceRecord(record) });
 	} catch (error) {
 		if (securityErrorResponse(res, error)) return;
+		if (error.status) return res.status(error.status).json({ error: error.message, code: error.code });
 		if (error && error.code === 11000) {
 			return res.status(409).json({ error: "Attendance has already been recorded for today." });
 		}
@@ -123,18 +105,10 @@ router.post("/attendance/scan", async (req, res, next) => {
 router.post("/attendance/checkout", async (req, res, next) => {
 	try {
 		const now = new Date();
-		const day = attendanceDay(now);
-		const record = await SecretaryAttendance.findOne({ userId: req.user._id, date: day.start });
-		if (!record || !record.checkInTime || !["Present", "Late"].includes(record.status)) {
-			return res.status(409).json({ error: "Check in before checking out." });
-		}
-		if (record.checkOutTime) {
-			return res.status(409).json({ error: "You have already checked out today." });
-		}
-
-		record.checkOutTime = now;
-		record.updatedBy = req.user._id;
-		await record.save();
+		const session = await staffAttendance.read('secretary', req.user._id, now);
+		const record = await staffAttendance.checkOut('secretary', req.user._id, {
+			record: session.record, now, fields: { updatedBy: req.user._id },
+		});
 		const hoursWorked = Math.round(((now - record.checkInTime) / 3600000) * 100) / 100;
 
 		await audit.logEvent({
@@ -150,6 +124,7 @@ router.post("/attendance/checkout", async (req, res, next) => {
 
 		return res.json({ message: "Checked out successfully.", hoursWorked, record: safeAttendanceRecord(record) });
 	} catch (error) {
+		if (error.status) return res.status(error.status).json({ error: error.message, code: error.code });
 		next(error);
 	}
 });
@@ -224,9 +199,10 @@ router.get("/analytics/appointments", async (req, res, next) => {
 });
 
 // APPOINTMENTS folder functions
-router.get("/customers", admin.listCustomers);
-router.get("/customers/:id", admin.getCustomer);
-router.get("/customers/:id/violations", admin.getCustomerViolations);
+router.get("/customers", requirePermission("customers.view"), admin.listCustomers);
+router.get("/customers/:id", requirePermission("customers.view"), admin.getCustomer);
+router.get("/customers/:id/contact", requirePermission("customers.view"), admin.getCustomerContact);
+router.get("/customers/:id/violations", requirePermission("customers.view"), admin.getCustomerViolations);
 router.get("/customers/:id/bookings", admin.getCustomerBookingHistory);
 router.patch("/customers/:id", admin.updateCustomer);
 

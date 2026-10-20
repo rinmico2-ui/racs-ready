@@ -114,14 +114,15 @@ async function recordDeliveryAttempt({ to, subject, status, messageId = "", erro
     const mongoose = require("mongoose");
     if (mongoose.connection.readyState !== 1) return;
     const EmailDeliveryLog = require("../models/EmailDeliveryLog");
-    const recipient = (Array.isArray(to) ? to.join(", ") : String(to || "")).slice(0, 500);
+    const privacy = require('./logPrivacy');
+    const recipient = privacy.maskEmail((Array.isArray(to) ? to.join(", ") : String(to || ""))).slice(0, 500);
     await EmailDeliveryLog.create({
       provider: MAIL_PROVIDER,
       recipient,
-      subject: String(subject || "").slice(0, 300),
+      subject: privacy.text(subject, 300),
       status,
       messageId: String(messageId || "").slice(0, 300),
-      error: String(error || "").slice(0, 500),
+      error: privacy.text(error, 500),
       source: String(source || "application").slice(0, 80),
     });
   } catch (logError) {
@@ -154,8 +155,8 @@ async function deliverMailNow({ to, subject, html, text, source = "application" 
     await recordDeliveryAttempt({ to, subject, status: "accepted", messageId: result && result.messageId, source });
     return result;
   } catch (error) {
-    console.log(`[MAILER] (${MAIL_PROVIDER}) Send failed:`, error.message);
-    logger.warn("%s send failed %s", MAIL_PROVIDER, error.message);
+    console.log(`[MAILER] (${MAIL_PROVIDER}) Send failed:`, require('./logPrivacy').text(error.message, 500));
+    logger.warn("%s send failed %s", MAIL_PROVIDER, require('./logPrivacy').text(error.message, 500));
     await recordDeliveryAttempt({ to, subject, status: "failed", error: error.message, source });
     throw error;
   }
@@ -294,6 +295,7 @@ function buildBookingPaymentEmailDetails({
   paymentStatus,
 }) {
   const method = String(paymentMethod || "cod").toLowerCase();
+  const payAfterService = method === 'cash_after_service';
   const total = Math.max(0, Number(estimatedFee) || 0);
   const isDownpaymentPlan = ["cod", "cash", "downpayment", "gcash_downpayment"].includes(method);
   const channel = String(paymentChannel || "gcash").toLowerCase();
@@ -307,28 +309,32 @@ function buildBookingPaymentEmailDetails({
     : Number.isFinite(suppliedDownpayment) && total > 0
       ? Math.round((suppliedDownpayment / total) * 10000) / 100
       : 10;
-  const resolvedDownpayment = isDownpaymentPlan
+  const resolvedDownpayment = payAfterService ? 0 : isDownpaymentPlan
     ? Number.isFinite(suppliedDownpayment) && suppliedDownpayment > 0
       ? suppliedDownpayment
       : Math.round(total * resolvedPercentage / 100)
     : total;
   const calculatedBalance = Math.max(0, total - resolvedDownpayment);
-  const resolvedBalance = isDownpaymentPlan
+  const resolvedBalance = payAfterService ? Math.max(0, Number(balanceAmount ?? total) || 0) : isDownpaymentPlan
     ? Number.isFinite(suppliedBalance) && (suppliedBalance > 0 || calculatedBalance === 0)
       ? suppliedBalance
       : calculatedBalance
     : 0;
   const currency = value => `₱${Number(value || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const normalizedStatus = String(paymentStatus || "pending").toLowerCase();
-  const verificationLabel = isInPersonCard && !["paid", "verified", "completed", "succeeded", "partial"].includes(normalizedStatus)
+  const verificationLabel = payAfterService
+    ? ['paid', 'verified', 'remitted', 'waiting_for_remittance', 'partial'].includes(normalizedStatus)
+      ? 'Payment recorded'
+      : 'Cash due after service; no advance payment required'
+    : isInPersonCard && !["paid", "verified", "completed", "succeeded", "partial"].includes(normalizedStatus)
     ? "Payment due at RACS store"
     : ["paid", "verified", "completed", "succeeded", "partial"].includes(normalizedStatus)
     ? "Payment recorded"
     : "Pending receipt verification";
-  const payLabel = isDownpaymentPlan
+  const payLabel = payAfterService ? '100% Cash After Service' : isDownpaymentPlan
     ? `${channelLabel} reservation downpayment; balance at service completion`
     : isInPersonCard ? "Full card payment at RACS store" : `Full payment via ${channelLabel}`;
-  const amountRows = isDownpaymentPlan
+  const amountRows = payAfterService ? `<tr><td style="padding:6px 0;">Paid upfront</td><td>${currency(0)}</td></tr><tr><td style="padding:6px 0;">Cash due after service</td><td>${currency(resolvedBalance)}</td></tr>` : isDownpaymentPlan
     ? `
       <tr><td style="padding:6px 0;color:#6c757d;">${isInPersonCard ? "Downpayment due at store" : "Downpayment submitted"} (${resolvedPercentage}%)</td><td style="padding:6px 0;font-weight:700;color:#d97706;">${currency(resolvedDownpayment)}</td></tr>
       <tr><td style="padding:6px 0;color:#6c757d;">Balance due at completion</td><td style="padding:6px 0;font-weight:700;color:#198754;">${currency(resolvedBalance)}</td></tr>`

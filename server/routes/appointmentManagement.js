@@ -55,7 +55,7 @@ router.get('/assignment-plan', requireRole(['admin','secretary']), async (req,re
     const filter = { status: { $in: statuses.length ? statuses : ['awaiting_assignment', 'pending_reassignment'] }, isProject: { $ne: true }, archivedAt: null, sourceOrderId: null };
     if (bookingIds) filter._id = { $in: bookingIds.map(id => new mongoose.Types.ObjectId(id)) };
     const bookings=await BookingService.find(filter)
-      .select('_id status bookingDate startTime endTime serviceDurationMinutes travelTime bookingReference customer.name service services.name services.serviceName services.status services.category technicianId technicianTeam location.coordinates bookingLocation cancellationHistory.action cancellationHistory.technicianId')
+      .select('_id status bookingDate startTime endTime serviceDurationMinutes travelTime bookingReference customer.name service services.name services.serviceName services.status services.category technicianId technicianTeam staffingEmergencies.team location.coordinates bookingLocation cancellationHistory.action cancellationHistory.technicianId')
       .sort({bookingDate:1,startTime:1}).limit(bookingIds ? 20 : 200).lean();
     const {buildAssignmentPlan}=require('../utils/assignmentPlanner');
     const plan=await buildAssignmentPlan(bookings);
@@ -307,6 +307,8 @@ router.get('/list', requireRole(["admin", "secretary"]), async (req, res) => {
       const conditions = bookingPendingFilters(req.query);
       if (conditions.length) query.$and = conditions;
     }
+    const technicianIssue = require('../utils/technicianIssueFilters').technicianIssueMatch('booking', req.query.technicianIssue);
+    if (technicianIssue) query.$and = [...query.$and || [], technicianIssue];
     const sortKeys = { '-createdAt': 'newest', createdAt: 'oldest', '-bookingDate': 'date_desc', bookingDate: 'date_asc' };
     const sortKey = req.query.sort || (stage === 'pending_review' ? 'date_desc' : 'newest');
     const sortPreset = sortKeys[sortKey] || sortKey;
@@ -333,7 +335,7 @@ router.get('/list', requireRole(["admin", "secretary"]), async (req, res) => {
         'services.hpDescription', 'services.hp', 'services.applianceTypeName', 'services.applianceType',
         'services.problemDescription', 'services.repairIssue',
         'serviceType', 'serviceModel',
-        'totalPrice', 'estimatedFee', 'downpaymentAmount', 'paymentMethod', 'paymentStatus',
+        'totalPrice', 'estimatedFee', 'downpaymentAmount', 'amountPaid', 'balanceAmount', 'balanceCollected', 'paymentMethod', 'paymentChannel', 'paymentStatus',
         'autoReschedulePending', 'priority', 'duration', 'createdAt', 'updatedAt',
         'isProject', 'projectScheduling.preferredStartDate',
         'technicianId', 'technicianTeam.technicianId', 'technicianTeam.name', 'technicianTeam.status',
@@ -375,7 +377,7 @@ router.get('/list', requireRole(["admin", "secretary"]), async (req, res) => {
     });
   } catch (error) {
     console.error('âŒ Error fetching appointment list:', error);
-    res.status(500).json({ error: 'Failed to fetch appointments' });
+    res.status(error.status === 400 ? 400 : 500).json({ error: error.status === 400 ? error.message : 'Failed to fetch appointments' });
   }
 });
 
@@ -459,6 +461,21 @@ router.post('/:id/verify-payment', requireRole(["admin", "secretary"]), async (r
         error: 'The requested schedule has passed. Contact the customer and reschedule before verifying this booking.',
         code: 'BOOKING_REVIEW_OVERDUE',
       });
+    }
+
+    if (booking.paymentMethod === 'cash_after_service') {
+      if (Number(booking.amountPaid || 0) > 0 || booking.paymentVerifiedAt) {
+        return res.status(409).json({ error: 'This booking already has a payment recorded. Refresh before reviewing it.' });
+      }
+      booking.balanceAmount = Math.max(0, Number(booking.totalPrice || booking.estimatedFee || 0));
+      booking.transitionStatus(BookingStatus.AWAITING_ASSIGNMENT, {
+        changedBy: req.user._id, changedByModel: 'User',
+        changedByName: req.user.name || req.user.email || 'Operations staff',
+        reason: 'Cash After Service booking approved; full balance to collect after service. No upfront payment received.',
+      });
+      await measureRequest(req, 'bookingSave', () => booking.save());
+      return res.json({ success: true, destination: 'assignment_queue', paymentDeferred: true,
+        message: 'Booking approved. The technician will collect the full bill in cash after service.', booking });
     }
 
     const totalAmount = booking.totalPrice || booking.estimatedFee || 0;
@@ -1728,7 +1745,7 @@ router.get('/verification-warnings', requireRole(['admin', 'secretary']), async 
     const windowEnd = new Date(now.getTime() + verifyHours * 3600 * 1000);
     const queueStatuses = ['awaiting_assignment', 'assigned', 'pending_reassignment'];
 
-    const select = 'bookingDate startTime bookingReference customer serviceName service status paymentStatus autoReschedulePending autoRescheduleAt maintenance paymentNotes amountPaid';
+    const select = 'bookingDate startTime bookingReference customer serviceName service status paymentStatus paymentMethod autoReschedulePending autoRescheduleAt maintenance paymentNotes amountPaid';
 
     // An overdue booking cannot be scheduled after now. The verification
     // window only spans today (and possibly tomorrow) in Manila time.
@@ -1772,7 +1789,7 @@ router.get('/verification-warnings', requireRole(['admin', 'secretary']), async 
       const sched = parseBookingDateTime(b.bookingDate, b.startTime);
       if (!sched || sched <= now || sched > windowEnd) continue;
       const issues = [];
-      if (!isUnpaidAftercareMaintenance(b) && (b.status === 'pending' || ['pending', 'failed', 'partial'].includes(b.paymentStatus))) {
+      if (b.paymentMethod !== 'cash_after_service' && !isUnpaidAftercareMaintenance(b) && (b.status === 'pending' || ['pending', 'failed', 'partial'].includes(b.paymentStatus))) {
         issues.push('payment');
       }
       if (queueStatuses.includes(b.status)) {
@@ -1829,6 +1846,16 @@ router.get('/:id/photos', requireRole(['admin', 'secretary']), async (req, res) 
     console.error('Error fetching booking photos:', error);
     res.status(500).json({ error: 'Could not load photos. Please try again.' });
   }
+});
+
+router.get('/:id/emergency-equipment', requireRole(['admin', 'secretary']), async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid booking reference.' });
+    const booking = await BookingService.findById(req.params.id).select('_id staffingEmergencies').lean();
+    if (!booking) return res.status(404).json({ error: 'Booking not found.' });
+    res.set('Cache-Control', 'private, no-store');
+    return res.json(await require('../utils/bookingEmergencyEquipment').read(booking));
+  } catch (error) { next(error); }
 });
 
 router.get('/:id', requireRole(["admin", "secretary"]), async (req, res) => {

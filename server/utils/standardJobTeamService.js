@@ -1,6 +1,6 @@
 'use strict';
 const team = require('./standardJobTeam');
-const { manilaDateKey, manilaDateTime, parseAppointmentTime } = require('./bookingDateTime');
+const { manilaDateKey, manilaDateTime, parseAppointmentTime, bookingAssignmentWindow } = require('./bookingDateTime');
 const { withOperationLock, bookingCapacityLockKey } = require('./operationLock');
 
 function createService(overrides = {}) {
@@ -27,8 +27,14 @@ function createService(overrides = {}) {
     const minutes = source === 'booking' ? Math.max(30, Number(job.serviceDurationMinutes) || (Number.isFinite(end) ? end - start : 60))
       : job.continuation?.status === 'scheduled' ? Number(job.continuation.remainingMinutes) : Math.max(1, (job.items || []).reduce((sum, row) => sum + Math.max(1, Number(row.quantity) || 1), 0)) * 60;
     if (source === 'booking' && (input.scheduledDate && manilaDateKey(input.scheduledDate) !== date || input.timeSlot && parseAppointmentTime(input.timeSlot) !== start)) throw team.failure('Save the new appointment date and time before assigning the team.');
-    if (!date || !Number.isFinite(start) || manilaDateTime(date, start) <= new Date()) throw team.failure('Choose a future appointment before assigning technicians.');
-    return { date, start, time, minutes, travel: Math.max(0, Number(job.travelDuration || job.travelTime || job.routeDurationMin) || 30) };
+    const assignmentWindow = source === 'booking' ? bookingAssignmentWindow(job) : null;
+    if (assignmentWindow && !assignmentWindow.allowed) throw team.failure(assignmentWindow.valid
+      ? 'The 30-minute assignment window has ended. Confirm a new schedule with the customer before assigning technicians.'
+      : 'Confirm a valid appointment date and time before assigning technicians.', 409,
+      assignmentWindow.valid ? 'BOOKING_ASSIGNMENT_WINDOW_EXPIRED' : 'BOOKING_SCHEDULE_REQUIRED');
+    if (!assignmentWindow && (!date || !Number.isFinite(start) || manilaDateTime(date, start) <= new Date())) throw team.failure('Choose a future appointment before assigning technicians.', 409, 'ORDER_SCHEDULE_PASSED');
+    return { date, start, time, minutes, travel: Math.max(0, Number(job.travelDuration || job.travelTime || job.routeDurationMin) || 30),
+      capacityStart: assignmentWindow?.capacityStartMinutes ?? start, assignmentWindow };
   }
   function responseSchedule(source, job) {
     if (source !== 'order') return schedule(source, job);
@@ -40,6 +46,9 @@ function createService(overrides = {}) {
   }
   async function candidates(source, job, input = {}) {
     const visit = schedule(source, job, input);
+    const savedEnd = source === 'booking' ? parseAppointmentTime(job.endTime) : NaN;
+    const checkedMinutes = visit.capacityStart > visit.start && Number.isFinite(savedEnd)
+      ? Math.max(visit.minutes, savedEnd - visit.capacityStart - visit.travel - require('./bookingPolicy').getBufferMinutesSync()) : visit.minutes;
     const technicians = await deps.roster({ Technician: deps.Technician });
     const rows = [];
     // Bounded batches avoid opening one database-heavy slot calculation for
@@ -49,16 +58,18 @@ function createService(overrides = {}) {
         const eligible = technician.assignmentEligible;
         let available = false, reason = eligible ? 'Unavailable for this appointment' : technician.assignmentReason;
         if (eligible) {
-          const result = await deps.slots({ date: visit.date, technicianId: team.ref(technician._id), duration: String(visit.minutes), quantity: '1', travelTime: String(visit.travel) },
-            { excludeBookingId: source === 'booking' ? job._id : job.bookingId, excludeOrderId: source === 'order' ? job._id : null, existingAppointment: true });
+          const result = await deps.slots({ date: visit.date, technicianId: team.ref(technician._id), duration: String(checkedMinutes), quantity: '1', travelTime: String(visit.travel) },
+            { excludeBookingId: source === 'booking' ? job._id : job.bookingId, excludeOrderId: source === 'order' ? job._id : null, existingAppointment: true,
+              ...(visit.capacityStart > visit.start ? { assignmentStartMinutes: visit.capacityStart } : {}) });
           if (result.statusCode >= 500) throw team.failure('Availability could not be checked. Try again.', 503);
-          available = (result.payload?.timeSlots || []).some(slot => slot.available === true && parseAppointmentTime(slot.startTime) === visit.start);
+          available = (result.payload?.timeSlots || []).some(slot => slot.available === true && parseAppointmentTime(slot.startTime) === visit.capacityStart);
           if (available) reason = 'Available for the full appointment';
           else if (result.payload?.message) reason = result.payload.message;
         }
         return { technicianId: team.ref(technician._id), name: technician.name || 'Technician', available, reason };
       })));
     }
+    visit.capacityEnd = Math.max(Number.isFinite(savedEnd) ? savedEnd : 0, visit.capacityStart + visit.minutes + visit.travel + require('./bookingPolicy').getBufferMinutesSync());
     return { visit, candidates: rows };
   }
   async function transaction(work) {
@@ -82,6 +93,8 @@ function createService(overrides = {}) {
       // Recheck while holding the same date lease as order and customer booking
       // capacity writes; the candidate list shown in the browser is advisory.
       const current = await load(source, id);
+      require('./visitRecovery').assertContact(source, current);
+      require('./visitRecovery').assertRecoverySchedule(source, current, input);
       if (input.expectedSchedule && input.expectedSchedule !== team.scheduleKey(source, current)) throw team.failure('The appointment schedule changed. Refresh the assignment plan.', 409, 'ASSIGNMENT_SCHEDULE_CHANGED');
       require('./assignmentStaffing').assertRecommendedCrew(source, current, input, technicianIds);
       const reviewed = ['reviewed_plan', 'automatic'].includes(input.assignmentSource);
@@ -98,6 +111,8 @@ function createService(overrides = {}) {
       for (const technicianId of technicianIds) if (!availability.candidates.some(row => row.technicianId === technicianId && row.available)) throw team.failure('A selected technician is no longer available. Refresh the team list.');
       return transaction(async session => {
         const job = await load(source, id, session);
+        require('./visitRecovery').assertContact(source, job);
+        if (source === 'booking' && schedule(source, repairSchedule(job), input).capacityStart > availability.visit.capacityStart) throw team.failure('The dispatch time changed while checking the crew. Refresh availability before assigning.', 409, 'TEAM_AVAILABILITY_CHANGED');
         if (reviewed && !(source === 'booking' ? ['awaiting_assignment', 'pending_reassignment'] : ['preparing_unit', 'technician_declined']).includes(job.status)) throw team.failure('This job has already been assigned or changed. Refresh the plan.');
         if (Number(new Date(job.updatedAt || 0)) !== Number(new Date(current.updatedAt || 0))) throw team.failure('This appointment changed. Refresh before assigning.');
         const allowed = source === 'booking' ? ['awaiting_assignment', 'pending_reassignment', 're-scheduled', 'assigned', 'confirmed', 'scheduled', 'inspection_scheduled', 'repair_scheduled', 'repair_approved', ...(options.repairVisit ? ['ready_for_repair', 'waiting_parts'] : [])] : ['preparing_unit', 'technician_declined', 'technician_assigned', 'technician_accepted'];
@@ -106,7 +121,8 @@ function createService(overrides = {}) {
         const technicians = (await deps.roster({ Technician: deps.Technician, technicianIds, session })).filter(technician => technician.assignmentEligible);
         require('./assignmentStaffing').assertRecommendedCrew(source, job, input, technicianIds);
         const responseMinutes = Math.min(720, Math.max(5, Number(input.responseMinutes) || 30));
-        const deadlineAt = new Date(Date.now() + responseMinutes * 60000);
+        const deadlineAt = new Date(Math.min(Date.now() + responseMinutes * 60000,
+          source === 'booking' ? Number(new Date(availability.visit.assignmentWindow.assignmentCutoffAt)) : Infinity));
         const entries = technicianIds.map(technicianId => ({ technicianId, name: technicians.find(row => team.ref(row._id) === technicianId)?.name || 'Technician', status: 'pending', deadlineAt }));
         const primary = technicians.find(row => team.ref(row._id) === technicianIds[0]);
         if (!primary || technicians.length !== technicianIds.length) throw team.failure('A selected technician account changed. Refresh the list.');
@@ -124,6 +140,12 @@ function createService(overrides = {}) {
         job.technicianId = primary._id;
         job.technician = { _id: primary._id, name: primary.name, phone: primary.phone || '', email: primary.userEmail || '' };
         if (source === 'booking') {
+          // Late dispatch still reserves the complete service, travel and
+          // buffer interval so a later job cannot overlap its actual finish.
+          if (availability.visit.capacityStart > availability.visit.start) {
+            const end = Math.max(parseAppointmentTime(job.endTime) || 0, availability.visit.capacityEnd);
+            job.endTime = `${String(Math.floor(end / 60)).padStart(2, '0')}:${String(end % 60).padStart(2, '0')}`;
+          }
           for (const row of previous) await deps.Assignment.updateOne({ _id: row._id }, { $set: { status: 'cancelled', cancelledAt: new Date() } }, { session });
           const repaired = job.serviceModel === 'RepairService' || job.serviceType === 'repair' || (job.services || []).some(row => row.type === 'repair');
           if (repaired && job.serviceModel === 'RepairService') job.serviceType = 'repair';
@@ -169,7 +191,7 @@ function createService(overrides = {}) {
       if (!['accept', 'decline'].includes(decision)) throw team.failure('Choose accept or decline.', 400);
       if (typeof reason !== 'string' || reason.length > 500) throw team.failure('The response reason must be text of up to 500 characters.', 400);
       if (entry.status === (decision === 'accept' ? 'accepted' : 'declined')) return { job, duplicate: true, response: true };
-      if (entry.status !== 'pending' || team.closed.has(job.status) || source !== 'order' && entry.deadlineAt && entry.deadlineAt <= new Date()) throw team.failure('This assignment response is no longer available. Ask Operations to review the team.');
+      if (entry.status !== 'pending' || team.closed.has(job.status)) throw team.failure('This assignment response is no longer available. Ask Operations to review the team.');
       if (source === 'order' && !['technician_assigned', 'technician_declined'].includes(job.status)) throw team.failure('This order is no longer waiting for team responses. Refresh your orders.');
       responseSchedule(source, job);
       if (entry.deadlineAt && entry.deadlineAt <= new Date()) throw team.failure('Your assignment response deadline has passed. Ask Operations to extend the deadline or review the team.', 409, 'TEAM_RESPONSE_EXPIRED');

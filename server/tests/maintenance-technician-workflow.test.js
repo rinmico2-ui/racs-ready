@@ -20,8 +20,8 @@ function fixture(options = {}) {
   const session = { active: false, startTransaction() { this.active = true; events.push("start"); }, inTransaction() { return this.active; },
     async commitTransaction() { committed = true; payment = stagedPayment; this.active = false; events.push("commit"); },
     async abortTransaction() { stagedPayment = undefined; this.active = false; events.push("abort"); }, async endSession() { events.push("end"); } };
-  const booking = { _id: bookingId, status: options.cancelled ? "cancelled" : "in_progress", serviceType: "core", paymentMethod: "cod",
-    maintenance: { isMaintenance: true, paymentOnSite: true }, totalPrice: 1450, estimatedFee: 1450, downpaymentAmount: 0,
+  const booking = { _id: bookingId, status: options.cancelled ? "cancelled" : "in_progress", serviceType: "core", paymentMethod: options.cashAfterService ? "cash_after_service" : "cod",
+    maintenance: options.cashAfterService ? undefined : { isMaintenance: true, paymentOnSite: true }, totalPrice: 1450, estimatedFee: 1450, downpaymentAmount: 0,
     amountPaid: options.alreadyPaid || options.paidWithoutFlag ? 1450 : 0, balanceAmount: options.alreadyPaid ? 0 : 1450, balanceCollected: Boolean(options.alreadyPaid),
     paymentStatus: options.alreadyPaid ? "waiting_for_remittance" : "pending", statusHistory: [],
     async save(opts) {
@@ -51,6 +51,23 @@ function fixture(options = {}) {
     return { ...res, error };
   } };
 }
+
+test('cash after service collects the entire bill once and keeps cash awaiting remittance',async()=>{
+  const f=fixture({cashAfterService:true}),res=await f.invoke();
+  assert.equal(res.error,undefined);assert.equal(res.statusCode,201);
+  assert.equal(f.committed,true);assert.equal(f.payment.amount,1450);
+  assert.equal(f.payment.method,'cash');assert.equal(f.payment.status,'waiting_for_remittance');
+  assert.equal(f.booking.amountPaid,1450);assert.equal(f.booking.balanceAmount,0);
+  assert.equal(f.booking.downpaymentAmount,0);
+});
+
+test('cash after service cannot collect before work starts or silently accept a write conflict',async()=>{
+  const early=fixture({cashAfterService:true,notStarted:true});
+  assert.equal((await early.invoke()).statusCode,400);assert.equal(early.payment,undefined);
+  const failed=fixture({cashAfterService:true,failSave:true});
+  assert.equal((await failed.invoke()).statusCode,409);assert.equal(failed.payment,undefined);
+  assert.ok(failed.events.includes('abort'));
+});
 
 test("the assigned technician records the full maintenance price including travel as a final payment", async () => {
   const f = fixture(), res = await f.invoke();

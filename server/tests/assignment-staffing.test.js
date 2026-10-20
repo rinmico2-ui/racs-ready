@@ -100,6 +100,23 @@ test('automatic reassignment waits when a complete crew is unavailable and write
   const result = await require('../utils/autoAssignment').autoAssignBooking(id(100));
   assert.equal(result.success, false); assert.equal(result.code, 'NO_COMPLETE_TEAM');
 });
+test('late booking recommendations check the whole remaining duration against later jobs', async t => {
+  t.mock.timers.enable({apis:['Date'],now:new Date('2099-01-05T00:10:15Z')});
+  const data=fixture(t,2);
+  data.bookings=[{...booking(301),technicianId:id(1),startTime:'10:30',endTime:'11:30'}];
+  const [row]=await planner.buildAssignmentPlan([booking()]);
+  assert.deepEqual(row.candidates.map(person=>person.technicianId),[id(2)]);
+  assert.equal(row.recommended,null);assert.equal(row.exclusionReasons[id(1)],'Already Booked at This Time');
+});
+test('emergency replacement recommendations keep the remaining crew eligible and exclude the reporter', async t => {
+  fixture(t, 3);
+  const job = { ...booking(), status: 'pending_reassignment', technicianId: null, technicianTeam: [],
+    staffingEmergencies: [{ team: [{ technicianId: id(1) }, { technicianId: id(2) }] }],
+    cancellationHistory: [{ action: 'emergency_reported', technicianId: id(1) }] };
+  const [row] = await planner.buildAssignmentPlan([job]);
+  assert.equal(row.staffing.recommendedCount, 2);
+  assert.deepEqual(row.recommendedTeam.map(person => person.technicianId), [id(2), id(3)]);
+});
 test('automatic reassignment submits a full crew to the transactional writer and notifies the team', async t => {
   fixture(t, 2); const job = { ...booking(), status: 'pending_reassignment' }; t.mock.method(Booking, 'findById', () => query(job));
   const service = require('../utils/standardJobTeamService'); let submitted, notified;

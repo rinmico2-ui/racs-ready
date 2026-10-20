@@ -1,7 +1,7 @@
 "use strict";
 
-const { attendanceDay } = require("./attendanceTime");
-const MINUTE_MS = 60000;
+const { attendanceDay, attendanceShift } = require("./attendanceTime");
+const { chooseRecord, sessionState } = require("./staffAttendanceSessions");
 
 function requestedAttendanceDay(value, now = new Date()) {
   if (!value) return attendanceDay(now);
@@ -14,23 +14,12 @@ function requestedAttendanceDay(value, now = new Date()) {
 }
 
 function staffDayState({ day, now, record, schedule, shift, leave, holiday }) {
-  const weekday = new Date(`${day.key}T12:00:00+08:00`).getUTCDay();
-  const working = schedule?.workingDays?.find(item => item.dayOfWeek === weekday);
-  const rest = schedule?.restDates?.some(item => attendanceDay(item.date).key === day.key)
-    || schedule?.nonWorkingWeekdays?.some(item => item.dayOfWeek === weekday);
-  let start = working?.startMinutes ?? 480;
-  let end = working?.endMinutes ?? 1080;
-  const shiftMatch = String(shift || "").trim().match(/^([01]\d|2[0-3]):([0-5]\d)\s*-\s*([01]\d|2[0-3]):([0-5]\d)$/);
-  if (shiftMatch) { start = Number(shiftMatch[1]) * 60 + Number(shiftMatch[2]); end = Number(shiftMatch[3]) * 60 + Number(shiftMatch[4]); }
-  const startsAt = new Date(day.start.getTime() + start * MINUTE_MS);
-  const checkInDueAt = new Date(day.start.getTime() + Math.max(540, start) * MINUTE_MS);
-  const checkOutDueAt = new Date(day.start.getTime() + (end <= start ? end + 1440 : end) * MINUTE_MS);
+  const { startsAt, checkInDueAt, checkOutDueAt, scheduled } = attendanceShift(day, { schedule, shift });
   const onLeave = !!leave || ["On Leave", "Sick Leave"].includes(record?.status);
-  const scheduled = !rest && (schedule ? !!working : weekday !== 0);
   const expected = !onLeave && !holiday && scheduled;
   const checkedIn = !!record?.checkInTime;
   const checkedOut = !!record?.checkOutTime;
-  const missingCheckIn = expected && !checkedIn && now >= checkInDueAt;
+  const missingCheckIn = expected && !checkedIn && now > checkInDueAt;
   // A worked rest day still needs a check-out. A reminder never ends the shift.
   const missingCheckOut = !onLeave && checkedIn && !checkedOut && now >= checkOutDueAt;
   let attendanceStatus = checkedOut ? "Checked Out" : record?.status || (missingCheckIn ? "Absent" : "Not checked in");
@@ -64,29 +53,40 @@ function existedOnAttendanceDay(staff, day) {
 async function loadStaffAttendanceRoster({ date, now = new Date(), models = defaultModels() } = {}) {
   const day = requestedAttendanceDay(date, now);
   const window = { $gte: day.start, $lte: day.end };
+  const today = attendanceDay(now).key;
+  const recordsFilter = day.key !== today ? { date: window } : { $or: [
+    { date: window }, { date: { $lt: day.start }, status: { $in: ['Present', 'Late'] }, checkInTime: { $ne: null }, checkOutTime: null },
+  ] };
   const [technicians, secretaries, techRecords, secretaryRecords, leaves, schedules, secretaryProfiles, holidays] = await Promise.all([
     models.Technician.find({ active: { $ne: false }, archivedAt: null })
       .select("name userEmail email firstName lastName user availabilityStatus createdAt")
       .populate("user", "firstName lastName email active archivedAt role").lean(),
     models.User.find({ role: "secretary", active: { $ne: false }, archivedAt: null })
       .select("firstName lastName email createdAt").lean(),
-    models.TechnicianAttendance.find({ date: window }).select("technicianId userId status checkInTime checkOutTime method updatedBy securityVersion checkInEvidence.distanceFromCompanyMeters checkInEvidence.accuracyMeters").lean(),
-    models.SecretaryAttendance.find({ date: window }).select("userId status checkInTime checkOutTime method updatedBy qrChallengeId").lean(),
+    models.TechnicianAttendance.find(recordsFilter).select("date technicianId userId status checkInTime checkOutTime method updatedBy securityVersion checkInEvidence.distanceFromCompanyMeters checkInEvidence.accuracyMeters").lean(),
+    models.SecretaryAttendance.find(recordsFilter).select("date userId status checkInTime checkOutTime method updatedBy qrChallengeId").lean(),
     models.LeaveRequest.find({ status: "approved", startDate: { $lte: day.end }, endDate: { $gte: day.start } }).select("technicianId reason").lean(),
     models.TechnicianSchedule.find({}).select("technicianId workingDays nonWorkingWeekdays restDates").lean(),
     models.Secretary.find({}).select("user shift").lean(),
     models.NonWorkingDay.find({ date: window, active: { $ne: false }, archivedAt: null, service: null }).select("date").lean(),
   ]);
   const index = (records, field) => new Map(records.map(record => [String(record[field]), record]));
-  const techMap = index(techRecords, "technicianId"), secretaryMap = index(secretaryRecords, "userId");
+  const attendanceIndex = (records, field) => {
+    const groups = new Map();
+    for (const record of records) { const key = String(record[field]); if (!groups.has(key)) groups.set(key, []); groups.get(key).push(record); }
+    return new Map([...groups].map(([key, rows]) => [key, chooseRecord(rows, day.start) || rows.find(row => !row.date)]));
+  };
+  const techMap = attendanceIndex(techRecords, "technicianId"), secretaryMap = attendanceIndex(secretaryRecords, "userId");
   const leaveMap = index(leaves, "technicianId"), scheduleMap = index(schedules, "technicianId"), shiftMap = index(secretaryProfiles, "user");
-  const today = attendanceDay(now).key;
   const rows = [];
   function add(staff, record, state) {
+    const recordDay = record?.date ? attendanceDay(record.date) : day;
+    const session = record?.date ? sessionState(record, now) : { isOvernight: false, needsAdminReview: false };
     const inAtWork = record?.checkInTime && !record.checkOutTime && ["Present", "Late"].includes(record.status) && !["On Leave", "Sick Leave"].includes(state.attendanceStatus);
     rows.push({
-      ...staff, ...state, date: day.key, canEdit: day.key === today,
-      availabilityStatus: staff.role !== "technician" || day.key !== today ? null : inAtWork ? (staff.availabilityStatus === "Offline" ? "Available" : staff.availabilityStatus) : "Offline",
+      ...staff, ...state, date: recordDay.key, canEdit: recordDay.key === today, isOvernight: session.isOvernight, needsAdminReview: session.needsAdminReview,
+      availabilityStatus: staff.role !== "technician" || day.key !== today ? null : inAtWork && !session.needsAdminReview ? (staff.availabilityStatus === "Offline" ? "Available" : staff.availabilityStatus) : "Offline",
+      attendanceRecordId: record?._id || null, canCloseShift: !!record?._id && !!record.checkInTime && !record.checkOutTime && ['Present', 'Late'].includes(record.status),
       checkInTime: record?.checkInTime || null, checkOutTime: record?.checkOutTime || null,
       method: record?.method || null, updatedBy: record?.updatedBy || null,
       verificationLevel: !record ? null : record.method === "manual" ? "manual" : Number(record.securityVersion) >= 2 ? "layered" : record.qrChallengeId ? "signed" : "legacy",
@@ -99,13 +99,13 @@ async function loadStaffAttendanceRoster({ date, now = new Date(), models = defa
     if (tech.user?.active === false || tech.user?.archivedAt || tech.user?.role && tech.user.role !== "technician") continue;
     const record = techMap.get(String(tech._id));
     add({ staffId: tech._id, technicianId: tech._id, userId: tech.user?._id || null, staffType: "technician", role: "technician", name: tech.name || `${tech.user?.firstName || ""} ${tech.user?.lastName || ""}`.trim(), email: tech.userEmail || tech.email || tech.user?.email || "", availabilityStatus: tech.availabilityStatus }, record,
-      staffDayState({ day, now, record, schedule: scheduleMap.get(String(tech._id)), leave: leaveMap.get(String(tech._id)), holiday: holidays.length > 0 }));
+      staffDayState({ day: record?.date ? attendanceDay(record.date) : day, now, record, schedule: scheduleMap.get(String(tech._id)), leave: !record?.date || attendanceDay(record.date).key === day.key ? leaveMap.get(String(tech._id)) : null, holiday: holidays.length > 0 && (!record?.date || attendanceDay(record.date).key === day.key) }));
   }
   for (const secretary of secretaries) {
     if (!existedOnAttendanceDay(secretary, day)) continue;
     const record = secretaryMap.get(String(secretary._id));
     add({ staffId: secretary._id, technicianId: null, userId: secretary._id, staffType: "secretary", role: "secretary", name: `${secretary.firstName || ""} ${secretary.lastName || ""}`.trim(), email: secretary.email || "" }, record,
-      staffDayState({ day, now, record, shift: shiftMap.get(String(secretary._id))?.shift, holiday: holidays.length > 0 }));
+      staffDayState({ day: record?.date ? attendanceDay(record.date) : day, now, record, shift: shiftMap.get(String(secretary._id))?.shift, holiday: holidays.length > 0 && (!record?.date || attendanceDay(record.date).key === day.key) }));
   }
   return rows.sort((a, b) => a.name.localeCompare(b.name));
 }

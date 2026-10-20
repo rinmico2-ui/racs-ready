@@ -16,10 +16,12 @@ function fixture(technician, materialSnapshot = { total: [{ count: 2 }], items: 
     if (name === '../middleware/authenticate') return { authenticate() {}, requireRole(allowed) { roles.push(allowed); return (req, res, next) => allowed.includes(req.user.role) ? next() : res.status(403).json({ error: 'Forbidden' }); } };
     if (name === '../middleware/requirePermission') return { requirePermission() { return () => {}; } };
     if (name === '../utils/kitMaterialBalance') return require(name);
+    if (name === '../utils/stringSecurity') return require(name);
     if (name === 'mongoose') return require('mongoose');
     if (name === '../models/DailyKit') return { aggregate(pipeline) { captures.push({ pipeline }); return { allowDiskUse: async () => [materialSnapshot] }; } };
     if (['../models/BookingService', '../models/Order'].includes(name)) return { find() { return { select() { return this; }, lean: async () => [] }; } };
     if (name === '../models/KitReturn') return { find(filter) { captures.push({ filter }); return chain; }, countDocuments: async () => reportTotal };
+    if (name === '../models/Technician') return { findOne(filter) { captures.push({ technician: filter }); return { select() { return this; }, lean: async () => ({ _id: '507f1f77bcf86cd799439011', user: '507f1f77bcf86cd799439012' }) }; } };
     if (name === '../utils/kitReturnService') return { createService: () => service };
     if (name === '../utils/kitReturnNotifications') return { reported: async () => {}, reviewed: async () => {} };
     if (name === '../utils/audit') return { logEvent: async () => {} };
@@ -68,6 +70,33 @@ test('return all preview includes every page within own scope, skips pending ite
   assert.equal((await tooMany.call('get', '/materials', req)).statusCode, 400);
 });
 
+test('material categories and literal search filter both result counts and pages, while category totals cover the full kit', async () => {
+  const techId = '507f1f77bcf86cd799439011', tech = fixture(true, { total: [{ count: 13 }], items: [], summary: [{ _id: 'repair_part', count: 21 }, { _id: 'consumable', count: 34 }] });
+  const req = { returnContext: { technicianIds: [techId] }, query: { category: 'repair_part', search: 'Capacitor [A]+', page: '2', limit: '6', technicianId: 'another-tech' } };
+  const result = await tech.call('get', '/materials', req), pipeline = tech.captures[0].pipeline, facet = pipeline.find(stage => stage.$facet).$facet;
+  assert.equal(String(pipeline[0].$match.technicianId.$in[0]), techId);
+  for (const stages of [facet.total, facet.items]) {
+    assert.equal(stages[0].$match['item.category'], 'repair_part');
+    assert.equal(stages[1].$match['item.name'].test('Capacitor [A]+'), true);
+    assert.equal(stages[1].$match['item.name'].test('Capacitor AAAAA'), false);
+  }
+  assert.equal(facet.items[2].$skip, 6); assert.equal(facet.items[3].$limit, 6);
+  assert.equal(facet.summary[0].$group._id, '$item.category');
+  assert.equal(result.body.summary.repair_part, 21); assert.equal(result.body.summary.consumable, 34); assert.equal(result.body.pagination.pages, 3);
+});
+
+test('filtered Return all respects category and search across all pages, with bounded page sizes and valid filters', async () => {
+  const techId = '507f1f77bcf86cd799439011', tech = fixture(true);
+  await tech.call('get', '/materials', { returnContext: { technicianIds: [techId] }, query: { selection: 'all', category: 'consumable', search: 'Cleaner', page: '7' } });
+  const facet = tech.captures[0].pipeline.find(stage => stage.$facet).$facet;
+  assert.equal(facet.items[0].$match['item.category'], 'consumable'); assert.equal(facet.items[2].$skip, 0); assert.equal(facet.items[3].$limit, 100);
+  for (const query of [{ category: 'equipment' }, { category: { $ne: 'consumable' } }, { search: { $ne: '' } }]) {
+    assert.equal((await tech.call('get', '/materials', { returnContext: { technicianIds: [techId] }, query })).statusCode, 400);
+  }
+  const bounded = await tech.call('get', '/materials', { returnContext: { technicianIds: [techId] }, query: { limit: '999999' } });
+  assert.equal(bounded.body.pagination.limit, 20);
+});
+
 test('bulk receipt route is admin only and ignores a spoofed reviewing actor', async () => {
   const f = fixture(false);
   const req = { user: { role: 'secretary', _id: 'signed-in' }, body: { items: [{ reportId: 'report' }], decision: 'receive', confirmedReceived: true, userId: 'spoofed' } };
@@ -89,6 +118,21 @@ test('Review all previews pending reports across pages and refuses silently trun
   assert.equal(res.body.pagination.total, 23);
   const many = fixture(false, undefined, 101);
   assert.equal((await many.call('get', '/', req)).statusCode, 400);
+});
+
+test('admin report filtering and Review all use the selected technician profile and legacy login identity', async () => {
+  for (const selection of [undefined, 'all']) {
+    const f = fixture(false), technicianId = '507f1f77bcf86cd799439011';
+    const res = await f.call('get', '/', { query: { technicianId, selection } });
+    assert.equal(res.statusCode, 200);
+    assert.equal(f.captures[0].technician.$or[0]._id, technicianId);
+    assert.deepEqual(Array.from(f.captures[1].filter.technicianId.$in), [technicianId, '507f1f77bcf86cd799439012']);
+  }
+  for (const technicianId of ['invalid', { $ne: '' }, ['507f1f77bcf86cd799439011']]) {
+    const f = fixture(false);
+    assert.equal((await f.call('get', '/', { query: { technicianId } })).statusCode, 400);
+    assert.equal(f.captures.length, 0);
+  }
 });
 test('receipt mutations are admin only, while technician lists are scoped and paginated', async () => {
   const admin = fixture(false);

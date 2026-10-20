@@ -15,14 +15,15 @@ async function checkAttendanceAlerts({ now = new Date(), loadRoster = loadStaffA
     const rows = await loadRoster({ date, now });
     for (const staff of rows) {
       if (!staff.issue) continue;
+      const workDate = staff.date || date;
       const isCheckOut = staff.issue === "missing_checkout";
       const type = isCheckOut ? "attendance_missing_checkout" : "attendance_missing_checkin";
       const title = isCheckOut ? "Check-out not recorded" : "Check-in not recorded";
       const label = `${staff.name} (${staff.role})`;
-      const recipients = [{ role: "admin", userId: null, link: `/admin/staff/attendance?date=${date}`, message: `${label} has not ${isCheckOut ? "checked out after the saved shift" : "checked in by the check-in cutoff"} for ${date}. Review the daily attendance list.` }];
-      if (staff.userId) recipients.push({ role: null, userId: staff.userId, link: `/${staff.role}/attendance`, message: `Your ${isCheckOut ? "check-out" : "check-in"} for ${date} is not recorded. ${date === today.key ? (isCheckOut ? "Check out when your work is finished, or contact the admin if the record needs correction." : "Check in using the attendance page, or contact the admin if the record needs correction.") : "Contact the admin to review this earlier attendance record."}` });
+      const recipients = [{ role: "admin", userId: null, link: `/admin/staff/attendance?date=${workDate}`, message: `${label} has not ${isCheckOut ? "checked out after the saved shift" : "checked in by the check-in cutoff"} for ${workDate}. Review the daily attendance list.` }];
+      if (staff.userId) recipients.push({ role: null, userId: staff.userId, link: `/${staff.role}/attendance`, message: `Your ${isCheckOut ? "check-out" : "check-in"} for ${workDate} is not recorded. ${workDate === today.key ? (isCheckOut ? "Check out when your work is finished, or contact the admin if the record needs correction." : "Check in using the attendance page, or contact the admin if the record needs correction.") : "Contact the admin to review this earlier attendance record."}` });
       for (const recipient of recipients) {
-        const attendanceAlertKey = `${date}:${staff.staffType}:${staff.staffId}:${staff.issue}:${recipient.role || recipient.userId}`;
+        const attendanceAlertKey = `${workDate}:${staff.staffType}:${staff.staffId}:${staff.issue}:${recipient.role || recipient.userId}`;
         const data = { ...recipient, attendanceAlertKey, type, title, priority: "high", read: false };
         let result;
         try {

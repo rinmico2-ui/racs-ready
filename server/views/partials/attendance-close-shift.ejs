@@ -1,0 +1,14 @@
+<div class="modal fade" id="attendanceCloseModal" tabindex="-1" aria-labelledby="attendanceCloseTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><form class="modal-content" id="attendanceCloseForm">
+  <div class="modal-header"><h5 class="modal-title" id="attendanceCloseTitle">Close an open shift</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+  <div class="modal-body">
+    <p class="fw-semibold mb-1" id="attendanceCloseStaff"></p><p class="small text-secondary" id="attendanceCloseContext"></p>
+    <div class="alert alert-danger d-none" id="attendanceCloseError" role="alert"></div>
+    <label for="attendanceCloseTime" class="form-label">Verified finish date and time <span aria-hidden="true">*</span></label>
+    <input type="datetime-local" class="form-control" id="attendanceCloseTime" required>
+    <p class="form-text">Use Philippine time and the actual finish time confirmed with the staff member.</p>
+    <label for="attendanceCloseReason" class="form-label mt-2">Correction reason <span aria-hidden="true">*</span></label>
+    <textarea class="form-control" id="attendanceCloseReason" rows="3" minlength="5" maxlength="500" required placeholder="Explain why checkout was missed and how you verified the finish time."></textarea>
+    <p class="small text-secondary mt-3 mb-0">This keeps the original check-in and Present or Late status. The correction is recorded in the audit trail.</p>
+  </div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary" id="attendanceCloseSave">Record verified checkout</button></div>
+</form></div></div>
+<script src="/js/attendance-close-shift.js?v=20261020-shift-corrections" defer></script>

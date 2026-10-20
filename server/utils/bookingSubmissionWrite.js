@@ -9,7 +9,7 @@ function isKnownStandalone(connection) {
 }
 
 async function bookingSubmissionIsComplete({ booking, submissionId, Payment, UnitAssistanceRequest, RelocationRequest }) {
-  if (!await Payment.exists({ bookingId: booking._id, clientSubmissionId: `booking:${submissionId}` })) return false;
+  if (booking.paymentMethod !== "cash_after_service" && !await Payment.exists({ bookingId: booking._id, clientSubmissionId: `booking:${submissionId}` })) return false;
   for (const service of booking.services || []) {
     if (service.assistanceRequestId && !await UnitAssistanceRequest.exists({
       _id: service.assistanceRequestId, bookingId: booking._id, status: "converted",
@@ -25,6 +25,9 @@ async function persistBookingSubmission({
   mongoose, BookingService, Payment, UnitAssistanceRequest, RelocationRequest,
   booking, payment, services, customerId,
 }) {
+  if (!payment && booking.paymentMethod !== "cash_after_service") {
+    throw new Error("An upfront payment record is required for this payment plan.");
+  }
   const bookingId = booking._id;
   const assistance = services.filter(service => service.assistanceRequestId);
   const relocations = services.filter(service => service.relocation?.scope === "custom_quote");
@@ -61,7 +64,7 @@ async function persistBookingSubmission({
   function newDocuments() {
     return {
       bookingAttempt: new BookingService(booking.toObject({ depopulate: true, versionKey: false })),
-      paymentAttempt: new Payment(payment.toObject({ depopulate: true, versionKey: false })),
+      paymentAttempt: payment ? new Payment(payment.toObject({ depopulate: true, versionKey: false })) : null,
     };
   }
 
@@ -69,7 +72,7 @@ async function persistBookingSubmission({
     const { bookingAttempt, paymentAttempt } = newDocuments();
     try {
       await bookingAttempt.save();
-      await paymentAttempt.save();
+      if (paymentAttempt) await paymentAttempt.save();
       await claimQuotes(null);
       return bookingAttempt;
     } catch (error) {
@@ -91,7 +94,7 @@ async function persistBookingSubmission({
             $pull: { events: { action: "converted", actorId: customerId } } },
         ));
       }
-      await undo(() => Payment.deleteOne({ _id: paymentAttempt._id, bookingId }));
+      if (paymentAttempt) await undo(() => Payment.deleteOne({ _id: paymentAttempt._id, bookingId }));
       await undo(() => BookingService.deleteOne({ _id: bookingId, customerId }));
       if (cleanupErrors.length) {
         error.cleanupErrors = cleanupErrors;
@@ -109,7 +112,7 @@ async function persistBookingSubmission({
       await session.withTransaction(async () => {
         const { bookingAttempt, paymentAttempt } = newDocuments();
         await bookingAttempt.save({ session });
-        await paymentAttempt.save({ session });
+        if (paymentAttempt) await paymentAttempt.save({ session });
         await claimQuotes(session);
         committed = bookingAttempt;
       });

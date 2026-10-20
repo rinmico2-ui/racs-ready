@@ -1,0 +1,17 @@
+.cab-field-guide { position: sticky; top: 72px; z-index: 35; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 14px 0 18px; padding: 12px 14px; border: 1px solid #cfe1d5; border-left: 3px solid #268255; border-radius: 10px; background: #f3faf5; box-shadow: 0 3px 10px rgb(24 52 43 / 4%); }
+.cab-field-guide > div { min-width: 0; }
+.cab-field-guide strong { display: block; color: #245438; font-size: .8rem; line-height: 1.5; overflow-wrap: anywhere; }
+.cab-field-guide small { display: block; margin-top: 3px; color: #61776a; font-size: .69rem; line-height: 1.5; }
+.cab-form .cab-field-guide button { flex-shrink: 0; min-height: 44px; padding: 9px 12px; border: 1px solid #c1d9ca; border-radius: 8px; background: #fff; color: #1d6540; font-size: .73rem; font-weight: 600; line-height: 1.5; }
+.cab-form .cab-field-guide button:hover { border-color: #268255; background: #eaf6ee; }
+.cab-form .cab-guide-next :is(input:not([type=hidden]), select) { border-color: #5b9d77; box-shadow: 0 0 0 2px #dcefe3; }
+.cab-form .cab-guide-next :is(input, select):focus { outline: 3px solid #b6dcc7; outline-offset: 2px; border-color: #13734a; }
+.cab-field-guide.is-ready { background: #edf8f1; }
+.cab-field-guide.is-error { border-color: #d9a4ad; background: #fff7f8; }
+.cab-field-guide.is-error strong { color: #9a3144; }
+@media (max-width: 575px) {
+  .cab-field-guide { top: 65px; gap: 9px; padding: 10px; }
+  .cab-field-guide strong { font-size: .74rem; }
+  .cab-field-guide small { font-size: .65rem; }
+  .cab-form .cab-field-guide button { max-width: 112px; padding: 8px; font-size: .69rem; }
+}

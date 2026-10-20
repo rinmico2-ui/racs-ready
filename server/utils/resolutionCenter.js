@@ -131,6 +131,7 @@ function normalizeText(value) {
 function resolutionPaymentNeedsReview(record, source = 'booking') {
   if (!record || ['cancelled', 'completed', 'closed'].includes(record.status)) return false;
   if (source === 'order' && record.paymentMethod === 'cash_onsite') return false;
+  if (source === 'booking' && record.paymentMethod === 'cash_after_service') return false;
   if (source === 'booking' && isUnpaidAftercareMaintenance(record)) return false;
   const status = normalizeText(record.paymentStatus) ||
     (['pending', 'pending_project_scheduling', 'pending_payment'].includes(record.status) ? 'pending' : '');
@@ -162,7 +163,10 @@ function orderIssueLabel(issueType) {
 
 function orderResolutionCase(order, now = new Date(), thresholdHours = 8) {
   const attention = orderAttentionState(order, now);
-  if (!attention.isPastDate || !attention.attentionType) return null;
+  const incident = require('./visitRecovery').emergency('order', order);
+  const replacementPending = order.visitRecoveryHistory?.length && !order.technicianId && order.status === 'preparing_unit';
+  if (!incident && !replacementPending && (!attention.isPastDate || !attention.attentionType)) return null;
+  const issueType = incident || replacementPending ? 'technician_issue' : attention.attentionType;
 
   const scheduledAt = attention.requestedScheduleAt ? new Date(attention.requestedScheduleAt) : null;
   const elapsedMs = scheduledAt && !Number.isNaN(scheduledAt.getTime()) ? now.getTime() - scheduledAt.getTime() : 0;
@@ -174,7 +178,7 @@ function orderResolutionCase(order, now = new Date(), thresholdHours = 8) {
   return {
     ...require('./orderResolutionScheduling').orderWorkload(order, thresholdHours),
     projectScheduling: order.bookingId?.projectScheduling || order.projectScheduling || null,
-    caseId: `order:${order._id}:${attention.attentionType}`,
+    caseId: `order:${order._id}:${issueType}`,
     id: String(order._id),
     orderId: String(order._id),
     linkedBookingId: order.bookingId ? String(order.bookingId._id || order.bookingId) : null,
@@ -189,15 +193,19 @@ function orderResolutionCase(order, now = new Date(), thresholdHours = 8) {
     itemCount,
     routeDurationMin: Number(order.routeDurationMin) || 30,
     status: order.status,
-    issueType: attention.attentionType,
-    issueLabel: orderIssueLabel(attention.attentionType),
+    updatedAt: order.updatedAt,
+    recoveryAvailable: require('./visitRecovery').eligible('order', order),
+    staffingEmergency: incident,
+    recoveryContact: order.visitRecoveryHistory?.at(-1) || null,
+    issueType,
+    issueLabel: incident ? 'Technician emergency' : replacementPending ? 'Replacement assignment needed' : orderIssueLabel(issueType),
     severity: daysPast >= 2 ? "critical" : "high",
-    reason: attention.attentionReason || "The requested order schedule passed and requires admin action.",
+    reason: incident ? `${incident.reporterName} reported ${incident.reason}. Contact the customer before arranging a replacement visit.` : replacementPending ? 'The customer agreed to a new visit. Assign the replacement technician team.' : attention.attentionReason || "The requested order schedule passed and requires admin action.",
     scheduledAt: attention.requestedScheduleAt,
     bookingDate: attention.requestedScheduleAt,
     startTime: order.timeSlot || "",
     technicianName,
-    isPastDate: true,
+    isPastDate: attention.isPastDate,
     daysPast,
     fulfillmentType: order.fulfillmentType,
     paymentStatus: order.paymentStatus || "pending",
@@ -207,6 +215,7 @@ function orderResolutionCase(order, now = new Date(), thresholdHours = 8) {
     awaitingCustomerSchedule: require('./orderRescheduleInvitation').activeOrderRescheduleInvitation(order, now),
     allowedActions: [
       "view",
+      ...(require('./visitRecovery').eligible('order', order) ? ['recover'] : []),
       ...(resolutionPaymentNeedsReview(order, 'order') ? ["verify_payment"] : []),
       "reschedule",
       "send_link",
@@ -239,7 +248,11 @@ function filterResolutionCases(cases, filters = {}) {
     if (source && source !== "all" && normalizeText(item.sourceType || "booking") !== source) return false;
     if (source === "booking" && ["standard", "project"].includes(bookingType)
       && (item.isProject === true) !== (bookingType === "project")) return false;
-    if (issue && issue !== "all" && ![item, ...(item.issues || [])].some(entry => normalizeText(entry.issueType) === issue)) return false;
+    if (issue === 'emergency') {
+      if (!item.staffingEmergency || !['pending_reassignment', 'technician_declined'].includes(item.status)) return false;
+    } else if (issue === 'past_date') {
+      if (!item.isPastDate && ![item, ...(item.issues || [])].some(entry => entry.issueType === 'past_date')) return false;
+    } else if (issue && issue !== "all" && ![item, ...(item.issues || [])].some(entry => normalizeText(entry.issueType) === issue)) return false;
     if (severity && severity !== "all" && normalizeText(item.severity) !== severity) return false;
     if (search) {
       const haystack = [item.id, item.linkedBookingId, item.reference, item.customer, item.email, item.phone, item.serviceName, item.subject, item.reason, item.technicianName, ...(item.issues || []).map(entry => entry.reason)]

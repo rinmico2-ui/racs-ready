@@ -260,7 +260,7 @@
           </div>
 
           <div class="alert alert-info py-2 px-3 small text-start mx-auto mb-3" style="max-width: 320px;">
-            <i class="bi bi-info-circle me-1"></i> Cutoff time is <strong>9:00 AM</strong>. Scans after 9:00 AM will be automatically marked as <strong>Late</strong>.
+            <i class="bi bi-info-circle me-1"></i> Lateness follows the saved shift: <strong>9:00 AM</strong> for daytime shifts, or the saved start time for a later shift.
           </div>
 
           <button id="btnRegenerate" class="btn-ss outline btn-sm"><i class="bi bi-arrow-clockwise"></i> Refresh Now</button>
@@ -717,7 +717,7 @@
 
       return `
           <tr data-name="${safeName}" data-email="${safeEmail}" data-attendance="${safeAtt}">
-            <td class="ps-4 fw-semibold">${historyEscape(tech.name)}</td>
+            <td class="ps-4 fw-semibold">${historyEscape(tech.name)}${tech.isOvernight ? `<div class="small text-warning">Open shift: ${historyEscape(tech.date)}</div>` : ''}</td>
             <td>${roleBadge}</td>
             <td class="text-muted small">${historyEscape(tech.email || "—")}</td>
             <td>
@@ -732,6 +732,7 @@
             <td>${methodStr}</td>
             <td class="text-end pe-4">
               <div class="d-inline-flex gap-1 align-items-center">
+                ${tech.canCloseShift && tech.attendanceRecordId ? `<button type="button" class="btn btn-sm btn-outline-primary" data-close-attendance data-staff-id="${historyEscape(tech.staffId)}" data-staff-type="${historyEscape(tech.staffType)}" data-record-id="${historyEscape(tech.attendanceRecordId)}" data-staff-name="${historyEscape(tech.name)}" data-check-in="${historyEscape(tech.checkInTime)}" data-work-date="${historyEscape(tech.date)}">Close shift</button>` : ''}
                 <select class="action-select attendance-select" ${tech.canEdit === false ? 'disabled title="Earlier dates are view-only"' : ''} data-staff-id="${tech.staffId}" data-staff-type="${tech.staffType}">
                   <option value="" disabled selected>Mark Attendance...</option>
                   <option value="Present" ${tech.attendanceStatus === "Present" ? "disabled" : ""}>Present</option>
@@ -897,7 +898,7 @@
     }
     // Call API to update status
     async function updateTechnician(techId, body) {
-      if (attendanceWorkDate.value !== historyDateKey(new Date())) return alert('Earlier attendance dates are view-only. Return to Today to update a current record.');
+      if (attendanceWorkDate.value !== historyDateKey(new Date())) return alert('Earlier dates are view-only. Use Close shift for a verified checkout correction, or return to Today.');
       try {
         const res = await fetch(`/api/admin/attendance/${techId}`, {
           method: "PATCH",
@@ -993,6 +994,7 @@
       loadAttendanceHistory(1);
     }
 
+    window.addEventListener('attendance:changed', () => { loadRoster(); loadAttendanceHistory(historyPage); });
     // Toolbar filter listeners
     attendanceSearchInput.addEventListener("input", applyFilters);
     attendanceStatusFilter.addEventListener("change", applyFilters);
@@ -1019,3 +1021,5 @@
     createSparkline(document.getElementById('attSparkHalf'), [0, 0, 1, 1, 2, 2, 3], '#64748b');
   });
 </script>
+
+<%- include('../../../partials/attendance-close-shift') %>

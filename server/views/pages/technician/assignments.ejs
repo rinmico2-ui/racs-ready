@@ -1255,8 +1255,8 @@
   </div>
 </div>
 
-<!-- Cancel Assignment Modal -->
-<div class="modal fade" id="cancelModal" tabindex="-1" role="dialog" aria-modal="true" data-bs-backdrop="static">
+<!-- Shared visit emergency report -->
+<div class="modal fade" id="cancelModal" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="emergencyReportTitle" aria-describedby="cancelAlertBox" data-bs-backdrop="static">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content" style="border:none;border-radius:16px;overflow:hidden;">
       <div class="modal-header"
@@ -1267,7 +1267,7 @@
             <i class="bi bi-exclamation-triangle"></i>
           </div>
           <div>
-            <h6 class="modal-title fw-bold mb-0">Cancel Assignment</h6>
+            <h6 class="modal-title fw-bold mb-0" id="emergencyReportTitle">Report Emergency</h6>
             <small style="opacity:0.85;font-size:0.8rem;" id="cancelModalSubtitle">This action requires a reason</small>
           </div>
         </div>
@@ -1276,25 +1276,25 @@
       <div class="modal-body" style="padding:1.5rem;background:#f8fafc;">
         <div id="cancelAlertBox" class="alert alert-warning d-none" style="font-size:0.85rem;">
           <i class="bi bi-info-circle me-1"></i>
-          The booking will be returned to the reassignment queue and the customer will be notified.
+          This pauses the visit for every assigned technician. Admin will arrange a replacement team or a new schedule. The customer booking and recorded payments stay on file.
         </div>
 
         <div class="mb-3">
-          <label class="form-label fw-bold" style="font-size:0.85rem;">Reason for Cancellation <span
+          <label class="form-label fw-bold" for="cancelReasonSelect" style="font-size:0.85rem;">What happened? <span
               class="text-danger">*</span></label>
           <select class="form-select" id="cancelReasonSelect" style="border-radius:10px;font-size:0.9rem;">
             <option value="">Select a reason...</option>
             <option value="emergency">Emergency</option>
             <option value="vehicle_breakdown">Vehicle Breakdown</option>
-            <option value="personal">Personal Reason</option>
+            <option value="personal">Personal Emergency</option>
             <option value="weather">Weather Conditions</option>
             <option value="overlapping_job">Overlapping Job Conflict</option>
             <option value="other">Other</option>
           </select>
         </div>
 
-        <div class="mb-3 d-none" id="customReasonGroup">
-          <label class="form-label fw-bold" style="font-size:0.85rem;">Please specify</label>
+        <div class="mb-3" id="customReasonGroup">
+          <label class="form-label fw-bold" id="emergencyDetailsLabel" for="customReasonText" style="font-size:0.85rem;">Additional details (optional)</label>
           <textarea class="form-control" id="customReasonText" rows="3" placeholder="Provide additional details..."
             style="border-radius:10px;font-size:0.9rem;resize:none;" maxlength="500"></textarea>
           <small class="text-muted"><span id="customReasonCount">0</span>/500</small>
@@ -1304,7 +1304,7 @@
         <button type="button" class="btn btn-light" data-bs-dismiss="modal" style="border-radius:8px;">Go Back</button>
         <button type="button" class="btn btn-danger" id="confirmCancelBtn" disabled
           style="border-radius:8px;padding:8px 24px;">
-          <i class="bi bi-x-circle me-1"></i>Confirm Cancellation
+          <i class="bi bi-send me-1"></i>Send Emergency Report
         </button>
       </div>
     </div>
@@ -6433,6 +6433,18 @@
   .booking-detail-card-title { display: flex; align-items: center; gap: 8px; margin: 0; color: #172033; font-size: .78rem; font-weight: 800; }
   .booking-detail-card-title i { color: #2563eb; }
   .booking-detail-card-body { padding: 14px 15px; }
+  .booking-team-count { color: #64748b; font-size: .7rem; white-space: nowrap; }
+  .booking-team-members { display: grid; gap: 12px; list-style: none; padding: 0; margin: 0; }
+  .booking-team-member { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: center; gap: 4px 10px; }
+  .booking-team-member + .booking-team-member { padding-top: 12px; border-top: 1px solid #edf1f6; }
+  .booking-team-avatar { grid-row: span 2; width: 36px; height: 36px; display: grid; place-items: center; background: #eff6ff; color: #1d4ed8; border-radius: 50%; font-size: .75rem; font-weight: 800; }
+  .booking-team-person { min-width: 0; }
+  .booking-team-name { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; color: #1e293b; font-size: .8rem; font-weight: 750; overflow-wrap: anywhere; }
+  .booking-team-you { color: #475569; background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: .62rem; font-weight: 650; }
+  .booking-team-role { margin-top: 2px; color: #64748b; font-size: .7rem; }
+  .booking-team-status { grid-column: 2; justify-self: start; padding: 2px 7px; border-radius: 5px; font-size: .65rem; font-weight: 700; background: #fff7ed; color: #9a3412; }
+  .booking-team-status.accepted { background: #f0fdf4; color: #166534; }
+  .booking-team-status.closed { background: #f1f5f9; color: #475569; }
   .booking-info-list { display: grid; gap: 0; }
   .booking-info-row { display: grid; grid-template-columns: 33px minmax(0,1fr); gap: 10px; padding: 10px 0; border-bottom: 1px solid #f0f3f7; }
   .booking-info-row:first-child { padding-top: 0; }
@@ -7032,12 +7044,13 @@
     function getWizardPageActions(pageId, a, allowMixedRepairActions = false) {
       if (!a) return '';
       if (a.crewRole === 'support' && window.RACSJobTeams) return RACSJobTeams.assignmentActions(a);
-      if (a.serviceType !== 'project' && ['en_route','on_site'].includes(a.status) && window.RACSVisitSchedule.state(a).code === 'SCHEDULE_NOT_TODAY') return dailyPreparationButton(a) + '<div class="alert alert-info mb-0">This visit is on a future date. Arrival and Start Work unlock on the scheduled Philippine date.</div>';
-      if (a.status === 'accepted' && window.RACSJobTeams && !RACSJobTeams.ready(a.technicianTeam || a.bookingId?.technicianTeam) && pageId !== 'ai-assistant') return '<div class="alert alert-info mb-0">Waiting for every team member to accept. The whole team must accept before departure.'+(isRepairAssignment(a)?'<button type="button" class="btn btn-sm btn-outline-primary ms-2" onclick="switchDetailTab(\'ai-assistant\')">Review AI preparation</button>':'')+'</div>';
+      const emergencyAction = window.RACSJobTeams?.emergencyAction(a) || '';
+      if (a.serviceType !== 'project' && ['en_route','on_site'].includes(a.status) && window.RACSVisitSchedule.state(a).code === 'SCHEDULE_NOT_TODAY') return dailyPreparationButton(a) + '<div class="alert alert-info mb-0">This visit is on a future date. Arrival and Start Work unlock on the scheduled Philippine date.</div>' + emergencyAction;
+      if (a.status === 'accepted' && window.RACSJobTeams && !RACSJobTeams.ready(a.technicianTeam || a.bookingId?.technicianTeam) && pageId !== 'ai-assistant') return '<div class="alert alert-info mb-0">Waiting for every team member to accept. The whole team must accept before departure.'+(isRepairAssignment(a)?'<button type="button" class="btn btn-sm btn-outline-primary ms-2" onclick="switchDetailTab(\'ai-assistant\')">Review AI preparation</button>':'')+'</div>' + emergencyAction;
       if ((a.continuation || a.bookingId?.continuation)?.status === 'pending') return '<div class="alert alert-warning mb-0">This visit ended. Operations is arranging the next schedule. Completed work and payments remain recorded.</div>';
       const actions = getWizardPageActionsForVisit(pageId, a, allowMixedRepairActions);
       const canContinue = a.status === 'in_progress' && ['overview', 'core-service', 'repair-service', 'repair', 'inspection'].includes(pageId) && !actions.includes('data-continuation-request');
-      return actions + (canContinue ? `<button type="button" class="btn btn-outline-secondary" data-continuation-request onclick="RACSWorkContinuation.request('booking','${a._id}')"><i class="bi bi-calendar-plus me-1"></i>Continue on another visit</button>` : '');
+      return actions + emergencyAction + (canContinue ? `<button type="button" class="btn btn-outline-secondary" data-continuation-request onclick="RACSWorkContinuation.request('booking','${a._id}')"><i class="bi bi-calendar-plus me-1"></i>Continue on another visit</button>` : '');
     }
 
     function getWizardPageActionsForVisit(pageId, a, allowMixedRepairActions = false) {
@@ -7158,7 +7171,6 @@ if (a.status === 'accepted') {
             return `<div class="d-flex gap-2 flex-nowrap">
               <button class="btn btn-primary" onclick="repairTransition('${bId}','on_site', this);"><i class="bi bi-geo-alt me-2"></i>Arrived</button>
               <button class="btn btn-outline-primary" style="border:1.5px solid #2563eb !important;background:#fff;color:#2563eb !important;" onclick="openRouteMapModal();event.stopPropagation();"><i class="bi bi-map me-1"></i>View Map</button>
-              <button class="btn btn-outline-danger" onclick="openModalAfterClose(null,'assignDetailModal',()=>openCancelModal('${a._id}','${esc(a.customerName)}','${esc(a.serviceName)}'));"><i class="bi bi-x-circle me-2"></i>Cancel</button>
             </div>`;
           }
 
@@ -7323,7 +7335,6 @@ if (a.status === 'accepted') {
           const next = { accepted: 'en_route', en_route: 'on_site', on_site: 'in_progress', in_progress: 'completed' };
           const labels = { en_route: 'En Route', on_site: 'Arrived', in_progress: 'Start Work', completed: 'Complete' };
           const icons = { en_route: 'bi-sign-turn-right', on_site: 'bi-geo-alt', in_progress: 'bi-tools', completed: 'bi-check-circle' };
-          const canCancel = ['accepted', 'en_route', 'on_site'].includes(a.status);
           const isCompleteStep = a.status === 'in_progress';
           const needsPayment = !window.RepairVisitPayment.balance(a.bookingId && typeof a.bookingId==='object' ? a.bookingId : a).paidInFull;
           const nextAction = next[a.status];
@@ -7355,7 +7366,6 @@ if (a.status === 'accepted') {
           }
           let actionBtns = `
           ${(a.bookingId?.services || []).some(item => item.relocation?.scope) || /aircon relocation/i.test(String(a.serviceName || '')) ? `<a class="btn btn-outline-primary" href="/technician/relocation-work-order/${encodeURIComponent(bId)}"><i class="bi bi-list-check me-2"></i>Relocation work order</a>` : ''}
-          ${canCancel ? `<button class="btn btn-outline-danger" onclick="openModalAfterClose(null,'assignDetailModal',()=>openCancelModal('${a._id}','${esc(a.customerName)}','${esc(a.serviceName)}'));"><i class="bi bi-x-circle me-2"></i>Cancel</button>` : ''}
           ${a.status === 'on_site' ? `<button type="button" class="btn btn-warning text-dark" onclick="openCustomerNotAvailable('${a._id}',this);"><i class="bi bi-person-x me-2"></i>Customer Not Available</button>` : ''}
           ${a.status === 'waiting_for_customer' ? `<button type="button" class="btn btn-outline-warning" onclick="openCustomerNotAvailable('${a._id}',this,'resume');"><i class="bi bi-clock-history me-2"></i>Waiting Timer</button>` : ''}`;
           if (a.status === 'en_route') {
@@ -7779,13 +7789,13 @@ if (a.status === 'accepted') {
       const bal = b.balanceAmount ?? a.balanceAmount ?? 0;
       const financialStatus = b.paymentStatus || a.paymentStatus || 'pending';
       const paymentOnSite = a.paymentOnSite === true || b.maintenance?.paymentOnSite === true;
-      const payMethod = paymentOnSite ? 'PAY ON SITE' : (a.paymentMethod || '—').replace(/_/g,' ').toUpperCase();
+      const payMethod = (b.paymentMethod || a.paymentMethod) === 'cash_after_service' ? '100% CASH AFTER SERVICE' : paymentOnSite ? 'PAY ON SITE' : (a.paymentMethod || '—').replace(/_/g,' ').toUpperCase();
 
       const phoneLink = phone !== 'N/A' ? String(phone).replace(/[^+\d]/g, '') : '';
       const destination = hasCoords ? `${Number(custLat)},${Number(custLng)}` : address;
       const mapsHref = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
       const settledPayment = ['paid', 'verified', 'remitted', 'payment_collected'].includes(String(financialStatus));
-      let h = '';
+      let h = window.RACSJobTeams?.emergencyNotice(b, { assignmentId: a._id }) || '';
       let sideHtml = '';
 
       const overviewHtml = `
@@ -7846,6 +7856,8 @@ if (a.status === 'accepted') {
       sideHtml += `<div class="booking-info-row"><div class="booking-info-icon"><i class="bi bi-tools"></i></div><div><div class="booking-info-label">Assigned service</div><div class="booking-info-value">${_e(serviceName)}</div></div></div>`;
       sideHtml += `<div class="booking-info-row"><div class="booking-info-icon"><i class="bi bi-diagram-3"></i></div><div><div class="booking-info-label">Workflow</div><div class="booking-info-value">${_e(typeText)}</div></div></div>`;
       sideHtml += `</div></div></section>`;
+
+      sideHtml += window.RACSJobTeams?.bookingTeamCard(a) || '';
 
       if (a.paymentMethod || total > 0) {
         const _payments = a.payments || [];
@@ -11358,23 +11370,25 @@ function preparationEscapeHtml(value) {
     // ── Cancel Assignment ──────────────────────────────────────────────────
     let cancelTargetId = null;
 
-    window.openCancelModal = function (id, customerName, serviceName) {
+    window.openEmergencyModal = function (id, customerName, serviceName) {
       cancelTargetId = id;
       document.getElementById('cancelReasonSelect').value = '';
       document.getElementById('customReasonText').value = '';
       document.getElementById('customReasonCount').textContent = '0';
-      document.getElementById('customReasonGroup').classList.add('d-none');
+      document.getElementById('customReasonGroup').classList.remove('d-none');
+      document.getElementById('emergencyDetailsLabel').textContent = 'Additional details (optional)';
       document.getElementById('confirmCancelBtn').disabled = true;
       document.getElementById('cancelModalSubtitle').textContent = `${serviceName} for ${customerName}`;
       document.getElementById('cancelAlertBox').classList.remove('d-none');
       const cancelEl = document.getElementById('cancelModal');
       bootstrap.Modal.getOrCreateInstance(cancelEl).show();
     };
+    window.openCancelModal = window.openEmergencyModal;
 
     document.getElementById('cancelReasonSelect').addEventListener('change', function () {
       const isOther = this.value === 'other';
-      document.getElementById('customReasonGroup').classList.toggle('d-none', !isOther);
-      document.getElementById('confirmCancelBtn').disabled = !this.value;
+      document.getElementById('emergencyDetailsLabel').textContent = isOther ? 'Additional details (required, at least 5 characters)' : 'Additional details (optional)';
+      document.getElementById('confirmCancelBtn').disabled = !this.value || isOther && document.getElementById('customReasonText').value.trim().length < 5;
       if (isOther) {
         document.getElementById('customReasonText').focus();
       }
@@ -11383,20 +11397,23 @@ function preparationEscapeHtml(value) {
     document.getElementById('customReasonText').addEventListener('input', function () {
       document.getElementById('customReasonCount').textContent = this.value.length;
       const reason = document.getElementById('cancelReasonSelect').value;
-      document.getElementById('confirmCancelBtn').disabled = reason !== 'other' || !this.value.trim();
+      document.getElementById('confirmCancelBtn').disabled = !reason || reason === 'other' && this.value.trim().length < 5;
     });
 
     document.getElementById('confirmCancelBtn').addEventListener('click', async function () {
       if (!cancelTargetId) return;
+      const cancelledAssignmentId = cancelTargetId;
       const reason = document.getElementById('cancelReasonSelect').value;
       const customReason = document.getElementById('customReasonText').value.trim();
       if (!reason) return;
 
       this.disabled = true;
-      this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Cancelling...';
+      this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending report...';
+      const finishUpdate = window.TechnicianWorkUpdates?.beginMutation();
+      let refreshNeeded = false;
 
       try {
-        const res = await fetch(`/api/technician/assignments/${cancelTargetId}/cancel`, {
+        const res = await fetch(`/api/technician/assignments/${cancelledAssignmentId}/emergency`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'same-origin',
@@ -11404,22 +11421,28 @@ function preparationEscapeHtml(value) {
         });
         const data = await res.json();
         if (res.ok) {
+          // Invalidate in-flight detail requests before live updates refresh
+          // the list. This assignment has just left the current work queue.
+          window.closeDetailPanel();
+          cancelTargetId = null;
+          refreshNeeded = true;
           bootstrap.Modal.getOrCreateInstance(document.getElementById('cancelModal')).hide();
           showNotification({
             type: 'warning',
-            title: 'Assignment Cancelled',
-            message: 'The booking has been returned to the reassignment queue.',
+            title: 'Emergency Reported',
+            message: data.message || 'Admin has been alerted. The visit is paused for the whole team.',
             duration: 5000
           });
-          loadAssignments(currentFilter, currentPage);
+          if (!finishUpdate) await loadAssignments(currentFilter, currentPage);
         } else {
-          showNotification({ type: 'error', title: 'Cancel Failed', message: data.error || 'Failed to cancel assignment', duration: 5000 });
+          showNotification({ type: 'error', title: 'Report Failed', message: data.error || 'Failed to report the emergency', duration: 5000 });
         }
       } catch (e) {
-        showNotification({ type: 'error', title: 'Cancel Failed', message: 'Network error. Please try again.', duration: 5000 });
+        showNotification({ type: 'error', title: 'Report Failed', message: 'Network error. Please try again.', duration: 5000 });
       } finally {
+        finishUpdate?.(refreshNeeded);
         this.disabled = false;
-        this.innerHTML = '<i class="bi bi-x-circle me-1"></i>Confirm Cancellation';
+        this.innerHTML = '<i class="bi bi-send me-1"></i>Send Emergency Report';
       }
     });
 
@@ -11543,6 +11566,11 @@ function preparationEscapeHtml(value) {
     window.closeDetailPanel = function () {
       detailLoadSequence++;
       detailLoad = null;
+      detailLoadController?.abort();
+      detailLoadController = null;
+      window._currentDetailId = null;
+      window._detailAssignment = null;
+      window._detailTechLocation = null;
       if (window._routeMapWatcher) { navigator.geolocation.clearWatch(window._routeMapWatcher); window._routeMapWatcher = null; }
       const panel = document.getElementById('rightPanel');
       const left = document.getElementById('leftPanel');
@@ -11568,7 +11596,7 @@ function preparationEscapeHtml(value) {
       if (preferredTab) switchDetailTab(preferredTab);
     };
 
-    let detailLoadSequence = 0, detailLoad = null;
+    let detailLoadSequence = 0, detailLoad = null, detailLoadController = null;
     window.showDetail = function (id) {
       const revision = window.TechnicianWorkUpdates?.revision || 0;
       if (detailLoad?.id === String(id) && detailLoad.revision === revision) return detailLoad.promise;
@@ -11580,6 +11608,9 @@ function preparationEscapeHtml(value) {
       return promise;
     };
     async function loadAssignmentDetail(id, sequence) {
+      detailLoadController?.abort();
+      const request = new AbortController();
+      detailLoadController = request;
       try {
         const isRefreshingSameJob = String(window._currentDetailId || '') === String(id || '');
         const keepVisible = isRefreshingSameJob && document.getElementById('rightPanel').classList.contains('open') && document.getElementById('detailPanelContent').style.display !== 'none';
@@ -11603,8 +11634,19 @@ function preparationEscapeHtml(value) {
         left.classList.add('panel-open');
         left.classList.add('list-hidden');
 
-        const res = await fetch(`/api/technician/assignments/${id}`, { credentials: 'same-origin' });
-        if (!res.ok) { const errData = await res.json().catch(() => ({})); throw new Error(errData.error || `HTTP ${res.status}`); }
+        const res = await fetch(`/api/technician/assignments/${id}`, { credentials: 'same-origin', signal: request.signal });
+        if (sequence !== detailLoadSequence) return;
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          if (sequence !== detailLoadSequence) return;
+          if (res.status === 404 || errData.code === 'ASSIGNMENT_ACCESS_CHANGED') {
+            window.closeDetailPanel();
+            showNotification({ type: 'info', title: 'Assignment updated', message: errData.error || 'This assignment is no longer available. Your work list has been refreshed.', duration: 5000 });
+            await loadAssignments(currentFilter, currentPage, document.getElementById('searchInput')?.value || '', { quiet: true });
+            return;
+          }
+          throw new Error(errData.error || `HTTP ${res.status}`);
+        }
         const { assignment: a, techLocation } = await res.json();
         if (sequence !== detailLoadSequence) return;
         if (a.workUnavailable) {
@@ -11629,11 +11671,12 @@ function preparationEscapeHtml(value) {
         }
 
         // Load assigned equipment for this booking
+        const loadVisitResources = !['cancelled', 'declined', 'expired'].includes(a.status);
         a.equipmentItems = [];
         const eqBookingId = a.bookingId?._id || (typeof a.bookingId === 'string' ? a.bookingId : '');
-        if (eqBookingId) {
+        if (eqBookingId && loadVisitResources) {
           try {
-            const eqRes = await fetch(`/api/technician/equipment/${eqBookingId}`, { credentials: 'same-origin' });
+            const eqRes = await fetch(`/api/technician/equipment/${eqBookingId}`, { credentials: 'same-origin', signal: request.signal });
             if (eqRes.ok) { const eqData = await eqRes.json(); a.equipmentItems = eqData.items || []; }
           } catch (e) {}
         }
@@ -11641,9 +11684,9 @@ function preparationEscapeHtml(value) {
         // Load payment history for this booking
         a.payments = [];
         const payBookingId = a.bookingId?._id || (typeof a.bookingId === 'string' ? a.bookingId : '');
-        if (payBookingId) {
+        if (payBookingId && loadVisitResources) {
           try {
-            const payRes = await fetch(`/api/technician/bookings/${payBookingId}/payments`, { credentials: 'same-origin' });
+            const payRes = await fetch(`/api/technician/bookings/${payBookingId}/payments`, { credentials: 'same-origin', signal: request.signal });
             if (payRes.ok) { const payData = await payRes.json(); a.payments = payData.payments || []; }
           } catch (e) {}
         }
@@ -11651,12 +11694,14 @@ function preparationEscapeHtml(value) {
         // Load reserved repair parts for this booking
         a.reservedParts = [];
         const rpBookingId = a.bookingId?._id || (typeof a.bookingId === 'string' ? a.bookingId : '');
-        if (rpBookingId && isRepairAssignment(a)) {
+        if (rpBookingId && loadVisitResources && isRepairAssignment(a)) {
           try {
-            const rpRes = await fetch(`/api/technician/bookings/${rpBookingId}/reserved-parts`, { credentials: 'same-origin' });
+            const rpRes = await fetch(`/api/technician/bookings/${rpBookingId}/reserved-parts`, { credentials: 'same-origin', signal: request.signal });
             if (rpRes.ok) { const rpData = await rpRes.json(); a.reservedParts = rpData.reservations || []; }
           } catch (e) {}
         }
+
+        if (sequence !== detailLoadSequence) return;
 
         // Recover Phase 1 requests created by the older logic that remained in
         // waiting_parts even after every requested quantity became reserved.
@@ -12000,7 +12045,6 @@ function preparationEscapeHtml(value) {
         } else {
           contentEl.innerHTML = panelsHtml;
         }
-        window.RACSJobTeams?.display('booking', a.bookingId, contentEl);
         if (activeTabBeforeRefresh && visiblePages.includes(activeTabBeforeRefresh)) {
           switchDetailTab(activeTabBeforeRefresh);
         } else {
@@ -12489,11 +12533,13 @@ function preparationEscapeHtml(value) {
         };
 
       } catch (e) {
-        if (sequence !== detailLoadSequence) return;
+        if (sequence !== detailLoadSequence || e.name === 'AbortError') return;
         console.error('[showDetail] Error:', e);
         showNotification({ type: 'error', title: 'Load Failed', message: 'Failed to load assignment details.', duration: 5000 });
         document.getElementById('detailPanelLoading').style.display = 'none';
         if (document.getElementById('detailPanelContent').style.display === 'none') document.getElementById('detailPanelEmpty').style.display = '';
+      } finally {
+        if (detailLoadController === request) detailLoadController = null;
       }
     };
 
@@ -16085,7 +16131,7 @@ function preparationEscapeHtml(value) {
     const paymentMethod = booking.paymentMethod || assignment?.paymentMethod || 'cash';
     const downpayment = Number(booking.downpaymentAmount || assignment?.downpaymentAmount || 0);
     const travelFare = booking.travelFare || 0;
-    const isCash = ['cod', 'cash', 'cash_onsite'].includes(paymentMethod);
+    const isCash = ['cod', 'cash', 'cash_onsite', 'cash_after_service'].includes(paymentMethod);
 
     document.getElementById('inspPayService').textContent = serviceName;
     document.getElementById('inspPayCustomer').textContent = customerName;
@@ -16095,7 +16141,7 @@ function preparationEscapeHtml(value) {
     const paymentChannel = booking.paymentChannel || assignment?.paymentChannel || 'gcash';
     const paymentChannelName = ({ gcash: 'GCash', maya: 'Maya', bank_transfer: 'Bank Transfer', other: 'Other Transfer' })[paymentChannel] || 'selected method';
     const methodLabels = { cash: 'Cash', cash_onsite: 'Cash at store pickup', maya: 'Maya', bank_transfer: 'Bank Transfer' };
-    document.getElementById('inspPayBookingMethod').textContent = paymentMethod === 'cod'
+    document.getElementById('inspPayBookingMethod').textContent = paymentMethod === 'cash_after_service' ? '100% Cash After Service (no advance payment)' : paymentMethod === 'cod'
       ? `Downpayment via ${paymentChannelName} + balance at completion`
       : paymentMethod === 'gcash'
         ? `Full payment via ${paymentChannelName}`
@@ -16112,7 +16158,7 @@ function preparationEscapeHtml(value) {
     }
 
     // Set payment method dropdown to match booking
-    document.getElementById('inspPayMethod').value = paymentMethod;
+    document.getElementById('inspPayMethod').value = paymentMethod === 'cash_after_service' ? 'cash' : paymentMethod;
 
     const bill = window.RepairVisitPayment.summary(booking);
     const isMixedBooking = bill.isMixedBooking, allCoreCompleted = bill.allCoreCompleted;

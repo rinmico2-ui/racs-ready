@@ -65,6 +65,24 @@ test('another booking blocks an ongoing repair even when the current inspection 
     { excludeBookingId: id(2), existingAppointment: true, ongoingStartMinutes: 544 });
   assert.deepEqual(result.payload.timeSlots, []);
 });
+test('late booking assignment checks the full visit from the current Philippine minute', async t => {
+  t.mock.timers.enable({ apis:['Date'], now:new Date('2026-10-19T01:10:15Z') });fixture(t);
+  const input={date:'2026-10-19',technicianId:id(1),duration:'30',travelTime:'15'};
+  const options={excludeBookingId:id(2),existingAppointment:true,assignmentStartMinutes:551};
+  const result=await calendar.getTimeSlotsForQuery(input,options);
+  assert.equal(result.payload.timeSlots.length,1);assert.equal(startMinutes(result.payload.timeSlots[0]),551);
+  t.mock.method(require('../models/BookingService'),'find',()=>query([{startTime:'10:30',endTime:'11:00'}]));
+  assert.equal((await calendar.getTimeSlotsForQuery(input,options)).payload.timeSlots.length,0);
+});
+test('a public request cannot forge the late-assignment capacity mode and a whole visit must fit the shift', async t => {
+  t.mock.timers.enable({ apis:['Date'], now:new Date('2026-10-19T01:10:15Z') });
+  fixture(t,{workingDays:[{dayOfWeek:1,startMinutes:480,endMinutes:600}]});
+  const input={date:'2026-10-19',technicianId:id(1),duration:'30',travelTime:'15',assignmentStartMinutes:551,_trustedAssignmentStart:551};
+  const publicResult=await calendar.getTimeSlotsForQuery(input);
+  assert.ok(!publicResult.payload.timeSlots.some(row=>startMinutes(row)===551));
+  const late=await calendar.getTimeSlotsForQuery({...input,duration:'480'}, {excludeBookingId:id(2),existingAppointment:true,assignmentStartMinutes:551});
+  assert.deepEqual(late.payload.timeSlots,[]);
+});
 
 for (const [label, plan] of [["booking", buildAssignmentPlan], ["order", buildOrderAssignmentPlan]]) {
   test(`${label} AI planner uses the same company fallback as the manual picker when no custom schedule exists`, async t => {

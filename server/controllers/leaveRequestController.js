@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const LeaveRequest = require('../models/LeaveRequest');
 const audit = require('../utils/audit');
 const { createNotification } = require('../utils/notify');
+const leaveRequests = require('../utils/technicianLeaveRequests').createService();
 
 const reviewStatuses = ['approved', 'rejected'];
 
@@ -36,24 +37,32 @@ async function review(req, res, next) {
     if (typeof adminNote !== 'string' || adminNote.length > 500) {
       return res.status(400).json({ error: 'Enter a review note up to 500 characters.' });
     }
-    const original = await LeaveRequest.findById(id).lean();
-    if (!original) return res.status(404).json({ error: 'Leave request not found. It may have been cancelled by the technician.' });
-    if (expectedStatus !== undefined && (expectedStatus !== original.status
-        || (expectedReviewedAt || null) !== (original.reviewedAt ? new Date(original.reviewedAt).toISOString() : null))) {
-      return res.status(409).json({ error: 'This request was reviewed by someone else. Refresh and review the latest decision.' });
-    }
-    const note = adminNote.trim();
-    // Retrying the same decision must not create duplicate notifications or audit entries.
-    if (original.status === status && (original.adminNote || '') === note) {
-      return res.json({ message: 'No changes detected.', leave: original });
-    }
-    const now = new Date();
-    const leave = await LeaveRequest.findOneAndUpdate({
-      _id: id, status: original.status, reviewedAt: original.reviewedAt || null,
-    }, { $set: { status, adminNote: note, reviewedBy: req.user._id, reviewedAt: now, updatedAt: now } }, {
-      new: true, runValidators: true,
-    }).lean();
-    if (!leave) return res.status(409).json({ error: 'This request changed while you were reviewing it. Refresh and try again.' });
+    const target = await LeaveRequest.findById(id).select('technicianId').lean();
+    if (!target) return res.status(404).json({ error: 'Leave request not found. It may have been cancelled by the technician.' });
+    const result = await leaveRequests.withLock(target.technicianId, async () => {
+      const original = await LeaveRequest.findById(id).lean();
+      if (!original) throw Object.assign(new Error('Leave request not found. It may have been withdrawn by the technician.'), { status: 404 });
+      if (expectedStatus !== undefined && (expectedStatus !== original.status
+          || (expectedReviewedAt || null) !== (original.reviewedAt ? new Date(original.reviewedAt).toISOString() : null))) {
+        throw Object.assign(new Error('This request was reviewed by someone else. Refresh and review the latest decision.'), { status: 409 });
+      }
+      const note = adminNote.trim();
+      // Retrying the same decision must not create duplicate notifications or audit entries.
+      if (original.status === status && (original.adminNote || '') === note) {
+        return { unchanged: true, leave: original };
+      }
+      if (status === 'approved') await leaveRequests.assertNoOverlap(original.technicianId, original.startDate, original.endDate, original._id);
+      const now = new Date();
+      const leave = await LeaveRequest.findOneAndUpdate({
+        _id: id, status: original.status, reviewedAt: original.reviewedAt || null,
+      }, { $set: { status, adminNote: note, reviewedBy: req.user._id, reviewedAt: now, updatedAt: now } }, {
+        new: true, runValidators: true,
+      }).lean();
+      if (!leave) throw Object.assign(new Error('This request changed while you were reviewing it. Refresh and try again.'), { status: 409 });
+      return { leave, previousStatus: original.status };
+    });
+    if (result.unchanged) return res.json({ message: 'No changes detected.', leave: result.leave });
+    const { leave } = result, note = adminNote.trim();
 
     const date = value => new Date(value).toLocaleDateString('en-PH', {
       timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric',
@@ -70,10 +79,13 @@ async function review(req, res, next) {
     await audit.logEvent({
       actor: req.user._id, target: leave.technicianId, action: `leave.${status}`, module: 'technician', req,
       entityType: 'LeaveRequest', entityId: leave._id, outcome: 'success',
-      details: { leaveId: id, previousStatus: original.status, status, adminNote: note },
+      details: { leaveId: id, previousStatus: result.previousStatus, status, adminNote: note },
     });
     return res.json({ message: `Leave request ${status}.`, leave });
-  } catch (error) { next(error); }
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message, code: error.code });
+    next(error);
+  }
 }
 
 module.exports = { list, review };

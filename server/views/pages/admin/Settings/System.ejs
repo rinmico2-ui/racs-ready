@@ -100,6 +100,26 @@
     .settings-system-page .toggle-item p {
       font-size: 0.75rem; color: var(--ss-muted); margin: 0;
     }
+    .settings-system-page .toggle-item > .d-flex { min-width: 0; flex: 1; }
+    .settings-system-page .ss-status-item p { color: #64748b; }
+    .settings-system-page .ss-status-badge {
+      display: inline-flex; align-items: center; gap: 0.35rem; flex-shrink: 0;
+      padding: 0.3rem 0.65rem; border: 1px solid #bbf7d0; border-radius: 999px;
+      background: #f0fdf4; color: #166534; font-size: 0.7rem; font-weight: 700;
+      white-space: nowrap;
+    }
+    .settings-system-page .ss-status-badge.enforced {
+      background: #f1f5f9; color: #334155; border-color: #cbd5e1;
+    }
+    .settings-system-page .ss-feature-heading {
+      margin: 1.5rem 0 0.35rem; padding-top: 1.25rem; border-top: 1px solid var(--ss-border);
+      font-size: 0.85rem; font-weight: 700; color: var(--ss-text);
+    }
+    @media (max-width: 575px) {
+      .settings-system-page .ss-status-item { align-items: flex-start; flex-wrap: wrap; row-gap: 0.5rem; }
+      .settings-system-page .ss-status-item > .d-flex { flex-basis: 100%; }
+      .settings-system-page .ss-status-item > .ss-status-badge { margin-left: 52px; }
+    }
     .settings-system-page .form-switch .form-check-input {
       width: 2.5rem; height: 1.3rem; cursor: pointer;
     }
@@ -383,7 +403,7 @@
             <div class="d-flex align-items-center gap-3">
               <div class="ti-icon"><i class="bi bi-person-plus-fill"></i></div>
               <div>
-                <h6>Allow Customer Registrations</h6>
+                <h6><label for="cfgAllowRegistrations" class="mb-0">Allow Customer Registrations</label></h6>
                 <p>Enable or disable new users signing up from the portal.</p>
               </div>
             </div>
@@ -396,7 +416,7 @@
             <div class="d-flex align-items-center gap-3">
               <div class="ti-icon"><i class="bi bi-envelope-check-fill"></i></div>
               <div>
-                <h6>Require Email Verification</h6>
+                <h6><label for="cfgRequireVerification" class="mb-0">Require Email Verification</label></h6>
                 <p>Require new customers to verify a one-time email code before their account is activated.</p>
               </div>
             </div>
@@ -405,7 +425,14 @@
             </div>
           </div>
 
-          <div class="toggle-item">
+          <div class="text-end mt-3">
+            <button type="button" class="btn-ss primary" id="appConfigSaveBtn"><i class="bi bi-floppy"></i> Save App Configuration</button>
+          </div>
+
+          <h4 class="ss-feature-heading">Built-in features</h4>
+          <p class="small text-muted mb-1">These features are always enabled and managed by the system.</p>
+
+          <div class="toggle-item ss-status-item">
             <div class="d-flex align-items-center gap-3">
               <div class="ti-icon"><i class="bi bi-shield-lock-fill"></i></div>
               <div>
@@ -413,12 +440,10 @@
                 <p>Admins and secretaries must complete an email OTP challenge at every sign-in.</p>
               </div>
             </div>
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch" id="secStaffOtp" checked disabled>
-            </div>
+            <span class="ss-status-badge enforced" id="secStaffOtp"><i class="bi bi-shield-lock" aria-hidden="true"></i>Enforced</span>
           </div>
 
-          <div class="toggle-item">
+          <div class="toggle-item ss-status-item">
             <div class="d-flex align-items-center gap-3">
               <div class="ti-icon"><i class="bi bi-bell-fill"></i></div>
               <div>
@@ -426,12 +451,10 @@
                 <p>Socket-based alerts are delivered to signed-in users and role inboxes.</p>
               </div>
             </div>
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch" id="secRealtimeNotifications" checked disabled>
-            </div>
+            <span class="ss-status-badge" id="secRealtimeNotifications"><i class="bi bi-check-circle" aria-hidden="true"></i>Always on</span>
           </div>
 
-          <div class="toggle-item">
+          <div class="toggle-item ss-status-item">
             <div class="d-flex align-items-center gap-3">
               <div class="ti-icon"><i class="bi bi-clock-history"></i></div>
               <div>
@@ -439,12 +462,7 @@
                 <p>Standard sessions expire after 30 minutes and are renewed only during authenticated activity.</p>
               </div>
             </div>
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch" id="secSessionExpiration" checked disabled>
-            </div>
-          </div>
-          <div class="text-end mt-3">
-            <button type="button" class="btn-ss primary" id="appConfigSaveBtn"><i class="bi bi-floppy"></i> Save App Configuration</button>
+            <span class="ss-status-badge enforced" id="secSessionExpiration"><i class="bi bi-shield-lock" aria-hidden="true"></i>Enforced</span>
           </div>
 
         </div>
@@ -457,9 +475,9 @@
           <h3>Security &amp; Access Control</h3>
         </div>
         <div class="ss-card-body">
-          <div class="alert alert-info py-2 small"><i class="bi bi-shield-check me-1"></i>These safeguards reflect active backend enforcement and cannot be weakened from the dashboard.</div>
+          <p class="small text-muted mb-1">These safeguards are always enforced by the system.</p>
 
-          <div class="toggle-item">
+          <div class="toggle-item ss-status-item">
             <div class="d-flex align-items-center gap-3">
               <div class="ti-icon"><i class="bi bi-braces-asterisk"></i></div>
               <div>
@@ -467,12 +485,10 @@
                 <p>New customer passwords receive server-side complexity and bounded-length validation.</p>
               </div>
             </div>
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch" id="secStrongPasswords" checked disabled>
-            </div>
+            <span class="ss-status-badge enforced" id="secStrongPasswords"><i class="bi bi-shield-lock" aria-hidden="true"></i>Enforced</span>
           </div>
 
-          <div class="toggle-item">
+          <div class="toggle-item ss-status-item">
             <div class="d-flex align-items-center gap-3">
               <div class="ti-icon"><i class="bi bi-ban"></i></div>
               <div>
@@ -480,12 +496,10 @@
                 <p>Progressive lockouts increase from 3 to 30 minutes after repeated failures.</p>
               </div>
             </div>
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch" id="secLoginThrottle" checked disabled>
-            </div>
+            <span class="ss-status-badge enforced" id="secLoginThrottle"><i class="bi bi-shield-lock" aria-hidden="true"></i>Enforced</span>
           </div>
 
-          <div class="toggle-item">
+          <div class="toggle-item ss-status-item">
             <div class="d-flex align-items-center gap-3">
               <div class="ti-icon"><i class="bi bi-file-earmark-text-fill"></i></div>
               <div>
@@ -493,12 +507,10 @@
                 <p>Record critical administrative, financial, settings, and security actions for review.</p>
               </div>
             </div>
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch" id="secAuditTrail" checked disabled>
-            </div>
+            <span class="ss-status-badge enforced" id="secAuditTrail"><i class="bi bi-shield-lock" aria-hidden="true"></i>Enforced</span>
           </div>
 
-          <div class="toggle-item">
+          <div class="toggle-item ss-status-item">
             <div class="d-flex align-items-center gap-3">
               <div class="ti-icon"><i class="bi bi-globe"></i></div>
               <div>
@@ -506,9 +518,7 @@
                 <p>Reject state-changing browser requests that do not originate from this application.</p>
               </div>
             </div>
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch" id="secTrustedOrigin" checked disabled>
-            </div>
+            <span class="ss-status-badge enforced" id="secTrustedOrigin"><i class="bi bi-shield-lock" aria-hidden="true"></i>Enforced</span>
           </div>
 
         </div>

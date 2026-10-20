@@ -47,6 +47,7 @@ function isPoint(obj) {
 }
 
 const audit = require("../utils/audit");
+const customerDirectory = require("../utils/customerDirectoryPresentation");
 
 async function logAction(actorId, targetId, action, req, details) {
   try {
@@ -115,11 +116,17 @@ function managedStaffResponse(record) {
 
 exports.listCustomers = async (req, res, next) => {
   try {
-    const limit = Math.min(Math.max(1, Number(req.query.limit) || 50), 200);
-    const page = Math.max(0, Number(req.query.page) || 0);
-    const search = req.query.search ? String(req.query.search).trim() : "";
+    res.set("Cache-Control", "private, no-store");
+    const integer = (value, fallback, max) => Number.isFinite(Number(value))
+      ? Math.min(max, Math.max(0, Math.floor(Number(value)))) : fallback;
+    const limit = Math.max(1, integer(req.query.limit ?? 50, 50, 100));
+    const page = integer(req.query.page ?? 0, 0, 100000);
+    const search = typeof req.query.search === "string" ? req.query.search.trim().slice(0, 100) : "";
 
     const filter = { role: "customer" };
+    if (req.query.status === "blocked") filter.blocked = true;
+    else if (req.query.status === "active") filter.blocked = { $ne: true };
+    else if (req.query.status === "vip") filter.vip = true;
     if (search) {
       const regex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
       filter.$or = [
@@ -130,16 +137,26 @@ exports.listCustomers = async (req, res, next) => {
       ];
     }
 
-    const [customers, total] = await Promise.all([
+    const [customers, total, totals] = await Promise.all([
       User.find(filter)
-        .select("-passwordHash -resetPasswordTokenHash -resetPasswordExpires -currentSessionId")
-        .sort({ createdAt: -1 })
+        .select(customerDirectory.LIST_FIELDS)
+        .sort({ createdAt: -1, _id: -1 })
         .skip(page * limit)
         .limit(limit)
         .lean(),
       User.countDocuments(filter),
+      User.aggregate([
+        { $match: { role: "customer" } },
+        { $group: { _id: null, total: { $sum: 1 },
+          active: { $sum: { $cond: [{ $eq: ["$blocked", true] }, 0, 1] } },
+          vip: { $sum: { $cond: [{ $eq: ["$vip", true] }, 1, 0] } },
+          blocked: { $sum: { $cond: [{ $eq: ["$blocked", true] }, 1, 0] } },
+        } },
+      ]),
     ]);
-    res.json({ customers, total, page, limit });
+    const stats = totals[0] || {};
+    res.json({ customers: customers.map(customerDirectory.summary), total, page, limit,
+      stats: { total: stats.total || 0, active: stats.active || 0, vip: stats.vip || 0, blocked: stats.blocked || 0 } });
   } catch (err) {
     next(err);
   }
@@ -147,17 +164,30 @@ exports.listCustomers = async (req, res, next) => {
 
 exports.getCustomer = async (req, res, next) => {
   try {
+    res.set("Cache-Control", "private, no-store");
     const id = req.params.id;
     if (!mongoose.Types.ObjectId.isValid(id))
       return res.status(400).json({ error: "Invalid id" });
-    const user = await User.findById(id).select(
-      "-passwordHash -resetPasswordTokenHash -resetPasswordExpires",
-    );
-    if (!user) return res.status(404).json({ error: "User not found" });
-    res.json({ user });
+    const user = await User.findOne({ _id: id, role: "customer" }).select(customerDirectory.DETAIL_FIELDS).lean();
+    if (!user) return res.status(404).json({ error: "Customer not found" });
+    res.json({ user: customerDirectory.detail(user) });
   } catch (err) {
     next(err);
   }
+};
+
+exports.getCustomerContact = async (req, res, next) => {
+  try {
+    res.set("Cache-Control", "private, no-store");
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid customer reference" });
+    const user = await User.findOne({ _id: req.params.id, role: "customer" }).select(customerDirectory.CONTACT_FIELDS).lean();
+    if (!user) return res.status(404).json({ error: "Customer not found" });
+    await audit.logEvent({ actor: req.user._id, target: user._id, action: "customer.contact_viewed",
+      module: "customers", entityType: "User", entityId: user._id, actorRole: req.user.role,
+      category: "auth", actionType: "action", riskLevel: "low",
+      req, details: { fields: ["email", "phone", "address"] } });
+    res.json({ contact: customerDirectory.contact(user) });
+  } catch (err) { next(err); }
 };
 
 exports.updateCustomer = async (req, res, next) => {
@@ -166,8 +196,8 @@ exports.updateCustomer = async (req, res, next) => {
     if (!mongoose.Types.ObjectId.isValid(id))
       return res.status(400).json({ error: "Invalid id" });
     const action = req.body.action;
-    const user = await User.findById(id);
-    if (!user) return res.status(404).json({ error: "User not found" });
+    const user = await User.findOne({ _id: id, role: "customer" });
+    if (!user) return res.status(404).json({ error: "Customer not found" });
 
     switch (action) {
       case "block":
@@ -220,12 +250,13 @@ exports.updateCustomer = async (req, res, next) => {
 
 exports.getCustomerViolations = async (req, res, next) => {
   try {
+    res.set("Cache-Control", "private, no-store");
     const id = req.params.id;
     if (!mongoose.Types.ObjectId.isValid(id))
       return res.status(400).json({ error: "Invalid id" });
-    const user = await User.findById(id).select("violations");
+    const user = await User.findOne({ _id: id, role: "customer" }).select("violations").lean();
     if (!user) return res.status(404).json({ error: "User not found" });
-    res.json({ violations: user.violations || [] });
+    res.json({ violations: customerDirectory.violations(user) });
   } catch (err) {
     next(err);
   }
@@ -602,6 +633,7 @@ exports.auditStats = async (req, res, next) => {
 // Enterprise audit trail — filterable, categorized, paginated, CSV-exportable
 exports.listAuditTrail = async (req, res, next) => {
   try {
+    res.set('Cache-Control', 'private, no-store');
     const { query, page, limit, sort } = normalizeAuditQuery(req.query);
 
     const total = await ActivityLog.countDocuments(query);
@@ -614,7 +646,7 @@ exports.listAuditTrail = async (req, res, next) => {
     else itemQuery.skip((page - 1) * limit).limit(limit);
     const items = await itemQuery.lean();
 
-    const mapped = items.map((l) => ({
+    const mapped = items.map((l) => require('../utils/logPrivacy').auditRecord({
       _id: l._id,
       action: l.action,
       category: l.category || "system",

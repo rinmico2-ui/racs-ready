@@ -1723,7 +1723,7 @@
           ? String(appt.paymentStatus).toUpperCase()
           : "PENDING";
         const paymentChannelText = ({ gcash: "GCash", maya: "Maya", bank_transfer: "Bank Transfer", other: "Other Transfer" })[appt.paymentChannel] || "selected method";
-        const paymentMethodText = appt.paymentMethod === "gcash"
+        const paymentMethodText = appt.paymentMethod === "cash_after_service" ? "100% Cash After Service (no advance payment)" : appt.paymentMethod === "gcash"
           ? `Full payment via ${paymentChannelText}`
           : appt.paymentMethod === "cod"
             ? `Downpayment via ${paymentChannelText} + balance at completion`

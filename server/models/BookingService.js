@@ -777,10 +777,20 @@ const bookingSchema = new mongoose.Schema({
   cancellationHistory: [{
     technicianId: { type: mongoose.Schema.Types.ObjectId, ref: "Technician" },
     technicianName: { type: String },
-    action: { type: String, enum: ["declined", "cancelled", "reassigned", "auto_reschedule"] },
+    action: { type: String, enum: ["declined", "cancelled", "emergency_reported", "reassigned", "auto_reschedule"] },
     reason: { type: String },
     timestamp: { type: Date, default: Date.now },
   }],
+  staffingEmergencies: { type: [new mongoose.Schema({
+    reportedAt: { type: Date, required: true },
+    reportedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Technician', required: true },
+    reporterName: String, reporterRole: { type: String, enum: ['primary', 'support'] },
+    assignmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Assignment', required: true },
+    reason: { type: String, required: true, maxlength: 650 }, previousStatus: String,
+    team: [{ _id: false, technicianId: { type: mongoose.Schema.Types.ObjectId, ref: 'Technician' },
+      assignmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Assignment' }, name: String,
+      role: { type: String, enum: ['primary', 'support'] }, previousStatus: String, equipmentCheckedOut: Boolean }],
+  }, { _id: true })], default: undefined },
   escalated: { type: Boolean, default: false },
   // when admin verifies payment
   paymentVerifiedAt: { type: Date },
@@ -810,16 +820,17 @@ const bookingSchema = new mongoose.Schema({
   },
 
   // Legacy payment-plan field. `cod` means a GCash reservation downpayment
-  // followed by balance collection at completion; Payment.method records the
+  // followed by balance collection at completion. `cash_after_service` has
+  // no advance payment. Payment.method records the
   // actual channel used for each transaction.
   continuation: { type: require('../utils/workContinuationSchema')(mongoose), default: undefined },
-  paymentMethod: { type: String, enum: ["cod", "gcash", "card", "other"], default: "cod" },
-  paymentChannel: { type: String, enum: ["card", "gcash", "maya", "bank_transfer", "other"], default: "gcash" },
+  paymentMethod: { type: String, enum: ["cod", "gcash", "cash_after_service", "card", "other"], default: "cod" },
+  paymentChannel: { type: String, enum: ["card", "gcash", "maya", "bank_transfer", "cash", "other"], default: "gcash" },
 
   // downpayment / proof information (customer-submitted when booking)
   gcashNumber: { type: String }, // raw mobile number entered by customer (optional reference)
   paymentReference: { type: String }, // text reference or note entered
-  downpaymentPercentage: { type: Number, min: 1, max: 100 }, // policy snapshot at booking time
+  downpaymentPercentage: { type: Number, min: 0, max: 100 }, // zero only for payment after service
   downpaymentAmount: { type: Number }, // required for cash bookings
   paymentNotes: { type: String }, // optional special instructions (cash bookings)
 
@@ -1112,6 +1123,12 @@ bookingSchema.virtual("serviceDescription").get(function () {
 
 // validation: ensure cash/GCash fields are present depending on method
 bookingSchema.pre("validate", function () {
+  if (this.paymentMethod === 'cash_after_service') {
+    if (Number(this.downpaymentAmount || 0) !== 0 || Number(this.downpaymentPercentage || 0) !== 0) {
+      this.invalidate('downpaymentAmount', 'Cash After Service cannot require an advance payment.');
+    }
+    if (this.paymentChannel !== 'cash') this.invalidate('paymentChannel', 'Cash After Service uses the cash payment channel.');
+  }
   // require a downpayment for the legacy `cod` reservation plan
   if (this.paymentMethod === "cod" && !(this.maintenance?.isMaintenance && this.maintenance?.paymentOnSite)) {
     if (!this.downpaymentAmount || this.downpaymentAmount <= 0) {

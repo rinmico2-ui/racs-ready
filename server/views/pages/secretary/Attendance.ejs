@@ -36,13 +36,14 @@
     </div>
   </section>
 
+  <div id="attendanceSessionNotice" class="alert alert-info d-none" role="status"></div>
   <div id="attendanceAlert" class="alert d-none" role="alert"></div>
 
   <div class="row g-3 mb-4">
     <div class="col-xl-5">
       <section class="att-card">
         <div class="att-card-head">
-          <div><strong>Today's record</strong><div class="small text-muted">Asia/Manila time</div></div>
+          <div><strong id="attendanceRecordTitle">Today's record</strong><div class="small text-muted">Asia/Manila time <button type="button" id="attendanceRefresh" class="btn btn-link btn-sm py-0">Refresh</button></div></div>
           <span id="statusPill" class="status-pill"><i class="bi bi-circle-fill"></i> Loading</span>
         </div>
         <div class="att-card-body">
@@ -98,8 +99,10 @@
 (() => {
   let scanner = null;
   let currentRecord = null;
+  let statusReady = false, scanInFlight = false;
+  const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[char]);
   const $ = id => document.getElementById(id);
-  const time = value => value ? new Date(value).toLocaleTimeString('en-PH', { hour:'2-digit', minute:'2-digit' }) : '--';
+  const time = value => value ? new Date(value).toLocaleTimeString('en-PH', { timeZone:'Asia/Manila', hour:'2-digit', minute:'2-digit' }) : '--';
   const hours = record => record?.checkInTime && record?.checkOutTime
     ? Math.max(0, (new Date(record.checkOutTime) - new Date(record.checkInTime)) / 3600000).toFixed(2) + ' h'
     : '--';
@@ -119,11 +122,19 @@
   }
 
   function renderStatus(data) {
-    currentRecord = data.record || null;
+    currentRecord = data.record || null; statusReady = true;
+    const notice = $('attendanceSessionNotice');
+    notice.classList.toggle('d-none', !data.isOvernight && !data.needsAdminReview);
+    const workDate = data.date ? new Date(data.date + 'T12:00:00+08:00').toLocaleDateString('en-PH', {timeZone:'Asia/Manila',month:'short',day:'numeric',year:'numeric'}) : '';
+    notice.textContent = data.needsAdminReview ? 'Your open shift from ' + workDate + ' needs admin review. Ask admin to record its verified finish time.' : 'You are finishing the shift for ' + workDate + '. Check-out will stay with that work date.';
+    $('attendanceRecordTitle').textContent = data.isOvernight ? 'Shift for ' + workDate : "Today's record";
+    $('startScanBtn').disabled = !!currentRecord?.checkInTime || !!data.needsAdminReview;
+    $('checkoutBtn').disabled = !!data.needsAdminReview;
+
     const status = data.attendanceStatus || 'Not Checked In';
     const pill = $('statusPill');
     pill.className = 'status-pill ' + (status === 'Present' ? 'present' : status === 'Late' ? 'late' : status === 'Checked Out' ? 'out' : '');
-    pill.innerHTML = `<i class="bi bi-circle-fill"></i> ${status}`;
+    pill.textContent = status;
     $('statusTitle').textContent = status;
     $('checkInTime').textContent = time(currentRecord?.checkInTime);
     $('checkOutTime').textContent = time(currentRecord?.checkOutTime);
@@ -139,7 +150,7 @@
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not load attendance.');
       renderStatus(data);
-    } catch (error) { showAlert(error.message); }
+    } catch (error) { statusReady = false; $('startScanBtn').disabled = true; $('checkoutBtn').disabled = true; showAlert(error.message); }
   }
 
   async function loadHistory() {
@@ -150,20 +161,23 @@
       $('historyCount').textContent = `${data.count || 0} record${data.count === 1 ? '' : 's'}`;
       $('historyBody').innerHTML = data.records?.length ? data.records.map(record => {
         const statusClass = record.status === 'Present' ? 'text-bg-success' : record.status === 'Late' ? 'text-bg-warning' : 'text-bg-secondary';
-        return `<tr><td class="ps-3 fw-semibold">${new Date(record.date).toLocaleDateString('en-PH', { timeZone:'Asia/Manila', month:'short', day:'numeric', year:'numeric' })}</td><td><span class="badge ${statusClass}">${record.status}</span></td><td>${time(record.checkInTime)}</td><td>${time(record.checkOutTime)}</td><td>${hours(record)}</td><td>${record.method === 'qr_scan' ? '<i class="bi bi-qr-code me-1"></i>Verified QR' : '<i class="bi bi-pencil-square me-1"></i>Admin'}</td></tr>`;
+        return `<tr><td class="ps-3 fw-semibold">${new Date(record.date).toLocaleDateString('en-PH', { timeZone:'Asia/Manila', month:'short', day:'numeric', year:'numeric' })}</td><td><span class="badge ${statusClass}">${escape(record.status)}</span></td><td>${time(record.checkInTime)}</td><td>${time(record.checkOutTime)}</td><td>${hours(record)}</td><td>${record.method === 'qr_scan' ? '<i class="bi bi-qr-code me-1"></i>Verified QR' : '<i class="bi bi-pencil-square me-1"></i>Admin'}</td></tr>`;
       }).join('') : '<tr><td colspan="6" class="text-center text-muted py-4">No attendance records yet.</td></tr>';
-    } catch (error) { $('historyBody').innerHTML = `<tr><td colspan="6" class="text-center text-danger py-4">${error.message}</td></tr>`; }
+    } catch (error) { $('historyBody').innerHTML = `<tr><td colspan="6" class="text-center text-danger py-4">${escape(error.message)}</td></tr>`; }
   }
 
   async function stopScanner() {
     if (scanner) { try { await scanner.stop(); await scanner.clear(); } catch (_) {} scanner = null; }
     $('reader').classList.add('d-none');
     $('stopScanBtn').classList.add('d-none');
-    if (!currentRecord?.checkInTime) $('scannerPlaceholder').classList.remove('d-none');
+    if (statusReady && !currentRecord?.checkInTime) $('scannerPlaceholder').classList.remove('d-none');
     $('scannerBadge').textContent = 'Ready';
+    $('startScanBtn').disabled = !statusReady || !!currentRecord?.checkInTime || scanInFlight;
   }
 
   async function submitToken(raw) {
+    if (scanInFlight) return;
+    scanInFlight = true;
     await stopScanner();
     let token = raw;
     try { const parsed = JSON.parse(raw); token = parsed.token || raw; } catch (_) {}
@@ -173,14 +187,16 @@
       if (!response.ok) throw new Error(data.error || 'Check-in failed.');
       showAlert(data.message, 'success');
       await Promise.all([loadStatus(), loadHistory()]);
-    } catch (error) { showAlert(error.message); }
+    } catch (error) { showAlert(error.message); await loadStatus(); }
+    finally { scanInFlight = false; $('startScanBtn').disabled = !statusReady || !!currentRecord?.checkInTime; }
   }
 
   $('startScanBtn').addEventListener('click', async () => {
-    if (!window.Html5Qrcode) return showAlert('QR scanner failed to load. Refresh the page and try again.');
+    if (!statusReady || scanInFlight) return;
+    $('startScanBtn').disabled = true;
+    if (!window.Html5Qrcode) { $('startScanBtn').disabled = false; return showAlert('QR scanner failed to load. Refresh the page and try again.'); }
     $('scannerPlaceholder').classList.add('d-none'); $('reader').classList.remove('d-none'); $('stopScanBtn').classList.remove('d-none'); $('scannerBadge').textContent = 'Scanning';
-    scanner = new Html5Qrcode('reader');
-    try { await scanner.start({ facingMode:'environment' }, { fps:10, qrbox:{ width:230, height:230 } }, submitToken, () => {}); }
+    try { scanner = new Html5Qrcode('reader'); await scanner.start({ facingMode:'environment' }, { fps:10, qrbox:{ width:230, height:230 } }, submitToken, () => {}); }
     catch (_) { await stopScanner(); showAlert('Camera access was not available. Check browser permission and try again.'); }
   });
   $('stopScanBtn').addEventListener('click', stopScanner);
@@ -196,6 +212,8 @@
     } catch (error) { showAlert(error.message); } finally { button.disabled = false; }
   });
 
+  $('attendanceRefresh').addEventListener('click', () => Promise.all([loadStatus(), loadHistory()]));
+  $('startScanBtn').disabled = true;
   updateClock(); window.setInterval(updateClock, 1000);
   Promise.all([loadStatus(), loadHistory()]);
 })();

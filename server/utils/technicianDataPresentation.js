@@ -52,6 +52,7 @@ function presentTechnicianBooking(value) {
   delete booking.adminNotes;
   delete booking.internalNotes;
   delete booking.payments;
+  delete booking.visitRecoveryHistory;
 
   if (booking.customer) booking.customer = technicianCustomer(booking.customer);
   return booking;
@@ -80,6 +81,8 @@ function presentTechnicianOrder(value, { technicianId, now = new Date() } = {}) 
   delete order.createdBy;
   delete order.checkoutRequestId;
   delete order.refundReason;
+  delete order.visitRecoveryHistory;
+  delete order.staffingEmergencies;
 
   if (order.customer) order.customer = technicianCustomer(order.customer);
   return order;

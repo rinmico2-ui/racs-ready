@@ -132,7 +132,7 @@
       get detailsMode() { return detailsMode; }, get servicesMode() { return servicesMode; }, get count() { return count; } };
   }
 
-  function mount({ host, catalog, selection, enabled, step, update, changed, restoreShared, help }) {
+  function mount({ host, catalog, selection, enabled, step, update, changed, restoreShared, help, guided = false }) {
     const model = createModel(catalog);
     let active = false, detailSignature = '', serviceSignature = '', restored = false, singleWasUsed = false;
     const quantity = host.querySelector('.cab-quantity'), limit = host.querySelector('[data-limit]'), feedback = host.querySelector('[data-quantity-feedback]');
@@ -263,9 +263,18 @@
           if (field === 'brand') { model.setDetail(index, 'customBrand', input.value === '__other__'); model.setDetail(index, 'brand', input.value === '__other__' ? '' : input.value); }
           else model.setDetail(index, field === 'brandCustom' ? 'brand' : field, input.value);
           if (['brand','airconType'].includes(field)) {
-            refreshDetails(true);
-            const target = detailsRoot.querySelector(`[data-unit-row="${index}"] [data-unit-field="${field === 'brand' && input.value === '__other__' ? 'brandCustom' : field === 'airconType' ? 'hp' : 'brand'}"]`);
-            target?.focus();
+            const row = detailsRoot.querySelector(`[data-unit-row="${index}"]`), unit = model.activeUnits()[index];
+            if (field === 'brand') {
+              const custom = input.value === '__other__', customInput = row.querySelector('[data-unit-field="brandCustom"]');
+              row.querySelector('[data-custom-brand]').hidden = !custom;
+              customInput.disabled = !custom; customInput.required = custom; customInput.value = '';
+            } else {
+              const hp = row.querySelector('[data-unit-field="hp"]');
+              hp.innerHTML = options(model.capacities(unit.airconType).map(value => [value, `${value} HP`]), unit.hp, unit.airconType ? 'Choose HP' : 'Choose type first');
+              hp.disabled = !unit.airconType;
+            }
+            const target = row.querySelector(`[data-unit-field="${field === 'brand' && input.value === '__other__' ? 'brandCustom' : field === 'airconType' ? 'hp' : 'brand'}"]`);
+            if (!guided) target?.focus();
           }
         }
         update(); changed();

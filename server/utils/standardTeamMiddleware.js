@@ -9,8 +9,14 @@ module.exports = async function standardTeamMiddleware(req, res, next) {
     const job = await require('../models/BookingService').findById(assignment.bookingId).lean();
     if (!team.members(job).length) return next();
     const tech = await require('../models/Technician').findOne({ user: req.user._id }).lean();
+    // A technician keeps read access to their own completed/cancelled visit
+    // after Operations releases or replaces its current team. Writes still
+    // require the current team membership below.
+    if (['GET', 'HEAD'].includes(req.method) && tech
+      && team.ref(assignment.technicianId) === team.ref(tech._id)
+      && require('./technicianWorkSync').assignmentWorkDecision(assignment, job).historical) return next();
     const entry = tech && team.member(job, tech._id);
-    if (!entry || team.ref(entry.assignmentId) !== team.ref(assignment._id)) return res.status(403).json({ error: 'This team assignment is no longer yours.' });
+    if (!entry || team.ref(entry.assignmentId) !== team.ref(assignment._id)) return res.status(403).json({ error: 'This team assignment is no longer yours.', code: 'ASSIGNMENT_ACCESS_CHANGED' });
     if (['GET', 'HEAD'].includes(req.method)) return next();
     const action = req.path.replace(/^\//, '');
     if (['accept', 'decline'].includes(action)) {
@@ -19,7 +25,7 @@ module.exports = async function standardTeamMiddleware(req, res, next) {
       await require('./standardJobTeamService').publish({ source: 'booking', ...result }, req).catch(() => {});
       return res.json({ success: true, message: action === 'accept' ? 'Your team assignment is accepted.' : 'Operations has been notified of your decline.', assignment: current, booking: result.job });
     }
-    if (action === 'note' || action === 'return') return next();
+    if (['note', 'return', 'emergency', 'cancel'].includes(action)) return next();
     if (!team.isPrimary(job, tech._id)) return res.status(403).json({ error: 'The primary technician manages job status, shared tools, payment and completion. You can add work notes to this team assignment.', code: 'PRIMARY_TECHNICIAN_REQUIRED' });
     if (action === 'status' && ['en_route', 'on_site', 'in_progress'].includes(req.body.status) || /collect-payment|proof-of-completion/.test(action)) team.assertReady(job);
     next();

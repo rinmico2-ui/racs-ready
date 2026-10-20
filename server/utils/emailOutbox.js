@@ -173,13 +173,13 @@ async function processOne() {
       $set: {
         status: exhausted ? "failed" : "pending",
         lockedAt: null,
-        lastError: String(error?.message || error).slice(0, 500),
+        lastError: require('./logPrivacy').text(error?.message || error, 500),
         nextAttemptAt: new Date(Date.now() + retryDelayMs(job.attempts)),
         ...(exhausted ? { expiresAt: new Date(Date.now() + RETENTION_MS) } : {}),
       },
       ...(exhausted ? { $unset: { payloadCiphertext: 1, payloadIv: 1, payloadTag: 1 } } : {}),
     });
-    logger.warn("Email job %s attempt %d failed: %s", job._id, job.attempts, error?.message);
+    logger.warn("Email job %s attempt %d failed: %s", job._id, job.attempts, require('./logPrivacy').text(error?.message, 500));
   }
   return true;
 }
