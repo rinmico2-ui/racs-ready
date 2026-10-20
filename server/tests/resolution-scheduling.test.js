@@ -14,7 +14,7 @@ const calendar = require('../routes/scheduleRoutes');
 const scheduling = require('../utils/resolutionScheduling');
 const NOW = new Date('2030-01-01T12:00:00+08:00');
 const id = '507f191e810c19729de860ea';
-const base = { _id: id, customerId: '507f191e810c19729de860eb', quantity: 2, serviceDurationMinutes: 120, status: 'pending', resolutionCases: [] };
+const base = { _id: id, customerId: '507f191e810c19729de860eb', quantity: 2, serviceDurationMinutes: 120, status: 'pending', paymentStatus: 'paid', resolutionCases: [] };
 
 function projectMocks(t, project = null, sufficient = true) {
   t.mock.method(engine, 'getProjectThresholdHours', async () => 8);

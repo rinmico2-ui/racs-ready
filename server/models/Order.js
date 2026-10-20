@@ -303,6 +303,7 @@ const orderSchema = new mongoose.Schema(
     },
 
     // payment
+    ...require('../utils/resolutionPaymentPolicy').fields(mongoose),
     paymentId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Payment",

@@ -45,7 +45,7 @@ router.use((req, res, next) => {
     return res.status(403).json({ error: "Forbidden" });
   }
   const read = ["GET", "HEAD", "OPTIONS"].includes(req.method);
-  const isPaymentResolution = /^\/resolution-center\/[^/]+\/(payment-summary|verify-pending-payment|cancel-with-refund)$/.test(req.path);
+  const isPaymentResolution = /^\/resolution-center\/[^/]+\/(payment-summary|verify-pending-payment|confirm-cash-arrangement|cancel-with-refund)$/.test(req.path);
   const permission = isPaymentResolution
     ? (read ? "payments.view" : "payments.manage")
     : (read ? "appointments.view" : "appointments.manage");
@@ -7154,8 +7154,8 @@ router.get("/resolution-center", async (req, res, next) => {
       sortResolutionCases,
       summarizeResolutionCases,
     } = require("../utils/resolutionCenter");
-    const bookingFields = "status paymentStatus paymentMethod bookingDate preferredDate startTime endTime selectedTimeLabel preferredTime serviceDurationMinutes isProject projectScheduling services.quantity services.duration services.schedule services.type service.duration travelTime resolutionCases.issueType resolutionCases.sourceStatus resolutionCases.state customerId customer.name customer.email customer.phone customer.mobile noShowReport.reviewStatus noShowReport.arrivedAt noShowReport.contactAttempts noShowReport.waitedMinutes noShowReport.arrivalProofUrl noShowReport.reportedAt noShowReport.reportedByName assignmentId technicianId technician.name technicianName bookingReference workOrderNumber service.name service.price serviceName serviceModel quantity proposedReschedule cancellationHistory.technicianName cancellationHistory.action cancellationHistory.reason cancellationReason rescheduleAccessExpiry noShowRescheduleExpiry quotation.totalAmount estimatedTotal payment.downpaymentAmount downpaymentAmount rescheduleRequest.status rescheduleRequest.requested rescheduleRequest.requestedDate rescheduleReason autoReschedulePending duration maintenance paymentNotes amountPaid staffingEmergencies updatedAt visitRecoveryHistory";
-    const orderFields = "bookingId orderReference status fulfillmentType pickupDate delivery.preferredDate delivery.contactNumber timeSlot statusHistory.status statusHistory.timestamp items.modelLine items.brand items.quantity isProject projectScheduling technicianId technician.name customer.name customer.email customer.phone paymentStatus paymentMethod total preparation routeDurationMin rescheduleInvitation updatedAt staffingEmergencies visitRecoveryHistory";
+    const bookingFields = "status paymentStatus paymentMethod bookingDate preferredDate startTime endTime selectedTimeLabel preferredTime serviceDurationMinutes isProject projectScheduling services.quantity services.duration services.schedule services.type service.duration travelTime resolutionCases.issueType resolutionCases.sourceStatus resolutionCases.state customerId customer.name customer.email customer.phone customer.mobile noShowReport.reviewStatus noShowReport.arrivedAt noShowReport.contactAttempts noShowReport.waitedMinutes noShowReport.arrivalProofUrl noShowReport.reportedAt noShowReport.reportedByName assignmentId technicianId technician.name technicianName bookingReference workOrderNumber service.name service.price serviceName serviceModel quantity proposedReschedule cancellationHistory.technicianName cancellationHistory.action cancellationHistory.reason cancellationReason rescheduleAccessExpiry noShowRescheduleExpiry quotation.totalAmount estimatedTotal payment.downpaymentAmount downpaymentAmount rescheduleRequest.status rescheduleRequest.requested rescheduleRequest.requestedDate rescheduleReason autoReschedulePending duration maintenance paymentNotes amountPaid staffingEmergencies updatedAt visitRecoveryHistory totalPrice estimatedFee cashPaymentConfirmation";
+    const orderFields = "bookingId orderReference status fulfillmentType pickupDate delivery.preferredDate delivery.contactNumber timeSlot statusHistory.status statusHistory.timestamp items.modelLine items.brand items.quantity isProject projectScheduling technicianId technician.name customer.name customer.email customer.phone paymentStatus paymentMethod total preparation routeDurationMin rescheduleInvitation updatedAt staffingEmergencies visitRecoveryHistory cashPaymentConfirmation amountPaid";
     const focus = parseResolutionFocus(req.query.focus);
     if (req.query.focus && !focus) return res.status(400).json({ error: "Invalid booking or order link." });
     const now = new Date();
@@ -7369,13 +7369,14 @@ router.get("/resolution-center", async (req, res, next) => {
         amountPaid: Number(booking.payment?.downpaymentAmount || booking.downpaymentAmount || 0),
         paymentStatus: booking.paymentStatus || 'pending',
         paymentMethod: booking.paymentMethod || '',
-        allowedActions: [
+        paymentReview: require('../utils/resolutionPaymentPolicy').state(booking),
+        allowedActions: require('../utils/resolutionPaymentPolicy').allowedActions(booking, 'booking', [
           ...(!workload.isProject && require('../utils/visitRecovery').eligible('booking', booking) ? ['recover'] : []),
           "view", ...(!bookingIssueRequiresOutcome(booking, issueType, now) ? ['close'] : []), ...(!isCancelled ? ['reschedule'] : []),
           ...(resolutionPaymentNeedsReview(booking) ? ['verify_payment'] : []),
           ...((!isCancelled && !workload.isProject && (details.canReassign ?? (!isPastDate && issueType !== "cancelled" && issueType !== "no_show"))) ? ["reassign"] : []),
           ...(customerDoc.phone || embeddedCustomer.phone || embeddedCustomer.mobile ? ["call"] : []),
-        ],
+        ]),
       });
     };
 
@@ -7517,6 +7518,7 @@ router.post("/resolution-center/:id/close", async (req, res, next) => {
 
     const booking = await BookingService.findById(id);
     if (!booking) return res.status(404).json({ error: "Booking not found" });
+    require('../utils/resolutionPaymentPolicy').assertReady(booking);
     if (require('../utils/resolutionCenter').bookingIssueRequiresOutcome(booking, issueType)) {
       return res.status(409).json({ code:'BOOKING_OUTCOME_REQUIRED',
         error:'This booking still needs a schedule or technician. Use Resolve case to choose a new schedule, reassign the technician, or cancel the booking.' });
@@ -7562,6 +7564,7 @@ router.post("/resolution-center/:id/reassign", async (req, res, next) => {
 
     const booking = await BookingService.findById(id);
     if (!booking) return res.status(404).json({ error: "Booking not found" });
+    require('../utils/resolutionPaymentPolicy').assertReady(booking);
     require('../utils/visitRecovery').assertContact('booking', booking);
     const { manilaDateTime, parseAppointmentTime } = require('../utils/bookingDateTime');
     const scheduledAt = manilaDateTime(booking.bookingDate, parseAppointmentTime(booking.startTime));
@@ -7633,6 +7636,8 @@ router.post("/resolution-center/:id/reassign", async (req, res, next) => {
  * Actual amount the customer has paid, computed from Payment records
  * (sum of received payments minus any refunds already issued).
  */
+router.post('/resolution-center/:id/confirm-cash-arrangement', require('../controllers/resolutionCashController').booking);
+
 router.get("/resolution-center/:id/payment-summary", async (req, res, next) => {
   try {
     const BookingService = require("../models/BookingService");
@@ -7641,7 +7646,7 @@ router.get("/resolution-center/:id/payment-summary", async (req, res, next) => {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid booking ID" });
 
-    const booking = await BookingService.findById(id).select("paymentStatus paymentMethod downpaymentAmount totalPrice").lean();
+    const booking = await BookingService.findById(id).select("status paymentStatus paymentMethod amountPaid downpaymentAmount totalPrice estimatedFee updatedAt cashPaymentConfirmation").lean();
     if (!booking) return res.status(404).json({ error: "Booking not found" });
 
     // Pending rows are returned separately so the UI can show submitted money
@@ -7653,6 +7658,7 @@ router.get("/resolution-center/:id/payment-summary", async (req, res, next) => {
     return res.json({
       success: true,
       ...summary,
+      cashArrangement: require('../utils/resolutionPaymentPolicy').cashSummary(booking),
       pendingPayment: pendingPayment ? { id:pendingPayment._id, amount:pendingPayment.amount,
         reference:pendingPayment.reference || '', method:pendingPayment.method || '', type:pendingPayment.type || '' } : null,
     });
@@ -7761,6 +7767,7 @@ router.post("/resolution-center/:id/cancel-with-refund", async (req, res, next) 
       await session.withTransaction(async () => {
         booking = await BookingService.findById(id).session(session);
         if (!booking) throw Object.assign(new Error("Booking not found"), { status:404 });
+        require('../utils/resolutionPaymentPolicy').assertReady(booking);
         if (["cancelled", "completed", "repair_completed", "rejected", "closed"].includes(booking.status)) {
           throw Object.assign(new Error(`Cannot cancel a booking with status "${booking.status}".`), { status:400 });
         }
@@ -8690,6 +8697,7 @@ router.post("/review-reschedule/:id/reschedule", async (req, res, next) => {
 
     const booking = await BookingService.findById(id);
     if (!booking) return res.status(404).json({ error: "Booking not found" });
+    require('../utils/resolutionPaymentPolicy').assertReady(booking);
 
     const { validateResolutionSchedule, syncResolutionProject, commitResolutionSchedule } = require("../utils/resolutionScheduling");
     if (require('../utils/visitRecovery').emergency('booking', booking)) return res.status(409).json({ error: 'Record the customer agreement through Resolve and reassign in the Resolution Center.', code: 'CUSTOMER_CONTACT_REQUIRED' });
@@ -8918,6 +8926,7 @@ router.post("/review-reschedule/:id/cancel", async (req, res, next) => {
 
     const booking = await BookingService.findById(id);
     if (!booking) return res.status(404).json({ error: "Booking not found" });
+    require('../utils/resolutionPaymentPolicy').assertReady(booking);
 
     booking.status = "cancelled";
     booking.cancellationReason = reason || "Cancelled via Review & Reschedule";
@@ -9028,6 +9037,7 @@ router.post("/no-show-review/:id/confirm", async (req, res, next) => {
 
     const booking = await BookingService.findById(id);
     if (!booking) return res.status(404).json({ error: "Booking not found" });
+    require('../utils/resolutionPaymentPolicy').assertReady(booking);
     const isLegacyPendingNoShow = booking.status === "no-show"
       && !["confirmed", "rescheduled", "cancelled"].includes(booking.noShowReport?.reviewStatus);
     if (booking.status !== "no-show-reported" && !isLegacyPendingNoShow) {
@@ -9193,6 +9203,7 @@ router.post("/no-show-review/:id/reschedule", async (req, res, next) => {
     }
     const booking = await BookingService.findById(id);
     if (!booking) return res.status(404).json({ error: "Booking not found" });
+    require('../utils/resolutionPaymentPolicy').assertReady(booking);
     const isLegacyPendingNoShow = booking.status === "no-show"
       && !["confirmed", "rescheduled", "cancelled"].includes(booking.noShowReport?.reviewStatus);
     const isAwaitingCustomerSchedule = booking.status === "reschedule-required"

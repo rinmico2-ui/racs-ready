@@ -467,7 +467,9 @@ router.post('/:id/verify-payment', requireRole(["admin", "secretary"]), async (r
       if (Number(booking.amountPaid || 0) > 0 || booking.paymentVerifiedAt) {
         return res.status(409).json({ error: 'This booking already has a payment recorded. Refresh before reviewing it.' });
       }
-      booking.balanceAmount = Math.max(0, Number(booking.totalPrice || booking.estimatedFee || 0));
+      booking.balanceAmount = require('../utils/resolutionPaymentPolicy').amountDue(booking);
+      booking.cashPaymentConfirmation = { method: 'cash_after_service', amountDue: booking.balanceAmount,
+        confirmedAt: new Date(), confirmedBy: req.user._id };
       booking.transitionStatus(BookingStatus.AWAITING_ASSIGNMENT, {
         changedBy: req.user._id, changedByModel: 'User',
         changedByName: req.user.name || req.user.email || 'Operations staff',

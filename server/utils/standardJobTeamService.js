@@ -93,6 +93,7 @@ function createService(overrides = {}) {
       // Recheck while holding the same date lease as order and customer booking
       // capacity writes; the candidate list shown in the browser is advisory.
       const current = await load(source, id);
+      if (current.staffingEmergencies?.length || current.visitRecoveryHistory?.length) require('./resolutionPaymentPolicy').assertReady(current, source);
       require('./visitRecovery').assertContact(source, current);
       require('./visitRecovery').assertRecoverySchedule(source, current, input);
       if (input.expectedSchedule && input.expectedSchedule !== team.scheduleKey(source, current)) throw team.failure('The appointment schedule changed. Refresh the assignment plan.', 409, 'ASSIGNMENT_SCHEDULE_CHANGED');
@@ -111,6 +112,7 @@ function createService(overrides = {}) {
       for (const technicianId of technicianIds) if (!availability.candidates.some(row => row.technicianId === technicianId && row.available)) throw team.failure('A selected technician is no longer available. Refresh the team list.');
       return transaction(async session => {
         const job = await load(source, id, session);
+        if (job.staffingEmergencies?.length || job.visitRecoveryHistory?.length) require('./resolutionPaymentPolicy').assertReady(job, source);
         require('./visitRecovery').assertContact(source, job);
         if (source === 'booking' && schedule(source, repairSchedule(job), input).capacityStart > availability.visit.capacityStart) throw team.failure('The dispatch time changed while checking the crew. Refresh availability before assigning.', 409, 'TEAM_AVAILABILITY_CHANGED');
         if (reviewed && !(source === 'booking' ? ['awaiting_assignment', 'pending_reassignment'] : ['preparing_unit', 'technician_declined']).includes(job.status)) throw team.failure('This job has already been assigned or changed. Refresh the plan.');

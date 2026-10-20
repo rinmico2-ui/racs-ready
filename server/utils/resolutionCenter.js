@@ -210,10 +210,11 @@ function orderResolutionCase(order, now = new Date(), thresholdHours = 8) {
     fulfillmentType: order.fulfillmentType,
     paymentStatus: order.paymentStatus || "pending",
     paymentMethod: order.paymentMethod || "",
+    paymentReview: require('./resolutionPaymentPolicy').state(order, 'order'),
     amount: Number(order.total) || 0,
     preparation: order.preparation || null,
     awaitingCustomerSchedule: require('./orderRescheduleInvitation').activeOrderRescheduleInvitation(order, now),
-    allowedActions: [
+    allowedActions: require('./resolutionPaymentPolicy').allowedActions(order, 'order', [
       "view",
       ...(require('./visitRecovery').eligible('order', order) ? ['recover'] : []),
       ...(resolutionPaymentNeedsReview(order, 'order') ? ["verify_payment"] : []),
@@ -221,7 +222,7 @@ function orderResolutionCase(order, now = new Date(), thresholdHours = 8) {
       "send_link",
       "cancel",
       ...(order.customer?.phone || order.delivery?.contactNumber ? ["call"] : []),
-    ],
+    ]),
   };
 }
 

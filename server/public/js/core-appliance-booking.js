@@ -435,8 +435,11 @@
     host.querySelector('[data-success-next-copy]').textContent = move?.scope === 'different_address' ? 'Pin the current and new addresses, then choose an available date and time. Review the price and pay as usual.' : move ? 'Pin the current property. Your current and new positions are saved with the aircon details.' : 'Tell us where the service will happen. Then choose your schedule and review your booking.';
     host.querySelector('[data-address]').textContent = move ? 'Continue to locations' : 'Continue to service address';
     if (hooks.embedded) {
+      if (hooks.bookingEdit) host.querySelector('[data-success] h3').textContent = 'Appliance changes are ready';
       host.querySelector('[data-success-next-title]').textContent = 'Next: Review your schedule';
-      host.querySelector('[data-success-next-copy]').textContent = 'Check whether your updated services need a new date or more time, then save your booking changes.';
+      host.querySelector('[data-success-next-copy]').textContent = hooks.bookingEdit
+        ? 'Review your schedule, then select Save Changes to update the booking or send it for staff review.'
+        : 'Check whether your updated services need a new date or more time, then save your booking changes.';
       host.querySelector('[data-address]').textContent = 'Review schedule';
     }
     if (move) host.querySelector('[data-new]').disabled = true;
@@ -667,6 +670,14 @@
     setBrand(item.brand); field('model').value = item.model || ''; field('quantity').value = item.quantity;
     refreshTypes(); field('airconType').value = item.airconType || ''; refreshHp(); field('hp').value = item.hp || ''; field('compressorHp').value = item.hp || ''; refreshServices();
     host.querySelectorAll('[name="service"]').forEach(input => { input.checked = !input.disabled && rows.some(row => String(hooks.serviceIdFor?.(row) || row.serviceId) === input.value); });
+    if (batch && !hooks.repair && (item.applianceKind || 'aircon') === 'aircon' && Number(item.quantity) > 1 && !savedMove && !item.assistanceRequestId) {
+      const serviceIds = rows.map(row => String(row.serviceId));
+      batch.restore({ version: 1, detailsMode: 'shared', servicesMode: 'shared', sharedServices: serviceIds,
+        units: Array.from({ length: Number(item.quantity) }, (_, index) => ({ ...item,
+          key: index === 0 ? String(groupId) : `appliance_${crypto.randomUUID()}`, serviceIds,
+        })),
+      });
+    }
     host.querySelector('[data-submit]').textContent = 'Save changes'; host.querySelector('[data-cancel]').hidden = false; host.querySelector('[data-quantity-feedback]').textContent = ''; setStep(2); message('Changes apply to all services for this appliance.');
   }
   function sync() { if (!mounted) return; updateTotal(); if (saved) { host.querySelector('[data-saved-total]').textContent = `${A.unitCount(hooks.state.selectedServices)} / 40 appliances in your booking`; host.querySelector('[data-address]').disabled = !hooks.state.selectedServices.length; } }

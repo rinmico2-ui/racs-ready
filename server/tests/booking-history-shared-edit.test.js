@@ -29,6 +29,29 @@ test('booking edit preserves saved inspection prices, evidence and unit workflow
   assert.equal(f.lookups(), 0); assert.equal(previous.model, 'MODEL-123');
 });
 
+test('the service change endpoint refuses duplicate saved identities before catalog lookup or persistence', async () => {
+  const f = fixture(), previous = row();
+  await assert.rejects(f.normalize([previous, { ...previous, brand: 'Midea' }], { services: [previous] }), error => error.status === 400 && /only one appliance/.test(error.message));
+  assert.equal(f.lookups(), 0);
+});
+
+test('individually edited core units keep distinct saved identities and use server catalog prices', async () => {
+  const catalog = { _id: 'cleaning', name: 'Cleaning', active: true, isAirconService: true,
+    airconTypes: [{ type: 'split', name: 'Split Type', hpPricing: [{ hp: 1, price: 500, durationMinutes: 60 }, { hp: 2, price: 850, durationMinutes: 90 }] }] };
+  const previous = { _id: 'saved-core', serviceId: 'cleaning', type: 'core', applianceKind: 'aircon', applianceGroupId: 'appliance_original',
+    brand: 'Carrier', airconType: 'split', hp: 1, quantity: 2, unitPrice: 500, totalPrice: 1000, status: 'pending', photos: ['saved.jpg'] };
+  const selection = [previous];
+  require('../public/js/booking-editor-services').replaceCore(selection, [
+    { ...previous, _id: undefined, quantity: 1, applianceGroupId: 'appliance_batch_first', unitPrice: 1 },
+    { ...previous, _id: undefined, quantity: 1, applianceGroupId: 'appliance_batch_second', brand: 'Daikin', model: 'SECOND-123', hp: 2, unitPrice: 1 },
+  ], 'appliance_original');
+  const normalized = await fixture(catalog).normalize(selection, { services: [previous] });
+  assert.equal(normalized[0]._id, 'saved-core'); assert.equal(normalized[1]._id, undefined);
+  assert.equal(normalized[0].unitPrice, 500); assert.equal(normalized[1].unitPrice, 850);
+  assert.equal(normalized[0].photos[0], 'saved.jpg'); assert.equal(normalized[1].model, 'SECOND-123');
+  assert.equal(A.unitCount(normalized), 2);
+});
+
 test('repair booking edits can clear the optional model and preserve omitted saved models', async () => {
   const f = fixture(), previous = row(), booking = { services: [previous] };
   const [cleared] = await f.normalize([{ ...previous, model: '' }], booking);

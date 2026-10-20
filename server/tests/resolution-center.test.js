@@ -36,7 +36,8 @@ test("normalizes an overdue order into the shared resolution contract", () => {
   assert.equal(item.itemCount, 2);
   assert.equal(item.routeDurationMin, 45);
   assert.equal(item.severity, "critical");
-  assert.deepEqual(item.allowedActions, ["view", "verify_payment", "reschedule", "send_link", "cancel", "call"]);
+  assert.deepEqual(item.allowedActions, ["view", "call", "verify_payment"]);
+  assert.equal(item.paymentReview.required, true);
 });
 
 test("order recovery uses the customer availability calendar and validates slots when saving", () => {

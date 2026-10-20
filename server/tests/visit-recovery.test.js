@@ -10,7 +10,7 @@ const clone = value => value == null ? value : JSON.parse(JSON.stringify(value))
 const at = '2026-10-19T13:00:00.000Z', date = '2026-10-19T00:00:00+08:00';
 function fixture({ failAt = 0, noTeam = false, slotUnavailable = false } = {}) {
   let store = { booking: { _id: B, __v: 0, updatedAt: at, status: 'pending_reassignment', bookingDate: date, startTime: '20:00', endTime: '21:00',
-    serviceType: 'mixed', serviceDurationMinutes: 90, paymentMethod: 'cash_after_service', paymentChannel: 'cash', amountPaid: 200, balanceAmount: 1300, totalPrice: 1500,
+    serviceType: 'mixed', serviceDurationMinutes: 90, paymentMethod: 'cash_after_service', paymentChannel: 'cash', paymentStatus: 'partial', amountPaid: 200, balanceAmount: 1300, totalPrice: 1500,
     staffingEmergencies: [{ _id: I, reportedAt: at, reportedBy: T, reporterName: 'Tech', assignmentId: A, reason: 'Vehicle breakdown', team: [{ technicianId: T, name: 'Tech' }] }],
     technicianId: null, technicianTeam: [], services: [{ type: 'core', name: 'Cleaning', status: 'completed', serviceReportId: id(11) },
       { type: 'repair', name: 'Repair', status: 'ready_for_repair', phase: 'repair_phase_2', units: [{ unitIndex: 1, repairReview: { state: 'approved', revision: 2 } }] }] },

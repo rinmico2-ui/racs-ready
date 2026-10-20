@@ -47,6 +47,31 @@ test('pending payments have a direct review button on booking and order cards',(
   }
 });
 
+test('blocked booking and order cards show payment review before any resolution or replacement action',()=>{
+  for(const source of ['booking','order']) {
+    const {context,item}=setup(source);
+    const blocked={...item,recoveryAvailable:true,paymentReview:{required:true,kind:'payment',actionLabel:'Review payment',reason:'Verify payment first.'}};
+    const html=source==='booking'?context.renderBookingActions(blocked,'BOOK'):context.renderOrderActions(blocked);
+    assert.match(html,/disabled[^>]*>Resolve case/);
+    assert.match(html,/Review payment/);assert.match(html,/Verify payment first/);
+    assert.doesNotMatch(html,/openResolveMenu|openVisitRecoveryCase|openOrderResolutionForCase|reassignCase/);
+  }
+});
+
+test('cash review confirms terms through a separate endpoint and never submits a paid status',async()=>{
+  for(const source of ['booking','order']) {
+    const {context,element,requests,item}=setup(source,{success:true,pendingPayment:null,cashArrangement:{method:source==='order'?'cash_onsite':'cash_after_service',amountDue:1500,expectedUpdatedAt:'2030-01-01T08:00:00Z'}});
+    item.allowedActions=['view','confirm_cash'];
+    await context.openResolutionPaymentReview(source,'record');
+    assert.match(element('detailPaymentSummary').textContent,/No advance payment was received/);
+    assert.match(element('detailPaymentConsent').textContent,/No payment has been received/);
+    assert.equal(element('detailPaymentVerify').textContent,'Confirm cash arrangement');
+    element('detailPaymentChecked').checked=true;await context.confirmResolutionPaymentReview();
+    assert.equal(requests[1].method,'POST');assert.match(requests[1].url,/confirm-cash-arrangement$/);
+    const body=JSON.parse(requests[1].body);assert.equal(body.confirmed,true);assert.equal(body.amountDue,1500);assert.equal(body.paymentStatus,undefined);
+  }
+});
+
 test('a cancelled booking cannot render a reschedule action even with an old issue or action list',()=>{
   const {context,item}=setup();
   for(const issueType of ['cancelled','customer_reschedule','past_date']) {

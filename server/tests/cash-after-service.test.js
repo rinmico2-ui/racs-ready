@@ -31,7 +31,7 @@ test('admin approves the cash booking for assignment without recording or verify
     BookingService:{findById:async()=>value},BookingStatus,
     bookingReviewState:()=>({isReviewOverdue:false}),measureRequest:(_req,_name,work)=>work(),
     Payment:{findOneAndUpdate(){assert.fail('Booking approval must not create or verify a payment');}},
-    console:{error(){}},
+    console:{error(){}}, require,
   });
   const response={statusCode:200,status(code){this.statusCode=code;return this;},json(body){this.body=body;return this;}};
   await handler({params:{id:String(value._id)},user:{_id:new mongoose.Types.ObjectId(),name:'Admin'},body:{}},response);
@@ -40,6 +40,8 @@ test('admin approves the cash booking for assignment without recording or verify
   assert.equal(value.status,'awaiting_assignment');assert.equal(value.paymentStatus,'pending');
   assert.equal(value.amountPaid,0);assert.equal(value.balanceAmount,1450);
   assert.equal(value.paymentVerifiedAt,undefined);assert.equal(value.paymentVerifiedBy,undefined);
+  assert.equal(value.cashPaymentConfirmation.amountDue,1450);
+  assert.equal(require('../utils/resolutionPaymentPolicy').state(value).required,false);
 });
 
 test('cash bookings remain fully unpaid without a pending receipt or a required project deposit',()=>{

@@ -8,7 +8,7 @@ const { activeOrderRescheduleInvitation, assertCustomerOrderReschedule } = requi
 const id = '507f191e810c19729de860ea', userId = '507f191e810c19729de860eb';
 const user = { _id:userId, role:'customer', name:'Jamie' };
 function fixture(extra = {}) {
-  return new Order({ _id:id, userId, orderReference:'ORD-INVITED', status:'preparing_unit', fulfillmentType:'customer_pickup',
+  return new Order({ _id:id, userId, orderReference:'ORD-INVITED', status:'preparing_unit', paymentStatus:'partial', fulfillmentType:'customer_pickup',
     items:[{ inventoryId:id, brand:'Midea', modelLine:'Split', quantity:1 }], pickupDate:new Date('2020-01-01'),
     delivery:{ address:'Customer location', preferredDate:new Date('2020-01-01') },
     rescheduleInvitation:{ status:'allowed', sentBy:userId, sentAt:new Date(), expiresAt:new Date(Date.now()+86400000) }, ...extra });

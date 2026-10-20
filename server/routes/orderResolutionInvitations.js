@@ -11,6 +11,7 @@ module.exports = function installOrderResolutionInvitations(router, { authentica
       const result = await withOperationLock(`order-resolution:${req.params.id}`, async () => {
         const order = await Order.findById(req.params.id);
         if (!order) throw Object.assign(new Error('Order not found.'), { status:404 });
+        require('../utils/resolutionPaymentPolicy').assertReady(order, 'order');
         if (!REVIEWABLE_ORDER_STATUSES.has(order.status)) throw Object.assign(new Error('This order can no longer be rescheduled.'), { status:409 });
         if (!order.userId) throw Object.assign(new Error('This order needs a customer account before a schedule link can be sent.'), { status:409 });
         const now = new Date();

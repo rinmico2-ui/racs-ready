@@ -76,14 +76,16 @@ test("booking-history sorting is server-side, stable, and allowlisted", () => {
   assert.match(routes, /\|\| bookingSorts\.created_desc/);
 });
 
-test("edit booking shares the service page builders while keeping its quantity controls scoped", () => {
+test("edit booking uses the guided multi-appliance builders and edits quantities through appliance details", () => {
   const script = read("public/js/book-history.js");
   const shared = read("public/js/core-appliance-booking.js");
   assert.match(script, /window\.CoreApplianceBooking\.create\(\)/);
   assert.match(script, /window\.RepairApplianceBooking\.create\(\)/);
-  assert.match(script, /class="bh-item-qty-input"[^>]*inputmode="numeric"/);
-  assert.doesNotMatch(script, /class="bh-item-qty-input"[^>]*readonly/);
-  assert.match(script, /input\.addEventListener\('input', \(\) => commitTypedQuantity\(false\)\)/);
+  assert.match(script, /multiUnit: true, guideFields: true/);
+  assert.match(script, /embedded: true, guideFields: true, state: editorState/);
+  assert.match(script, /BookingEditorServices\.groups\(rows\)/);
+  assert.match(script, /Edit appliance/);
+  assert.doesNotMatch(script, /bh-item-qty-input|commitTypedQuantity/);
   assert.match(shared, /\['Appliance', 'Details', 'Services'\]/);
   assert.match(shared, /node\.id = host\.id \+ '-' \+ original/);
 });
@@ -173,12 +175,15 @@ test("booking edits can add either category and preserve the other service's det
       state:{inspectionDurationMinutes:90}, bookingId:'booking-1',
       host:{querySelector:()=>({})}, selectedUnits:()=>policy.unitCount(rows), renderCurrentItems(){},
       coreBuilder:null, repairBuilder:null,
-      window:{ApplianceServices:policy,
+      window:{ApplianceServices:policy, BookingEditorServices:require('../public/js/booking-editor-services'),
         CoreApplianceBooking:{create:()=>({mount(_catalog, options){coreOptions=options;}})},
         RepairApplianceBooking:{create:()=>({mount(options){repairOptions=options;}})},
       },
     };
     require('node:vm').runInNewContext(script.slice(start,end)+'; initializeServiceBuilders();',context);
+    assert.equal(coreOptions.multiUnit, true);
+    assert.equal(coreOptions.guideFields, true);
+    assert.equal(repairOptions.guideFields, true);
     if (initial.type === 'core') {
       repairOptions.commit(structuredClone(repair));
       repairOptions.commit({...repair,brand:'Daikin'},repair.id);

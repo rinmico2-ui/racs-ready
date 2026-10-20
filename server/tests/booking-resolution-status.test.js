@@ -19,7 +19,7 @@ function renderer() {
     STATUS_LABELS:{cancelled:'Cancelled', awaiting_assignment:'Awaiting Assignment', assigned:'Assigned', pending:'Pending'},
     STATUS_CLASSES:{cancelled:'st-cancelled', awaiting_assignment:'st-awaiting_assignment'}, RQ_STATUS_LABELS:{},
     statusLabel:value=>value, APPOINTMENTS_CAN_RESOLVE:true, _ovViewBtn:()=>'<button>View</button>',
-    bookingResolutionUrl:()=>'/resolution-center' });
+    bookingResolutionUrl:()=>'/resolution-center', qEsc:String });
   vm.runInContext(helpers + render, context);
   return row => { context.AU.Overview.renderTable([row]); return tbody.innerHTML; };
 }
@@ -187,7 +187,7 @@ test('failed booking, assignment or refund writes roll back every status and sen
 test('pending or missing payments cannot be refunded and missing bookings return an error without success',async()=>{
   const pending=cancellationFixture({paymentStatus:'pending'});const before=structuredClone(pending.stored);
   const result=await pending.invoke({refundDecision:'full'});
-  assert.equal(result.error.status,400);assert.deepEqual(pending.stored,before);
+  assert.equal(result.error.status,409);assert.equal(result.error.code,'RESOLUTION_PAYMENT_REVIEW_REQUIRED');assert.deepEqual(pending.stored,before);
   const missing=cancellationFixture({missing:true});const absent=await missing.invoke();
   assert.equal(absent.error.status,404);assert.equal(absent.body,undefined);
   assert.deepEqual(missing.events,['rollback','end']);

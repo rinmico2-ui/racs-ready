@@ -1160,6 +1160,10 @@ async function validatedServiceItems(inputItems, booking) {
     throw error;
   }
   validateBookingUnitLimit(inputItems);
+  const submittedIds = inputItems.map(item => item._id && String(item._id)).filter(Boolean);
+  if (new Set(submittedIds).size !== submittedIds.length) {
+    throw Object.assign(new Error('Each saved service can belong to only one appliance. Refresh the booking and try again.'), { status: 400 });
+  }
   const existingServices = bookingServices(booking);
   const existing = new Map(existingServices.map(item => [String(item._id || ""), item]));
   const unmatchedLegacyServices = existingServices.filter(item => !item._id && item.serviceId);

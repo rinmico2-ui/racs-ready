@@ -91,6 +91,7 @@ function createService(overrides = {}) {
       const Model = source === 'booking' ? deps.Booking : deps.Order;
       const job = await Model.findById(id).lean();
       if (!job) throw fail('Visit not found.', 404);
+      require('./resolutionPaymentPolicy').assertReady(job, source);
       const last = job.visitRecoveryHistory?.at(-1);
       if (last?.requestId === input.requestId && last.decision === input.decision && last.contactMethod === input.contactMethod
         && last.notes === input.notes.trim() && manilaDateKey(last.date) === date && parseAppointmentTime(last.time) === parseAppointmentTime(input.time)) {

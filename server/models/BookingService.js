@@ -795,6 +795,7 @@ const bookingSchema = new mongoose.Schema({
   // when admin verifies payment
   paymentVerifiedAt: { type: Date },
   paymentVerifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  ...require('../utils/resolutionPaymentPolicy').fields(mongoose),
   // assignment tracking
   assignedAt: { type: Date },
   assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },

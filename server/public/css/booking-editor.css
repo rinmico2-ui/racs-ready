@@ -1,0 +1,14 @@
+#bhBookingEditorModal .bh-editor-appliance-services { display: grid; gap: .5rem; margin: .7rem 0; padding: .65rem 0; border-block: 1px solid #e2e8f0; list-style: none; }
+#bhBookingEditorModal .bh-editor-appliance-services li { display: flex; justify-content: space-between; align-items: start; gap: .65rem; font-size: .75rem; line-height: 1.5; }
+#bhBookingEditorModal .bh-editor-appliance-services span { min-width: 0; overflow-wrap: anywhere; color: #475569; }
+#bhBookingEditorModal .bh-editor-appliance-services strong { flex-shrink: 0; color: #334155; font-size: .7rem; }
+#bhBookingEditorModal .bh-editor-appliance-note { margin: .65rem 0; font-size: .72rem; line-height: 1.5; color: #64748b; }
+#bhBookingEditorModal .bh-editor-appliance-total { color: #1d4ed8; font-size: .85rem; }
+#bhBookingEditorModal .bh-item-edit { min-height: 40px; padding: .5rem .65rem; font-size: .72rem; }
+#bhBookingEditorModal .bh-editor-cart-item-copy strong { white-space: normal; overflow-wrap: anywhere; }
+#bhBookingEditorModal .bh-editor-cart-item-copy small { line-height: 1.5; overflow-wrap: anywhere; }
+#bhBookingEditorModal .cab-review { min-width: 0; }
+@media (max-width: 575.98px) {
+  #bhBookingEditorModal #bhEditorTabContent { padding: 1rem !important; }
+  #bhBookingEditorModal .bh-editor-cart-item-bottom { flex-wrap: wrap; align-items: center; }
+}

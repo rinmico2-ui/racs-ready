@@ -4517,6 +4517,8 @@ router.post(
 
     const booking = await BookingService.findById(bookingId);
     if (!booking) return res.status(404).json({ error: "Booking not found" });
+    const paymentReview = require('../utils/resolutionPaymentPolicy').state(booking);
+    if (paymentReview.required) return res.status(409).json({ error:paymentReview.reason, code:'RESOLUTION_PAYMENT_REVIEW_REQUIRED' });
     if (["cancelled", "completed", "closed"].includes(booking.status)) {
       return res.status(400).json({ error: `Cannot send reschedule link for a booking with status "${booking.status}".` });
     }

@@ -146,6 +146,7 @@ test("booking and order Resolve links identify the record without forcing an iss
   ]) {
     const fn = source.match(new RegExp("  function " + name + "\\([^]*?\\n  \\}"))[0];
     const buildUrl = vm.runInNewContext(fn + ";" + name, { ...context, URLSearchParams });
+    assert.equal(buildUrl(record).includes('&amp;'), false, 'URL builders return a URL; HTML attributes escape it once');
     const url = new URL(buildUrl(record).replace(/&amp;/g, "&"), "http://localhost:5000");
     assert.equal(url.searchParams.get("focus"), `${type}:${record._id}`);
     assert.equal(url.searchParams.get("open"), "resolve");

@@ -229,7 +229,7 @@
       <div class="modal-footer" style="background:#fafbfc;border-top:1px solid #f1f5f9;">
         <div id="detailPaymentReview" class="w-100 d-none">
           <p id="detailPaymentSummary" class="small mb-2" role="status">Loading the submitted payment...</p>
-          <label class="d-flex align-items-start gap-2 small"><input id="detailPaymentChecked" type="checkbox" class="form-check-input mt-1" disabled><span>I checked the receipt and confirmed that the payment was received.</span></label>
+          <label class="d-flex align-items-start gap-2 small"><input id="detailPaymentChecked" type="checkbox" class="form-check-input mt-1" disabled><span id="detailPaymentConsent">I checked the receipt and confirmed that the payment was received.</span></label>
           <p id="detailPaymentError" class="small text-danger mt-2 mb-0" role="alert" hidden></p>
         </div>
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Close</button>
@@ -479,6 +479,10 @@
   const requestedFocus = String(queryParams.get('focus') || '').trim();
   const requestedOpenAction = queryParams.get('open') === 'resolve' ? 'resolve' : '';
   let requestedFocusHandled = false;
+  let resolutionFocusTimer = null;
+  const resolutionPageReady = document.readyState === 'loading'
+    ? new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve, { once:true }))
+    : Promise.resolve();
   let currentFocus = requestedFocus;
   let resolvedFocus = requestedFocus;
   let queueRequest = 0;
@@ -723,22 +727,36 @@
     requestedFocusHandled = true;
     card.classList.add('rc-case-focused');
     card.setAttribute('aria-current', 'true');
-    window.setTimeout(() => card.scrollIntoView({ behavior:'smooth', block:'center' }), 80);
+    const selectedFocus = currentFocus, selectedRecord = resolvedFocus;
+    window.requestAnimationFrame(() => {
+      if (card.isConnected && currentFocus === selectedFocus) card.scrollIntoView({ behavior:'smooth', block:'center' });
+    });
 
     if (requestedOpenAction === 'resolve') {
-      window.setTimeout(() => {
-        if (item.recoveryAvailable) { openVisitRecoveryCase(source, item.id, item.issueType); return; }
-        if (source === 'order') {
-          openOrderResolutionForCase(item.id);
-          return;
-        }
-        if (item.issueType === 'past_date') {
-          openResolveMenuForCase(item.id);
-          return;
-        }
-        openReschedule(item.id, item.reference || 'Booking', item.serviceDurationMinutes || 60, item.issueType === 'no_show' ? 'no-show-review' : 'standard', item.issueType || '');
-      }, 420);
+      const openSelected = () => {
+        resolutionFocusTimer = window.setTimeout(() => {
+          resolutionFocusTimer = null;
+          if (!currentFocus || currentFocus !== selectedFocus || resolvedFocus !== selectedRecord || document.querySelector('.modal.show')) return;
+          void openFocusedResolutionCase(source, recordId);
+        }, 0);
+      };
+      void resolutionPageReady.then(openSelected);
     }
+  }
+
+  async function openFocusedResolutionCase(source, id) {
+    const item = findResolutionCase(source, id);
+    if (!item) return;
+    if (item.paymentReview?.required) return openResolutionPaymentReview(source, item.id);
+    if (item.recoveryAvailable && item.allowedActions?.includes('recover')) return openVisitRecoveryCase(source, item.id, item.issueType);
+    if (source === 'order') {
+      if (item.allowedActions?.some(action => ['reschedule', 'send_link', 'cancel'].includes(action))) return openOrderResolutionForCase(item.id, item.issueType);
+      return viewOrderDetail(item.id);
+    }
+    if (item.status === 'cancelled' || !item.allowedActions?.includes('reschedule')) return viewDetail(item.id);
+    if (item.issueType === 'past_date') return openResolveMenuForCase(item.id, item.issueType);
+    return openReschedule(item.id, item.reference || 'Booking', item.serviceDurationMinutes || 60,
+      item.issueType === 'no_show' ? 'no-show-review' : 'standard', item.issueType || '');
   }
 
   function niceLabel(value) {
@@ -761,6 +779,7 @@
     const viewAction = `<button class="btn btn-outline-secondary" onclick="viewDetail('${item.id}')"><i class="bi bi-eye me-1"></i>View booking</button>`;
     const closeAction = allowed.has('close') ? `<button class="btn btn-outline-dark" onclick="closeCase('${item.id}','${item.issueType}')"><i class="bi bi-check2-circle me-1"></i>Close case</button>` : '';
     if (item.status === 'cancelled' || item.issueType === 'cancelled') return viewAction + closeAction + contactActions(item);
+    if (item.paymentReview?.required) return `${viewAction}<button type="button" class="btn btn-success" onclick="openResolutionPaymentReview('booking','${item.id}')">${escapeHtml(item.paymentReview.actionLabel || 'Review payment')}</button><button type="button" class="btn btn-outline-secondary" disabled title="Review the payment arrangement first">Resolve case</button><p class="rc-payment-gate small text-danger mb-0 w-100" role="status">${escapeHtml(item.paymentReview.reason)}</p>${contactActions(item)}`;
     const canSchedule = allowed.has('reschedule');
     const paymentAction = item.allowedActions?.includes('verify_payment') ? `<button type="button" class="btn btn-outline-success" onclick="openResolutionPaymentReview('booking','${item.id}')"><i class="bi bi-receipt me-1"></i>Review payment</button>` : '';
     if (item.recoveryAvailable && allowed.has('recover') && item.issueType !== 'no_show') return `${viewAction}${paymentAction}<button type="button" class="btn btn-primary" onclick="openVisitRecoveryCase('booking','${item.id}','${item.issueType}')"><i class="bi bi-person-plus me-1"></i>${window.RACSVisitRecovery?.ready(item) ? 'Assign replacement' : 'Resolve and reassign'}</button>${contactActions(item)}`;
@@ -784,6 +803,7 @@
 
   function renderOrderActions(item) {
     const allowed = new Set(item.allowedActions || []);
+    if (item.paymentReview?.required) return `<button type="button" class="btn btn-outline-secondary" onclick="viewOrderDetail('${item.id}')">View order</button><button type="button" class="btn btn-success" onclick="openResolutionPaymentReview('order','${item.id}')">${escapeHtml(item.paymentReview.actionLabel || 'Review payment')}</button><button type="button" class="btn btn-outline-secondary" disabled title="Review the payment arrangement first">Resolve case</button><p class="rc-payment-gate small text-danger mb-0 w-100" role="status">${escapeHtml(item.paymentReview.reason)}</p>`;
     return `<button type="button" class="btn btn-outline-secondary" onclick="viewOrderDetail('${item.id}')"><i class="bi bi-eye me-1"></i>View order</button>${allowed.has('verify_payment') ? `<button type="button" class="btn btn-outline-success" onclick="openResolutionPaymentReview('order','${item.id}')"><i class="bi bi-receipt me-1"></i>Review payment</button>` : ''}${['reschedule','send_link','cancel'].some(action => allowed.has(action)) ? `<button type="button" class="btn btn-primary" onclick="openOrderResolutionForCase('${item.id}','${escapeHtml(item.issueType)}')"><i class="bi bi-signpost-split me-1"></i>${item.recoveryAvailable && window.RACSVisitRecovery?.ready(item) ? 'Assign replacement' : 'Resolve case'}</button>` : ''}`;
   }
 
@@ -795,6 +815,7 @@
 
   function openResolveMenuForCase(id, issueType = '') {
     const item = findResolutionCase('booking', id, issueType);
+    if (item?.paymentReview?.required) { void openResolutionPaymentReview('booking', id); return; }
     if (item?.recoveryAvailable) return openVisitRecoveryCase('booking', id, issueType);
     if (!item) { showToast('error', 'The booking resolution case is no longer available. Refresh the queue.'); return; }
     if (item.status === 'cancelled' || !item.allowedActions?.includes('reschedule')) { showToast('info', 'This booking is not available for rescheduling.'); return; }
@@ -803,6 +824,7 @@
 
   async function openVisitRecoveryCase(source, id, issueType = '') {
     const item = findResolutionCase(source, id, issueType);
+    if (item?.paymentReview?.required) { void openResolutionPaymentReview(source, id); return; }
     if (!item?.recoveryAvailable || !window.RACSVisitRecovery) { showToast('error', 'Refresh the case to load its recovery actions.'); return; }
     await RACSVisitRecovery.open(item, {
       apiBase: RESOLUTION_API_BASE,
@@ -825,6 +847,7 @@
   function openOrderResolutionForCase(id, issueType = '') {
     if (orderResolutionActionPending) return;
     const item = findResolutionCase('order', id, issueType);
+    if (item?.paymentReview?.required) { void openResolutionPaymentReview('order', id); return; }
     if (!item) { showToast('error', 'The order resolution case is no longer available. Refresh the queue.'); return; }
     if (item.recoveryAvailable) return openVisitRecoveryCase('order', id, issueType);
     const allowed = new Set(item.allowedActions || []);
@@ -1077,6 +1100,8 @@
   }
 
   function clearResolutionFocus() {
+    window.clearTimeout(resolutionFocusTimer);
+    resolutionFocusTimer = null;
     currentFocus = '';
     requestedFocusHandled = true;
     document.getElementById('resolutionFocusNotice').classList.add('d-none');
@@ -1317,6 +1342,8 @@
     const checkbox = document.getElementById('detailPaymentChecked');
     checkbox.checked = false; checkbox.disabled = true;
     document.getElementById('detailPaymentError').hidden = true;
+    document.getElementById('detailPaymentConsent').textContent = 'I checked the receipt and confirmed that the payment was received.';
+    document.getElementById('detailPaymentVerify').textContent = 'Verify payment';
   }
   document.getElementById('detailPaymentChecked').addEventListener('change', event => {
     document.getElementById('detailPaymentVerify').disabled = !event.target.checked || !resolutionPaymentSelection || resolutionPaymentBusy;
@@ -1333,7 +1360,7 @@
   async function openResolutionPaymentReview(source, id) {
     if (resolutionPaymentBusy) return;
     const item = findResolutionCase(source, id);
-    if (!item || ![item, ...(item.issues || [])].some(issue => issue.allowedActions?.includes('verify_payment'))) {
+    if (!item || ![item, ...(item.issues || [])].some(issue => issue.allowedActions?.some(action => ['verify_payment', 'confirm_cash'].includes(action)))) {
       showToast('info', 'This payment no longer needs review. Refresh the list.'); return;
     }
     const record = await (source === 'order' ? viewOrderDetail(id) : viewDetail(id));
@@ -1355,6 +1382,18 @@
       const data = await response.json();
       if (requestId !== resolutionDetailRequestId) return;
       if (!response.ok || data.success === false) throw new Error(data.error || 'Could not load the submitted payment.');
+      if (data.cashArrangement) {
+        const terms = data.cashArrangement;
+        if (!Number.isFinite(Number(terms.amountDue)) || Number(terms.amountDue) < 0 || !terms.expectedUpdatedAt) throw new Error('The cash arrangement is incomplete. Refresh the record before confirming.');
+        summary.textContent = `\u20b1${Number(terms.amountDue).toLocaleString('en-PH', { minimumFractionDigits:2, maximumFractionDigits:2 })} due ${source === 'order' ? 'at pickup' : 'after service'}. No advance payment was received. Review the customer, booking details and agreed cash amount.`;
+        if (evidence) evidence.hidden = true;
+        document.querySelector('#detailModalTitle span').textContent = 'Confirm cash arrangement';
+        document.getElementById('detailPaymentConsent').textContent = 'I confirmed the booking and cash-payment arrangement. No payment has been received.';
+        button.textContent = 'Confirm cash arrangement';
+        resolutionPaymentSelection = { source, id, requestId, kind:'cash', amountDue:Number(terms.amountDue), expectedUpdatedAt:terms.expectedUpdatedAt };
+        document.getElementById('detailPaymentChecked').disabled = false;
+        return;
+      }
       const payment = data.pendingPayment;
       if (!payment || !(Number(payment.amount) > 0)) { summary.textContent = 'No payment is waiting for review. Ask the customer to submit their payment receipt if they have already paid.'; return; }
       summary.textContent = `Submitted payment: ₱${Number(payment.amount).toLocaleString('en-PH', { minimumFractionDigits:2, maximumFractionDigits:2 })}${payment.reference ? ` · Reference: ${payment.reference}` : ''}. Check the receipt above before verifying. A new schedule is still needed if the old date has passed.`;
@@ -1374,10 +1413,12 @@
     const errorElement = document.getElementById('detailPaymentError');
     button.disabled = true; button.textContent = 'Verifying...'; checkbox.disabled = true; errorElement.hidden = true;
     try {
-      const endpoint = selection.source === 'order' ? `/api/orders/${encodeURIComponent(selection.id)}/payment`
-        : `${RESOLUTION_API_BASE}/resolution-center/${encodeURIComponent(selection.id)}/verify-pending-payment`;
-      const response = await fetch(endpoint, { method:selection.source === 'order' ? 'PATCH' : 'POST', credentials:'same-origin',
-        headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ paymentStatus:'paid', note:'Payment verified from the Resolution Center' }) });
+      const cash = selection.kind === 'cash';
+      const endpoint = cash
+        ? selection.source === 'order' ? `/api/orders/${encodeURIComponent(selection.id)}/confirm-cash-arrangement` : `${RESOLUTION_API_BASE}/resolution-center/${encodeURIComponent(selection.id)}/confirm-cash-arrangement`
+        : selection.source === 'order' ? `/api/orders/${encodeURIComponent(selection.id)}/payment` : `${RESOLUTION_API_BASE}/resolution-center/${encodeURIComponent(selection.id)}/verify-pending-payment`;
+      const response = await fetch(endpoint, { method:!cash && selection.source === 'order' ? 'PATCH' : 'POST', credentials:'same-origin',
+        headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(cash ? { confirmed:true, amountDue:selection.amountDue, expectedUpdatedAt:selection.expectedUpdatedAt } : { paymentStatus:'paid', note:'Payment verified from the Resolution Center' }) });
       const data = await response.json();
       if (!response.ok || data.success === false) throw new Error(data.error || 'Payment verification failed.');
       resolutionPaymentSelection = null;
@@ -1386,12 +1427,12 @@
       if (modal._isTransitioning) await new Promise(resolve => modalElement.addEventListener('shown.bs.modal', resolve, { once:true }));
       resolutionPaymentBusy = false;
       modal.hide();
-      showToast('success', 'Payment verified. Review the schedule to continue with this case.');
+      showToast('success', cash ? 'Cash arrangement confirmed. No payment was recorded. You can now resolve this case.' : 'Payment verified. Review the schedule to continue with this case.');
       await loadQueue();
     } catch (error) {
       errorElement.textContent = error.message || 'Payment verification failed. Please try again.'; errorElement.hidden = false;
     } finally {
-      resolutionPaymentBusy = false; button.textContent = 'Verify payment'; checkbox.disabled = !resolutionPaymentSelection;
+      resolutionPaymentBusy = false; button.textContent = selection.kind === 'cash' ? 'Confirm cash arrangement' : 'Verify payment'; checkbox.disabled = !resolutionPaymentSelection;
       button.disabled = !resolutionPaymentSelection || !checkbox.checked;
     }
   }
@@ -1604,6 +1645,7 @@
   }
 
   function openResolveMenu(id, ref, duration, price, paid, issueType, phone = '', email = '', customer = 'Customer') {
+    if (findResolutionCase('booking', id, issueType)?.paymentReview?.required) { void openResolutionPaymentReview('booking', id); return; }
     resolveBookingId = id;
     resolveIssueType = issueType || 'past_date';
     resolveRef = ref;
@@ -1855,6 +1897,7 @@
 
   async function openReschedule(id, ref, duration, mode = 'standard', issueType = '', quantity = 1) {
     const item = findResolutionCase('booking', id, issueType);
+    if (item?.paymentReview?.required) { void openResolutionPaymentReview('booking', id); return; }
     if (!item || item.status === 'cancelled' || !item.allowedActions?.includes('reschedule')) { showToast('info', 'This booking is not available for rescheduling.'); return; }
     rescheduleBookingId = id;
     rescheduleRef = ref;
@@ -1964,6 +2007,7 @@
   }
 
   async function confirmNoShow(id, allowCustomerReschedule, button) {
+    if (findResolutionCase('booking', id, 'no_show')?.paymentReview?.required) { void openResolutionPaymentReview('booking', id); return; }
     const confirmationMessage = allowCustomerReschedule
       ? 'Confirm this customer as a no-show and send a 72-hour link so the customer can choose a new available schedule?'
       : 'Confirm and close this customer no-show? The configured no-show fee policy will be applied and no reschedule link will be sent.';
@@ -1994,6 +2038,7 @@
   }
 
   async function closeCase(id, issueType) {
+    if (findResolutionCase('booking', id, issueType)?.paymentReview?.required) { void openResolutionPaymentReview('booking', id); return; }
     const note = prompt('Resolution note (optional):', `Reviewed and closed by ${RESOLUTION_WORKSPACE_ROLE}`);
     if (note === null) return;
     if (!confirm('Close this issue and save your review? The booking keeps its current status.')) return;
@@ -2013,6 +2058,7 @@
   }
 
   async function reassignCase(id, issueType) {
+    if (findResolutionCase('booking', id, issueType)?.paymentReview?.required) { void openResolutionPaymentReview('booking', id); return; }
     if (findResolutionCase('booking', id, issueType)?.recoveryAvailable) return openVisitRecoveryCase('booking', id, issueType);
     if (!confirm('Send this booking to the assignment queue for a new technician?')) return;
     try {

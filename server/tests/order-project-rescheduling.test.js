@@ -14,7 +14,7 @@ const { orderResolutionCase } = require('../utils/resolutionCenter');
 const routes = require('../routes/orderRoutes');
 const id = '507f191e810c19729de860ea', customerId = '507f191e810c19729de860eb';
 function fixture(extra = {}) {
-  return new Order({ _id: id, userId: customerId, orderReference: 'ORD-20260827-REGG', status: 'preparing_unit',
+  return new Order({ _id: id, userId: customerId, orderReference: 'ORD-20260827-REGG', status: 'preparing_unit', paymentStatus: 'partial',
     fulfillmentType: 'delivery_installation', customer: { name: 'Jamie', phone: '09170000000' },
     items: [{ inventoryId: id, brand: 'Carrier', modelLine: 'Split', quantity: 8 }],
     delivery: { address: 'Customer site', preferredDate: new Date('2020-01-01') }, timeSlot: '09:00', ...extra });

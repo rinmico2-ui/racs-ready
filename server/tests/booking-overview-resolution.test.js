@@ -85,7 +85,7 @@ test("staff cannot dismiss unfinished scheduling by Close case and no review or 
   const file=path.join(__dirname,'../routes/adminApi.js'),source=fs.readFileSync(file,'utf8').replace(/\r\n/g,'\n');
   const begin=source.indexOf('router.post("/resolution-center/:id/close"'),start=source.indexOf('async (req, res, next) => {',begin),end=source.indexOf('\n});',start);
   const actualRequire=createRequire(file);let saves=0,audits=0;
-  const row=booking({status:'reschedule-required',bookingDate:'2020-01-01',save:async()=>{saves++;}});
+  const row=booking({status:'reschedule-required',paymentStatus:'paid',bookingDate:'2020-01-01',save:async()=>{saves++;}});
   const handler=vm.runInNewContext('('+source.slice(start,end+2)+')',{
     mongoose:require('mongoose'),require:name=>name==='../models/BookingService'?{findById:async()=>row}
       :name==='../utils/audit'?{logEvent:async()=>{audits++;}}:actualRequire(name),
@@ -123,7 +123,7 @@ test("overview rows use the server's resolution result instead of reopening a cl
   const renderer = view.slice(renderStart, view.indexOf("\n  AU.Overview.renderPagination", renderStart));
   const tbody = { innerHTML:"" };
   const context = vm.createContext({ document:{getElementById:()=>tbody}, AU:{Overview:{}}, STATUS_CLASSES:{assigned:"st-assigned"},
-    STATUS_LABELS:{}, RQ_STATUS_LABELS:{}, APPOINTMENTS_CAN_RESOLVE:true, statusLabel:value=>value, _ovViewBtn:()=>'<button>View</button>', bookingResolutionUrl:()=>'/resolution-center' });
+    STATUS_LABELS:{}, RQ_STATUS_LABELS:{}, APPOINTMENTS_CAN_RESOLVE:true, statusLabel:value=>value, qEsc:String, _ovViewBtn:()=>'<button>View</button>', bookingResolutionUrl:()=>'/resolution-center' });
   vm.runInContext(predicate + renderer, context);
   context.AU.Overview.renderTable([booking({overviewScheduleResolution:{required:false,issueType:null}})]);
   assert.doesNotMatch(tbody.innerHTML, />Resolve<|Needs Resolution|Past schedule/);

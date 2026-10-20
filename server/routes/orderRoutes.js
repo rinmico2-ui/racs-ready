@@ -2474,6 +2474,7 @@ router.post("/:id/reschedule-approve", authenticate, requireRole(["admin", "secr
   try {
     let order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ error: "Order not found" });
+    require('../utils/resolutionPaymentPolicy').assertReady(order, 'order');
 
     // Check if there's a pending reschedule request
     if (!order.rescheduleRequest || order.rescheduleRequest.status !== "pending") {
@@ -2489,6 +2490,7 @@ router.post("/:id/reschedule-approve", authenticate, requireRole(["admin", "secr
       || String(order.rescheduleRequest.requestedDate) !== lockedRequestedDate) {
       return res.status(409).json({ error: "This reschedule request was already processed." });
     }
+    require('../utils/resolutionPaymentPolicy').assertReady(order, 'order');
     if (order.isProject) {
       await require('../utils/orderResolutionScheduling').saveOrderProjectWindow(order, {
         scheduledDate: order.rescheduleRequest.requestedDate, endDate: order.rescheduleRequest.requestedEndDate,
@@ -2654,6 +2656,7 @@ async function saveResolutionOrderSchedule(req, res) {
 
     let order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ error: "Order not found" });
+    require('../utils/resolutionPaymentPolicy').assertReady(order, 'order');
     if (req.orderCustomerReschedule) require('../utils/orderRescheduleInvitation').assertCustomerOrderReschedule(order, req.user);
     if (!REVIEWABLE_ORDER_STATUSES.has(order.status)) {
       return res.status(409).json({ error: `Order status "${order.status}" cannot be rescheduled from the attention queue.` });
@@ -2670,6 +2673,7 @@ async function saveResolutionOrderSchedule(req, res) {
     if (!order || !REVIEWABLE_ORDER_STATUSES.has(order.status)) {
       return res.status(409).json({ error: "This order is no longer available for rescheduling." });
     }
+    require('../utils/resolutionPaymentPolicy').assertReady(order, 'order');
     if (!req.orderCustomerReschedule && require('../utils/visitRecovery').emergency('order', order)) return res.status(409).json({ error: 'Record the customer agreement through Resolve and reassign in the Resolution Center.', code: 'CUSTOMER_CONTACT_REQUIRED' });
     if (req.orderCustomerReschedule) require('../utils/orderRescheduleInvitation').assertCustomerOrderReschedule(order, req.user);
     let totalEstimatedMinutes;
@@ -3152,13 +3156,18 @@ router.post("/:id/assign-technician", authenticate, requireRole(["admin", "secre
  * PATCH /api/orders/:id/payment â€” Update order payment status (admin/secretary)
  * Body: { paymentStatus: "paid"|"pending"|"failed", note?: string }
  */
+router.post('/:id/confirm-cash-arrangement', authenticate, requireRole(['admin', 'secretary']),
+  require('../middleware/requirePermission').requirePermission('payments.manage'), require('../controllers/resolutionCashController').order);
+
 router.get('/:id/payment-review', authenticate, requireRole(['admin', 'secretary']), async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error:'Invalid order reference.' });
-    const order = await Order.findById(req.params.id).select('status paymentStatus paymentMethod paymentId').lean();
+    const order = await Order.findById(req.params.id).select('status paymentStatus paymentMethod paymentId total updatedAt cashPaymentConfirmation').lean();
     if (!order) return res.status(404).json({ error:'Order not found.' });
     res.set('Cache-Control', 'no-store, private');
-    if (!require('../utils/resolutionCenter').resolutionPaymentNeedsReview(order, 'order')) return res.json({ success:true, pendingPayment:null });
+    const review = require('../utils/resolutionPaymentPolicy').state(order, 'order');
+    if (review.kind === 'cash') return res.json({ success:true, pendingPayment:null, cashArrangement:require('../utils/resolutionPaymentPolicy').cashSummary(order, 'order') });
+    if (!review.required) return res.json({ success:true, pendingPayment:null });
     const payment = order.paymentId ? await Payment.findOne({ _id:order.paymentId, orderId:req.params.id, status:'pending' })
       .select('amount method type reference').lean() : null;
     return res.json({ success:true, pendingPayment:payment ? { id:payment._id, amount:payment.amount,

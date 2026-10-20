@@ -191,7 +191,7 @@ test('the actual close-case action cannot post twice and waits for its queue ref
   const start = page.indexOf('  async function closeCase('), end = page.indexOf('\n  }', start) + 4;
   const context = { prompt: () => 'Reviewed', confirm: () => true, RESOLUTION_WORKSPACE_ROLE: 'admin', RESOLUTION_API_BASE: '/api/admin',
     fetch: (...args) => { requests.push(args); return response.promise; }, loadQueue: () => refresh.promise,
-    window: {}, alert: message => notices.push(message) };
+    findResolutionCase: () => ({ paymentReview:{required:false} }), window: {}, alert: message => notices.push(message) };
   vm.runInNewContext(page.slice(start, end), context);
   const close = h.api.wrap(context.closeCase, { group: 'write', label: 'Closing case...' });
   const pending = close('booking', 'past_date'); await close('booking', 'past_date'); assert.equal(requests.length, 1);

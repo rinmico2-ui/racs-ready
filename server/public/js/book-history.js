@@ -1249,14 +1249,7 @@
       const initialServicesSnapshot = JSON.stringify(rows);
       const maxBookingUnits = 40;
       const selectedUnits = () => window.ApplianceServices.unitCount(rows);
-      const remainingUnits = () => Math.max(0, maxBookingUnits - selectedUnits());
-      const maxQuantityFor = index => maxBookingUnits - selectedUnits() + (Number(rows[index]?.quantity) || 0);
       const unitLimitMessage = `A booking can contain at most ${maxBookingUnits} units across all services.`;
-      const canAddUnits = quantity => {
-        if (Number.isInteger(quantity) && quantity > 0 && selectedUnits() + quantity <= maxBookingUnits) return true;
-        alert(unitLimitMessage);
-        return false;
-      };
       let selectedDate = null;
       let selectedTime = null;
       let selectedEndDate = null;
@@ -1332,9 +1325,9 @@
                       <div><span class="bh-editor-kicker">Current selection</span><h6 id="bhEditorCartTitle"><i class="bi bi-bag-check me-2"></i>Your Booking</h6></div>
                       <span class="bh-editor-cart-count" id="bhEditorCartCount">${rows.length}</span>
                     </div>
-                    <p class="bh-editor-cart-copy" id="bhEditorCartCopy">Up to ${maxBookingUnits} units across all services.</p>
+                    <p class="bh-editor-cart-copy" id="bhEditorCartCopy">Edit each appliance to change its details, quantity or services.</p>
                     <div class="bh-editor-cart-items" id="bhCurrentItems"></div>
-                    <div class="bh-editor-cart-total" id="bhEditorCartTotal"><span>Estimated total</span><strong id="bhEditorCartTotalValue">₱0</strong></div>
+                    <div class="bh-editor-cart-total" id="bhEditorCartTotal"><span>Service estimate</span><strong id="bhEditorCartTotalValue">₱0</strong></div>
                     <div class="bh-editor-reason"><label for="bhServiceChangeReason"><i class="bi bi-chat-square-text me-1"></i>Reason for change</label><textarea id="bhServiceChangeReason" rows="3" maxlength="1000" placeholder="Explain why these services need to change"></textarea></div>
                   </aside>
                 </div>
@@ -1460,7 +1453,7 @@
         const cartTotal = host.querySelector("#bhEditorCartTotalValue");
         const unitCount = selectedUnits();
         const total = rows.reduce((sum, row) => sum + (Number(row.totalPrice) || ((Number(row.unitPrice) || 0) * Math.max(1, Number(row.quantity) || 1))), 0);
-        if (cartCount) cartCount.textContent = rows.length;
+        if (cartCount) cartCount.textContent = unitCount;
         if (cartCopy) cartCopy.textContent = rows.length
           ? `${rows.length} service${rows.length === 1 ? '' : 's'} · ${unitCount} of ${maxBookingUnits} units`
           : "No service selected";
@@ -1470,135 +1463,59 @@
 
       function renderCurrentItems() {
         const itemsHost = bodyHost.querySelector("#bhCurrentItems");
-        if (!rows.length) { itemsHost.innerHTML = '<div class="bh-editor-cart-empty"><i class="bi bi-tools"></i><strong>No service selected</strong><span>Choose a service from the catalog.</span></div>'; updateServiceCount(); syncBuilders(); return; }
-        itemsHost.innerHTML = rows.map((row, index) => {
-          const svc = (row.type === "repair" ? repair : core).find(s => String(s._id) === String(row.serviceId));
-          const svcName = svc?.name || row.name || "Service";
-          const details = [row.brand, row.model, row.applianceTypeName || row.airconTypeName, row.hp ? row.hp + " HP" : ""].filter(Boolean).join(" · ");
-          const problem = row.problemDescription || row.repairIssue || "";
-          const quantity = Math.max(1, Math.min(40, Number(row.quantity) || 1));
-          const itemMax = maxQuantityFor(index);
-          const unitPrice = Number(row.unitPrice) || (Number(row.totalPrice) / quantity) || 0;
-          const lineTotal = unitPrice * quantity;
-          return `<div class="bh-editor-cart-item" data-item-index="${index}">
+        const groups = window.BookingEditorServices.groups(rows);
+        const money = value => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 2 }).format(value);
+        if (!groups.length) { itemsHost.innerHTML = '<div class="bh-editor-cart-empty"><i class="bi bi-tools"></i><strong>No appliance added</strong><span>Add an appliance and choose its services.</span></div>'; updateServiceCount(); syncBuilders(); return; }
+        itemsHost.innerHTML = groups.map((group, index) => {
+          const row = group.primary, repairItem = row.type === 'repair';
+          const label = repairItem ? row.applianceTypeName || row.unitType || 'Appliance' : window.ApplianceServices.labels[row.applianceKind || 'aircon'] || 'Appliance';
+          const title = `${label} ${index + 1}`;
+          const details = [row.brand, row.model, row.airconTypeName, row.hp ? row.hp + ' HP' : ''].filter(Boolean).join(' \u00b7 ');
+          const problem = row.problemDescription || row.repairIssue || '';
+          const serviceTotal = group.rows.reduce((sum, item) => sum + (Number(item.totalPrice) || Number(item.unitPrice) * group.quantity || 0), 0);
+          const services = group.rows.map(item => {
+            const service = (repairItem ? repair : core).find(candidate => String(candidate._id) === String(item.serviceId));
+            const amount = Number(item.totalPrice) || Number(item.unitPrice) * group.quantity || 0;
+            return `<li><span>${escapeHtml(service?.name || item.name || 'Service')}</span><strong>${amount ? money(amount) : 'Price on quote'}</strong></li>`;
+          }).join('');
+          return `<article class="bh-editor-cart-item" data-appliance-index="${index}">
             <div class="bh-editor-cart-item-top">
-              <span class="bh-editor-cart-item-icon"><i class="bi ${row.type === 'repair' ? 'bi-tools' : 'bi-snow'}"></i></span>
-              <div class="bh-editor-cart-item-copy">
-                <span>${row.type === 'repair' ? 'Repair service' : 'Aircon service'}</span>
-                <strong>${escapeHtml(svcName)}</strong>
-                ${details ? `<small>${escapeHtml(details)}</small>` : ''}
-              </div>
-              <button type="button" class="bh-item-remove" data-index="${index}" title="Remove ${escapeHtml(svcName)}" aria-label="Remove ${escapeHtml(svcName)}"><i class="bi bi-trash"></i></button>
+              <span class="bh-editor-cart-item-icon"><i class="bi ${repairItem ? 'bi-tools' : 'bi-snow'}" aria-hidden="true"></i></span>
+              <div class="bh-editor-cart-item-copy"><span>${repairItem ? 'Repair service' : 'Core services'}</span><strong>${escapeHtml(title)}</strong>${details ? `<small>${escapeHtml(details)}</small>` : ''}</div>
+              <button type="button" class="bh-item-remove" data-index="${index}" title="Remove appliance and its services" aria-label="Remove ${escapeHtml(title)} and its services"><i class="bi bi-trash" aria-hidden="true"></i></button>
             </div>
-            <button type="button" class="cab-secondary bh-item-edit" data-index="${index}">Edit details</button>
-            ${problem ? `<p class="bh-editor-cart-problem"><i class="bi bi-chat-square-text"></i>${escapeHtml(problem)}</p>` : ''}
-            <div class="bh-editor-cart-item-bottom">
-              <div class="bh-editor-item-price"><span>Estimated price</span><strong>${lineTotal ? `₱${lineTotal.toLocaleString()}` : 'Price on quote'}</strong></div>
-              ${row.type === 'repair' ? `<small>${quantity} appliance${quantity === 1 ? '' : 's'}</small>` : ''}
-              <div class="bh-editor-stepper" role="group" aria-label="Quantity for ${escapeHtml(svcName)}" ${row.type === 'repair' ? 'hidden' : ''}>
-                <button type="button" class="bh-item-qty-minus" data-index="${index}" aria-label="Decrease ${escapeHtml(svcName)} quantity" ${quantity <= 1 ? 'disabled' : ''}><i class="bi bi-dash"></i></button>
-                <input type="number" class="bh-item-qty-input" data-index="${index}" value="${quantity}" min="1" max="${itemMax}" step="1" inputmode="numeric" autocomplete="off" aria-label="${escapeHtml(svcName)} quantity" ${row.type === 'repair' ? 'disabled' : ''}>
-                <button type="button" class="bh-item-qty-plus" data-index="${index}" aria-label="Increase ${escapeHtml(svcName)} quantity" ${quantity >= itemMax ? 'disabled' : ''}><i class="bi bi-plus"></i></button>
-              </div>
-            </div>
-          </div>`;
-        }).join("");
-        itemsHost.querySelectorAll('.bh-item-qty-minus, .bh-item-qty-plus').forEach(button => {
-          button.addEventListener('click', () => {
-            const index = Number(button.dataset.index);
-            const row = rows[index];
-            if (!row) return;
-            const previousQuantity = Math.max(1, Math.min(40, Number(row.quantity) || 1));
-            const unitPrice = Number(row.unitPrice) || (Number(row.totalPrice) / previousQuantity) || 0;
-            const delta = button.classList.contains('bh-item-qty-plus') ? 1 : -1;
-            window.ApplianceServices.setQuantity(rows, index, Math.max(1, Math.min(maxQuantityFor(index), previousQuantity + delta)));
-            if (unitPrice) {
-              row.unitPrice = unitPrice;
-              row.totalPrice = unitPrice * row.quantity;
-            }
-            renderCurrentItems();
-          });
-        });
-        itemsHost.querySelectorAll('.bh-item-qty-input').forEach(input => {
-          const commitTypedQuantity = normalize => {
-            const index = Number(input.dataset.index);
-            const row = rows[index];
-            if (!row) return;
-            const previousQuantity = Math.max(1, Math.min(40, Number(row.quantity) || 1));
-            const raw = String(input.value || '').trim();
-            if (!raw && !normalize) return;
-            const quantity = Math.max(1, Math.min(maxQuantityFor(index), Math.trunc(Number(raw)) || previousQuantity));
-            const unitPrice = Number(row.unitPrice) || (Number(row.totalPrice) / previousQuantity) || 0;
-            window.ApplianceServices.setQuantity(rows, index, quantity);
-            if (unitPrice) {
-              row.unitPrice = unitPrice;
-              row.totalPrice = unitPrice * quantity;
-            }
-            if (normalize || String(quantity) !== raw) input.value = String(quantity);
-            const stepper = input.closest('.bh-editor-stepper');
-            const minus = stepper?.querySelector('.bh-item-qty-minus');
-            const plus = stepper?.querySelector('.bh-item-qty-plus');
-            if (minus) minus.disabled = quantity <= 1;
-            if (plus) plus.disabled = quantity >= maxQuantityFor(index);
-            const price = input.closest('.bh-editor-cart-item')?.querySelector('.bh-editor-item-price strong');
-            if (price) price.textContent = unitPrice ? `₱${(unitPrice * quantity).toLocaleString()}` : 'Price on quote';
-            itemsHost.querySelectorAll('.bh-item-qty-input').forEach(otherInput => {
-              const otherIndex = Number(otherInput.dataset.index);
-              otherInput.max = String(maxQuantityFor(otherIndex));
-              const otherPlus = otherInput.closest('.bh-editor-stepper')?.querySelector('.bh-item-qty-plus');
-              if (otherPlus) otherPlus.disabled = Number(rows[otherIndex]?.quantity) >= maxQuantityFor(otherIndex);
-            });
-            if (row.applianceGroupId) {
-              itemsHost.querySelectorAll('.bh-item-qty-input').forEach(otherInput => {
-                const other = rows[Number(otherInput.dataset.index)];
-                if (other?.applianceGroupId !== row.applianceGroupId) return;
-                otherInput.value = String(quantity);
-                const amount = otherInput.closest('.bh-editor-cart-item')?.querySelector('.bh-editor-item-price strong');
-                if (amount) amount.textContent = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(other.totalPrice);
-                const minus = otherInput.closest('.bh-editor-stepper')?.querySelector('.bh-item-qty-minus');
-                if (minus) minus.disabled = quantity <= 1;
-              });
-            }
-            updateServiceCount();
-            syncBuilders();
-          };
-          input.addEventListener('input', () => commitTypedQuantity(false));
-          input.addEventListener('focus', () => input.select());
-          input.addEventListener('change', () => commitTypedQuantity(true));
-          input.addEventListener('blur', () => commitTypedQuantity(true));
-          input.addEventListener('keydown', event => {
-            if (event.key !== 'Enter') return;
-            event.preventDefault();
-            commitTypedQuantity(true);
-            input.blur();
-          });
-        });
+            ${group.quantity > 1 ? `<p class="bh-editor-appliance-note">${group.quantity} appliances with matching details. Use Edit appliance to change individual details.</p>` : ''}
+            ${problem ? `<p class="bh-editor-cart-problem"><i class="bi bi-chat-square-text" aria-hidden="true"></i>${escapeHtml(problem)}</p>` : ''}
+            <ul class="bh-editor-appliance-services" aria-label="Services for ${escapeHtml(title)}">${services}</ul>
+            <div class="bh-editor-cart-item-bottom"><button type="button" class="cab-secondary bh-item-edit" data-index="${index}" aria-label="Edit ${escapeHtml(title)}">Edit appliance</button><strong class="bh-editor-appliance-total">${serviceTotal ? money(serviceTotal) : 'Price on quote'}</strong></div>
+          </article>`;
+        }).join('');
         itemsHost.querySelectorAll('.bh-item-edit').forEach(button => {
           button.addEventListener('click', () => {
-            const row = rows[Number(button.dataset.index)];
+            const row = groups[Number(button.dataset.index)]?.primary;
             if (!row) return;
             try {
-            if (row.relocation?.scope === 'custom_quote') {
-              alert('Contact staff to change this historical relocation booking.'); return;
-            }
-            if (row.type === 'repair') {
-              bootstrap.Tab.getOrCreateInstance(host.querySelector('#bh-repair-tab')).show(); repairBuilder.edit(String(row.id || row._id));
-            } else {
-              bootstrap.Tab.getOrCreateInstance(host.querySelector('#bh-core-tab')).show(); coreBuilder.edit(row.applianceGroupId || String(row.id || row._id));
-            }
+              if (row.relocation?.scope === 'custom_quote') return alert('Contact staff to change this historical relocation booking.');
+              if (row.type === 'repair') {
+                bootstrap.Tab.getOrCreateInstance(host.querySelector('#bh-repair-tab')).show();
+                repairBuilder.edit(String(row.id || row._id));
+              } else {
+                bootstrap.Tab.getOrCreateInstance(host.querySelector('#bh-core-tab')).show();
+                coreBuilder.edit(row.applianceGroupId || String(row.id || row._id));
+              }
             } catch (error) { alert(error.message || 'This appliance cannot be edited. Contact staff for assistance.'); }
           });
         });
         itemsHost.querySelectorAll('.bh-item-remove').forEach(button => {
           button.addEventListener('click', () => {
-            const index = Number(button.dataset.index);
-            if (!Number.isInteger(index) || !rows[index]) return;
-            rows.splice(index, 1);
+            const group = groups[Number(button.dataset.index)];
+            if (!group) return;
+            if (coreBuilder?.pending() || repairBuilder?.pending()) return alert('Finish your appliance changes or cancel them before removing an appliance.');
+            for (const index of [...group.indexes].reverse()) rows.splice(index, 1);
             renderCurrentItems();
           });
         });
-        updateServiceCount();
-        syncBuilders();
+        updateServiceCount(); syncBuilders();
       }
 
       function syncBuilders() { coreBuilder?.sync(); repairBuilder?.sync(); }
@@ -1615,25 +1532,20 @@
         const review = () => host.querySelector('.bh-editor-cart').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         const next = () => bootstrap.Tab.getOrCreateInstance(host.querySelector('#bh-tab-schedule')).show();
         coreBuilder = window.CoreApplianceBooking.create();
-        coreBuilder.mount(core.filter(service => !window.ApplianceServices.isRelocation(service) || rows.some(row => String(row.serviceId) === String(service._id))), { host: host.querySelector('#bhCoreApplianceBuilder'), embedded: true, state: editorState, assistance, review, next,
+        coreBuilder.mount(core.filter(service => !window.ApplianceServices.isRelocation(service) || rows.some(row => String(row.serviceId) === String(service._id))), { host: host.querySelector('#bhCoreApplianceBuilder'), embedded: true, multiUnit: true, guideFields: true, state: editorState, bookingEdit: true, assistance, review, next,
           remaining: editingId => {
             const editing = rows.filter(row => (row.applianceGroupId || String(row.id || row._id || '')) === String(editingId));
             return 40 - selectedUnits() + (editing.length ? Number(editing[0].quantity) || 0 : 0);
           },
           commit: (added, editingId) => {
-            const previous = rows.filter(row => (row.applianceGroupId || String(row.id || row._id || '')) === String(editingId));
-            const next = rows.filter(row => !previous.includes(row)).concat(added);
-            window.ApplianceServices.assertServiceTypes(next);
-            window.ApplianceServices.assertStandaloneServices(next);
-            const updated = added.map(row => ({ ...row, ...(previous.find(item => String(item.serviceId) === String(row.serviceId))?._id ? { _id: previous.find(item => String(item.serviceId) === String(row.serviceId))._id } : {}) }));
-            for (let i = rows.length - 1; i >= 0; i--) if (previous.includes(rows[i])) rows.splice(i, 1);
-            rows.push(...updated); renderCurrentItems();
+            window.BookingEditorServices.replaceCore(rows, added, editingId);
+            renderCurrentItems();
           } });
         if (core.some(window.ApplianceServices.isRelocation)) {
           host.querySelector('#bhCoreApplianceBuilder').insertAdjacentHTML('beforeend', '<p class="small text-muted mt-3">For aircon relocation, <a href="/services">book separately on Services</a> to choose both map locations. Existing relocation details keep their saved locations.</p>');
         }
         repairBuilder = window.RepairApplianceBooking.create();
-        repairBuilder.mount({ host: host.querySelector('#bhRepairApplianceBuilder'), embedded: true, state: editorState,
+        repairBuilder.mount({ host: host.querySelector('#bhRepairApplianceBuilder'), embedded: true, guideFields: true, state: editorState, bookingEdit: true,
           coreServices: core, categories, defaultInspectionFee: defaultRepairInspectionFee, inspectionDuration: state.inspectionDurationMinutes,
           photos: false, assistance, review, next,
           commit: (row, editingId) => {
@@ -1704,7 +1616,7 @@
             const services = rows.map(row => ({
               _id: row._id, type: row.type,
               serviceId: row.serviceId, name: row.name || "",
-              applianceGroupId: row.applianceGroupId, applianceKind: row.applianceKind,
+              applianceGroupId: row.applianceGroupId, applianceKind: row.applianceKind, relocation: row.relocation,
               quantity: Number(row.quantity || 1),
               brand: row.brand || "", model: row.model || "",
               problemDescription: row.problemDescription || row.repairIssue || "",
