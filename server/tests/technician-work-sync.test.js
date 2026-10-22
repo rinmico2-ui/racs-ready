@@ -84,7 +84,7 @@ test("the actual assignment-list handler uses the same scope for records and tot
   const filters = [];
   const scoped = { technicianId: "t1", _id: { $nin: ["a0", "a1", "a2"] } };
   const row = { ...assignment, _id: "a3" };
-  const Assignments = { find(filter) { filters.push(filter); return { sort() { return this; }, skip() { return this; }, limit() { return this; }, lean: async () => [row] }; }, countDocuments: async filter => { filters.push(filter); return 1; } };
+  const Assignments = { find(filter) { filters.push(filter); return { select(fields) { assert.match(fields, /-arrivalProofUrl -startProofUrl/); return this; }, sort() { return this; }, skip() { return this; }, limit() { return this; }, lean: async () => [row] }; }, countDocuments: async filter => { filters.push(filter); return 1; } };
   const handler = vm.runInNewContext("(" + source.slice(start, end + 2) + ")", {
     require: name => name.endsWith("Assignment") ? Assignments : { find: () => query([booking]) },
     Technician: { findOne: () => query({ _id: "t1" }) }, technicianAssignmentScope: async () => scoped,

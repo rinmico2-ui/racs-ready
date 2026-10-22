@@ -33,6 +33,7 @@ function requestTelemetry(req, res, next) {
   const started = process.hrtime.bigint();
   req.requestId = requestId;
   req.auditRequestId = req.auditRequestId || requestId;
+  req.measurePerformance = (stage, work) => require('../utils/requestTiming').measureRequest(req, stage, work);
   res.setHeader("X-Request-Id", requestId);
 
   state.totalRequests += 1;

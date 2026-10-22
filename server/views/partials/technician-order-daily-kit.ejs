@@ -66,8 +66,9 @@
       return '<button type="button" class="odk-date-choice'+(day.date===state.date?' active':'')+'" data-odk-date="'+esc(day.date)+'" aria-pressed="'+(day.date===state.date)+'">'+esc(label)+' · '+day.jobs+' job'+(day.jobs===1?'':'s')+'</button>';
     }).join('');
   }
+  var upcomingRequest=null,kitRequests=new Map(),preparationTimer=null,preparationAttempts=0;
   async function loadUpcoming(){
-    try{var data=await request('/api/technician/daily-kit/upcoming');state.upcoming=data.dates||[];renderUpcoming()}
+    try{if(!upcomingRequest)upcomingRequest=request('/api/technician/daily-kit/upcoming').finally(function(){upcomingRequest=null});var data=await upcomingRequest;state.upcoming=data.dates||[];renderUpcoming()}
     catch(error){el('odkUpcomingDates').textContent='Could not load booked dates. You can still choose a date above.'}
   }
   function statusInfo(kit,jobs){
@@ -88,9 +89,10 @@
     if(checked===required.length)return {cls:'ready',icon:'bi-check-circle',label:'Ready to confirm',copy:'All required items are checked. Open the kit to confirm preparation.'};
     return {cls:'pending',icon:'bi-check2-square',label:'Checklist',copy:checked+' of '+required.length+' required item(s) checked. Open the kit to finish preparing.'};
   }
-  async function request(url,options){var response=await fetch(url,{credentials:'same-origin',...(options||{})});var data=await response.json().catch(function(){return {}});if(!response.ok)throw new Error(data.error||'Request failed');return data}
+  async function request(url,options){if(options&&options.method&&options.method!=='GET')kitRequests.clear();var response=await fetch(url,{credentials:'same-origin',...(options||{})});var data=await response.json().catch(function(){return {}});if(!response.ok)throw new Error(data.error||'Request failed');return data}
   function setBar(payload){
     var kit=payload.kit||{},jobs=payload.jobDetails||[],info=statusInfo(kit,jobs);
+    if(payload.preparationPending)info={cls:'pending',icon:'bi-hourglass-split',label:'Preparing',copy:'Updating the equipment list for your assigned jobs.'};
     if(!jobs.length&&(payload.sharedKits||[]).length){
       var ready=payload.sharedKits.every(function(shared){return ['confirmed','in_progress','completed'].includes(shared.status)&&!shared.hasDelta});
       info={cls:ready?'ready':'pending',icon:'bi-people',label:ready?'Shared kit ready':'Shared kit',copy:'View the primary technician\'s preparation. Supporting technicians do not prepare or check out this kit.'};
@@ -125,6 +127,7 @@
     state.extraItem=null;state.extraResults=[];state.searchVersion++;clearTimeout(state.searchTimer);
     var kit=payload.kit||{},jobs=payload.jobDetails||[],items=kit.items||[],delta=kit.deltaItems||[],aiSuggestions=payload.aiContingencySuggestions||[];
     var sharedHtml=renderSharedKits(payload);
+    if(payload.preparationPending){el('odkBody').innerHTML='<div class="odk-empty" role="status"><span class="spinner-border spinner-border-sm me-2"></span>Preparing the equipment list for '+jobs.length+' assigned job(s). This window will update automatically.</div>';el('odkConfirm').style.display='none';el('odkConfirm').disabled=true;el('odkFooterHint').textContent='Your assigned jobs are saved. Preparation will be available when the list is ready.';return}
     if(!jobs.length&&sharedHtml){el('odkBody').innerHTML=sharedHtml;el('odkConfirm').style.display='none';el('odkConfirm').disabled=true;el('odkFooterHint').textContent='View only. The primary technician prepares and confirms the shared kit.';return}
     var targets=checkTargets(kit),required=targets.filter(requiresCheck),checked=required.filter(function(item){return item.preparedChecked}).length,remaining=required.length-checked;
     var canEdit=isTodayDate(state.date)&&(kit.status==='draft'||Boolean(kit.hasDelta));
@@ -185,11 +188,17 @@
     el('odkFooterHint').textContent=!isTodayDate(state.date)?'Preview only. Equipment and materials are not issued yet.':unavailable.length?'Resolve unavailable items, then finish the checklist.':remaining?'Check every required item before confirming.':items.length||delta.length?'Confirmation checks out equipment and issues consumables for all covered jobs.':'No physical items are required; confirm that you are ready for the covered jobs.';
     updateChecklist();
   }
-  async function load(date,showModal){
+  function readKit(date){
+    if(kitRequests.has(date))return kitRequests.get(date);
+    var reading=request('/api/technician/daily-kit?date='+encodeURIComponent(date)).finally(function(){if(kitRequests.get(date)===reading)kitRequests.delete(date)});kitRequests.set(date,reading);return reading;
+  }
+  async function load(date,showModal,automatic){
+    if(!automatic)preparationAttempts=0;
+    if(preparationTimer){clearTimeout(preparationTimer);preparationTimer=null}
     var requestId=++state.requestId,saveVersion=state.saveVersion;state.date=date||state.date||localDateKey();el('odkBarDate').value=state.date;el('odkModalDateInput').value=state.date;el('odkModalDate').textContent=niceDate(state.date);renderUpcoming();
     if(showModal)el('odkBody').innerHTML='<div class="text-center text-muted py-5"><span class="spinner-border spinner-border-sm me-2"></span>Building the shared kit...</div>';
     el('odkConfirm').style.display='none';
-    try{var payload=await request('/api/technician/daily-kit?date='+encodeURIComponent(state.date));if(requestId!==state.requestId)return;
+    try{var payload=await readKit(state.date);if(requestId!==state.requestId)return;
       // A refresh may have read before a pending check was saved. Keep only
       // acknowledgements newer than that read, for the same unchanged item.
       state.savedChecks.forEach(function(saved){
@@ -197,6 +206,7 @@
         var item=checkTargets(payload.kit||{}).find(function(row){return String(row._id)===saved.itemId});
         if(item&&checkShape(item)===saved.shape){item.preparedChecked=saved.checked;item.preparedCheckedAt=saved.at;item.preparedCheckedBy=saved.by}
       });
+      if((payload.preparationPending||payload.refreshPending)&&preparationAttempts<10&&!document.hidden){preparationAttempts++;var requestedDate=state.date;preparationTimer=setTimeout(function(){if(state.date===requestedDate)load(requestedDate,false,true)},Math.min(15000,3000*preparationAttempts))}else if(!payload.preparationPending&&!payload.refreshPending)preparationAttempts=0;
       state.payload=payload;state.payloadDate=state.date;if(state.date===localDateKey())window._dailyKitStatus=payload.kit?payload.kit.status:null;setBar(payload);if(showModal||el('odkModal').classList.contains('show'))render(payload)}catch(error){if(requestId!==state.requestId)return;state.payload=null;state.payloadDate='';el('odkBarStatus').className='odk-status blocked';el('odkBarStatus').innerHTML='<i class="bi bi-exclamation-triangle"></i> Error';el('odkBarCopy').textContent=error.message;el('odkConfirm').style.display='none';if(showModal||el('odkModal').classList.contains('show'))el('odkBody').innerHTML='<div class="alert alert-danger">'+esc(error.message)+'</div>'}
   }
   window.openTechnicianDailyKit=function(date){
@@ -214,6 +224,7 @@
     }else show();
   };
   window.refreshTechnicianDailyKit=function(date){loadUpcoming();return load(date||state.date||localDateKey(),false)};
+  document.addEventListener('visibilitychange',function(){if(!document.hidden&&(state.payload?.preparationPending||state.payload?.refreshPending))load(state.date,false)});
   // Compatibility aliases for existing booking- and order-page action buttons.
   window.openOrderDailyKit=window.openTechnicianDailyKit;
   window.openDailyKitModal=window.openTechnicianDailyKit;
@@ -242,6 +253,7 @@
   function currentItem(itemId){return state.payloadDate===state.date?checkTargets(state.payload?.kit||{}).find(function(item){return String(item._id)===String(itemId)}):null}
   function updateChecklist(){
     if(!state.payload||state.payloadDate!==state.date)return;
+    if(state.payload.preparationPending){el('odkConfirm').disabled=true;el('odkConfirm').style.display='none';return}
     var kit=state.payload.kit||{},required=checkTargets(kit).filter(requiresCheck),pending=0;
     state.pendingChecks.forEach(function(entry){
       if(!visibleCheck(entry))return;

@@ -2468,110 +2468,7 @@ router.get("/dashboard/overview", async (req, res, next) => {
     });
 
     // ── Repair Queue (repair bookings assigned to this technician) ──────────
-    const repairStatuses = [
-      "inspection_scheduled", "inspection_completed", "awaiting_approval",
-      "repair_approved", "repair_declined", "waiting_parts", "parts_reserved",
-      "ready_for_repair", "repair_scheduled", "repair_in_progress", "repair_completed"
-    ];
-    const repairBookings = await BookingService.find({
-      "technicianId": techId,
-      "serviceType": "repair",
-      status: { $in: repairStatuses },
-    })
-      .sort({ updatedAt: -1 })
-      .limit(20)
-      .select("status serviceType unitInfo customerId technicianId quotation approval repairSchedule inspection preferredSchedule preferredTimeWindow createdAt updatedAt")
-      .populate("customerId", "name phone")
-      .lean();
-
-    // Also get the inspection technician's bookings (if this tech was the original inspector)
-    const inspectorBookings = await BookingService.find({
-      "inspection.technicianId": techId,
-      "serviceType": "repair",
-      status: { $in: repairStatuses },
-      "technicianId": { $ne: techId },
-    })
-      .sort({ updatedAt: -1 })
-      .limit(10)
-      .select("status serviceType unitInfo customerId technicianId quotation approval repairSchedule inspection preferredSchedule preferredTimeWindow createdAt updatedAt")
-      .populate("customerId", "name phone")
-      .lean();
-
-    // Merge and deduplicate
-    const repairBookingMap = new Map();
-    for (const b of [...repairBookings, ...inspectorBookings]) {
-      repairBookingMap.set(String(b._id), b);
-    }
-
-    // Find existing assignments for these bookings
-    const repairBookingIds = [...repairBookingMap.keys()].map(id => new mongoose.Types.ObjectId(id));
-    const repairAssignments = repairBookingIds.length > 0 ? await Assignment.find({
-      technicianId: techId,
-      bookingId: { $in: repairBookingIds },
-    }).select("bookingId status").lean() : [];
-    const assignmentMap = new Map(repairAssignments.map(a => [String(a.bookingId), a.status]));
-
-    // Build enriched repair queue
-    // pending_acceptance is already a real Assignment and is rendered by the
-    // assignments endpoint. Including the same booking in repairQueue creates
-    // a second synthetic card with createdAt as its date and blank job fields.
-    const activeAssignmentStatuses = ["pending_acceptance", "accepted", "en_route", "on_site", "in_progress"];
-    const repairQueue = [...repairBookingMap.values()]
-      .filter(b => {
-        // Exclude bookings that already have an active assignment (shown as Active Job)
-        const assignmentStatus = assignmentMap.get(String(b._id));
-        if (assignmentStatus && activeAssignmentStatuses.includes(assignmentStatus)) return false;
-        return true;
-      })
-      .map(b => {
-        const bookingStatus = b.status;
-        const assignmentStatus = assignmentMap.get(String(b._id)) || null;
-
-        // Determine if parts are ready and repair is scheduled
-        const hasReservation = b.status === "parts_reserved" || b.status === "ready_for_repair" || b.status === "repair_scheduled";
-        const isScheduled = b.repairSchedule?.decidedAt || b.status === "repair_scheduled" || b.status === "ready_for_repair";
-        const waitingForParts = b.status === "waiting_parts";
-        const waitingForSchedule = b.status === "repair_approved" && !isScheduled;
-
-        let techAction = null;
-        if (bookingStatus === "repair_scheduled" || bookingStatus === "ready_for_repair" || bookingStatus === "repair_approved" || bookingStatus === "parts_reserved") {
-          techAction = "ready"; // Can go En Route
-        } else if (waitingForParts) {
-          techAction = "waiting_parts";
-        } else if (waitingForSchedule) {
-          techAction = "waiting_schedule";
-        } else if (bookingStatus === "repair_in_progress") {
-          techAction = "in_progress";
-        }
-
-        return {
-          _id: b._id,
-          bookingId: b._id,
-          customerName: b.customerId?.name || "Customer",
-          customerPhone: b.customerId?.phone || "",
-          serviceName: "Repair Service",
-          serviceType: "repair",
-          bookingStatus,
-          assignmentStatus,
-          unitInfo: b.unitInfo,
-          quotation: b.quotation,
-          repairSchedule: b.repairSchedule,
-          inspection: b.inspection,
-          preferredDates: b.preferredSchedule?.dates || [],
-          preferredTimeWindow: b.preferredSchedule?.timeWindow || "any",
-          techAction,
-          createdAt: b.createdAt,
-          updatedAt: b.updatedAt,
-        };
-      });
-
-    // Group counts by repair sub-status for KPI
-    const repairCounts = {};
-    for (const s of repairStatuses) repairCounts[s] = 0;
-    for (const a of repairQueue) {
-      const s = a.bookingStatus || a.status;
-      if (repairCounts[s] !== undefined) repairCounts[s]++;
-    }
+    const { repairQueue, repairCounts } = await require('../utils/technicianRepairQueue').createService().read(techId);
 
     // ── End-of-Day Accountability & Workload Extras ────────────────────────
     const Payment = require("../models/Payment");
@@ -2848,6 +2745,7 @@ router.get("/calendar", async (req, res, next) => {
     const TechnicianSchedule = require("../models/TechnicianSchedule");
     const [items, total, scheduleDoc] = await Promise.all([
       Assignment.find(filter)
+        .select('-arrivalProofUrl -startProofUrl')
         .sort({ bookingDate: 1, startTime: 1 })
         .skip(skip)
         .limit(lim)
@@ -2870,6 +2768,15 @@ router.get("/calendar", async (req, res, next) => {
 // ASSIGNMENTS — CRUD & Status Transitions
 // ═════════════════════════════════════════════════════════════════════════════
 
+router.get('/repair-queue', async (req, res, next) => {
+  try {
+    const measure = req.measurePerformance || ((_stage, work) => work());
+    const tech = await measure('technician', () => Technician.findOne({ user: req.user._id }).select('_id').lean());
+    if (!tech) return res.status(404).json({ error: 'Technician record not found' });
+    return res.json(await measure('repairQueue', () => require('../utils/technicianRepairQueue').createService().read(tech._id)));
+  } catch (error) { next(error); }
+});
+
 /**
  * GET /api/technician/assignments
  * Query: ?status=pending_acceptance|accepted|en_route|...&page=1&limit=20&search=...
@@ -2877,13 +2784,14 @@ router.get("/calendar", async (req, res, next) => {
  */
 router.get("/assignments", async (req, res, next) => {
   try {
+    const measure = req.measurePerformance || ((_stage, work) => work());
     const Assignment = require("../models/Assignment");
 
-    const tech = await Technician.findOne({ user: req.user._id }).lean();
+    const tech = await measure('technician', () => Technician.findOne({ user: req.user._id }).lean());
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
 
     const { status, search, date, sort, page = 1, limit = 20 } = req.query;
-    const filter = await technicianAssignmentScope(tech._id);
+    const filter = { technicianId: tech._id };
 
     if (date) {
       const start = manilaDateTime(date, 0);
@@ -2933,14 +2841,16 @@ router.get("/assignments", async (req, res, next) => {
     if (sort === 'oldest') sortObj = { bookingDate: 1, startTime: 1 };
     else if (sort === 'priority') sortObj = { priority: -1, bookingDate: -1, startTime: -1 };
 
-    const [items, total] = await Promise.all([
+    Object.assign(filter, await measure('assignmentScope', () => technicianAssignmentScope(tech._id, { filter })));
+    const [items, total] = await measure('assignmentPage', () => Promise.all([
       Assignment.find(filter)
+        .select('-arrivalProofUrl -startProofUrl')
         .sort(sortObj)
         .skip(skip)
         .limit(lim)
         .lean(),
       Assignment.countDocuments(filter),
-    ]);
+    ]));
 
     // Enrich assignments with booking payment fields and status
     const BookingService = require("../models/BookingService");
@@ -3057,16 +2967,21 @@ router.get("/assignments", async (req, res, next) => {
  */
 router.get("/assignments/:id", async (req, res, next) => {
   try {
+    const measure = req.measurePerformance || ((_stage, work) => work());
     const Assignment = require("../models/Assignment");
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid id" });
 
-    const tech = await Technician.findOne({ user: req.user._id }).lean();
+    const tech = req.technicianWorkContext?.tech || await measure('technician', () => Technician.findOne({ user: req.user._id }).lean());
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
 
-    const assignment = await Assignment.findOne({ _id: id, technicianId: tech._id })
-      .populate({ path: "bookingId", select: TECHNICIAN_BOOKING_EXCLUDE_SELECT })
-      .lean();
+    const context = req.technicianWorkContext;
+    const assignment = context && String(context.assignment.technicianId) === String(tech._id)
+      ? { ...context.assignment, bookingId: context.booking }
+      : await measure('assignmentDetail', () => Assignment.findOne({ _id: id, technicianId: tech._id })
+        .select('-arrivalProofUrl -startProofUrl')
+        .populate({ path: "bookingId", select: TECHNICIAN_BOOKING_EXCLUDE_SELECT })
+        .lean());
 
     if (!assignment) return res.status(404).json({ error: "Assignment not found" });
 
@@ -3093,7 +3008,7 @@ router.get("/assignments/:id", async (req, res, next) => {
       assignment.bookingStatus = bk.status;
       assignment.quotation = bk.quotation;
       assignment.noShowReport = bk.noShowReport || null;
-      assignment.noShowWaitMinutes = await getNoShowWaitMinutes().catch(() => 15);
+      assignment.noShowWaitMinutes = 15;
       if (!assignment.serviceType) assignment.serviceType = bk.serviceType;
       if (!assignment.serviceName || assignment.serviceName === "Service" || assignment.serviceName === "") {
         assignment.serviceName = bk.isMultiService && Array.isArray(bk.services) && bk.services.length > 0 ? bk.services.map(s => s.name).join(", ") : (bk.service?.name || "Service");
@@ -3146,6 +3061,24 @@ router.get("/assignments/:id", async (req, res, next) => {
       }
     }
 
+    const resourceId = assignment.bookingId?._id;
+    const resourcesRequested = req.query?.includeResources === '1' && resourceId;
+    const canViewResources = [tech._id, tech.user].filter(Boolean).map(String).includes(String(assignment.bookingId?.technicianId));
+    const [waitMinutes, resources] = await Promise.all([
+      measure('visitSettings', () => getNoShowWaitMinutes().catch(() => 15)),
+      resourcesRequested ? measure('visitResources', () => canViewResources ? Promise.allSettled([
+        EquipmentAssignment.find({ bookingId: resourceId }).populate('equipmentId', 'itemName barcode quantity status').sort({ createdAt: -1 }).lean(),
+        require('../models/Payment').find({ bookingId: resourceId }).select('_id amount method type status collectedByName collectedAt submittedAt verifiedAt completedAt refundAmount refundStatus').sort({ collectedAt: 1, submittedAt: 1 }).lean(),
+        String(assignment.bookingId.technicianId) === String(tech._id)
+          ? require('../models/StockReservation').find({ bookingId: resourceId }).populate('toolId', 'itemName quantity costPrice sellingPrice type barcode').sort({ reservedAt: -1 }).lean()
+          : Promise.resolve([]),
+      ]).then(results => results.map(result => result.status === 'fulfilled' ? result.value : [])) : Promise.resolve([[], [], []])) : null,
+    ]);
+    assignment.noShowWaitMinutes = waitMinutes;
+    if (resources) {
+      [assignment.equipmentItems, assignment.payments, assignment.reservedParts] = resources;
+      assignment.resourceHistoryIncluded = true;
+    }
     if (assignment.bookingId && typeof assignment.bookingId === "object") {
       assignment.bookingId = presentTechnicianBooking(assignment.bookingId);
     }
@@ -4404,6 +4337,7 @@ router.post("/assignments/:id/mark-delayed", async (req, res, next) => {
  */
 router.patch("/assignments/:id/status", async (req, res, next) => {
   try {
+    const measure = req.measurePerformance || ((_stage, work) => work());
     const Assignment = require("../models/Assignment");
     const Technician = require("../models/Technician");
     const mongoose = require("mongoose");
@@ -4521,7 +4455,7 @@ router.patch("/assignments/:id/status", async (req, res, next) => {
       byName: tech.name,
       createdAt: now,
     });
-    await assignment.save();
+    await measure('assignmentSave', () => assignment.save());
 
     const availabilityMap = {
       en_route: "On The Way",
@@ -4549,6 +4483,7 @@ router.patch("/assignments/:id/status", async (req, res, next) => {
       completed: "completed",
       cancelled: "pending_reassignment",
     };
+    let synchronizedBooking = null;
     if (bookingStatusMap[newStatus]) {
       const isRepair = assignment.serviceType === "repair";
       // For repair services, intermediate technician states (en_route, on_site)
@@ -4562,12 +4497,12 @@ router.patch("/assignments/:id/status", async (req, res, next) => {
           const configuredWarranty = await configuredBookingWarranty({ serviceType: assignment.serviceType }, now);
           if (configuredWarranty.coverage) updateData.warranty = configuredWarranty.coverage;
         }
-        await BookingService.findByIdAndUpdate(assignment.bookingId, updateData);
+        synchronizedBooking = await measure('bookingSave', () => BookingService.findByIdAndUpdate(assignment.bookingId, updateData, { new: true }));
 
         try {
           const io = req.app.get("io");
           if (io) {
-            const updatedBooking = await BookingService.findById(assignment.bookingId).lean();
+            const updatedBooking = synchronizedBooking || await BookingService.findById(assignment.bookingId).lean();
             const customerId = updatedBooking?.customerId?._id || updatedBooking?.customerId;
             if (customerId) {
               io.to("customer:" + customerId).emit("booking:status-change", {
@@ -4587,7 +4522,7 @@ router.patch("/assignments/:id/status", async (req, res, next) => {
     if (newStatus === "en_route") {
       try {
         const { sendTechArrivalNotificationEmail } = require("../utils/mailer");
-        const updatedBookingForEmail = await BookingService.findById(assignment.bookingId).lean();
+        const updatedBookingForEmail = synchronizedBooking || await BookingService.findById(assignment.bookingId).lean();
         if (updatedBookingForEmail?.customer?.email) {
           const dateLabel = updatedBookingForEmail.bookingDate
             ? new Date(updatedBookingForEmail.bookingDate).toLocaleDateString("en-PH", { weekday: "long", year: "numeric", month: "long", day: "numeric" })
@@ -4613,7 +4548,7 @@ router.patch("/assignments/:id/status", async (req, res, next) => {
     if (newStatus === "on_site") {
       try {
         const { sendTechnicianArrivedEmail } = require("../utils/mailer");
-        const updatedBookingForEmail = await BookingService.findById(assignment.bookingId).lean();
+        const updatedBookingForEmail = synchronizedBooking || await BookingService.findById(assignment.bookingId).lean();
         if (updatedBookingForEmail?.customer?.email) {
           const dateLabel = updatedBookingForEmail.bookingDate
             ? new Date(updatedBookingForEmail.bookingDate).toLocaleDateString("en-PH", { weekday: "long", year: "numeric", month: "long", day: "numeric" })
@@ -4639,7 +4574,7 @@ router.patch("/assignments/:id/status", async (req, res, next) => {
     if (newStatus === "in_progress") {
       try {
         const { sendWorkStartedEmail } = require("../utils/mailer");
-        const updatedBookingForEmail = await BookingService.findById(assignment.bookingId).lean();
+        const updatedBookingForEmail = synchronizedBooking || await BookingService.findById(assignment.bookingId).lean();
         if (updatedBookingForEmail?.customer?.email) {
           const dateLabel = updatedBookingForEmail.bookingDate
             ? new Date(updatedBookingForEmail.bookingDate).toLocaleDateString("en-PH", { weekday: "long", year: "numeric", month: "long", day: "numeric" })
@@ -4709,7 +4644,7 @@ router.patch("/assignments/:id/status", async (req, res, next) => {
       details: { assignmentId: id, newStatus },
     }).catch(() => { });
 
-    return res.json({ message: `Status updated to ${newStatus.replace(/_/g, " ")}.`, assignment });
+    return res.json({ message: `Status updated to ${newStatus.replace(/_/g, " ")}.`, assignment, bookingStatus: synchronizedBooking?.status });
   } catch (err) {
     next(err);
   }
@@ -9272,87 +9207,12 @@ router.get("/daily-kit/upcoming", async (req, res, next) => {
  */
 router.get("/daily-kit", async (req, res, next) => {
   try {
-    const BookingService = require("../models/BookingService");
-    const Assignment = require("../models/Assignment");
-    const DailyAssignment = require("../models/DailyAssignment");
-    const Order = require("../models/Order");
-    const tech = await Technician.findOne({ user: req.user._id });
+    const measure = req.measurePerformance || ((_stage, work) => work());
+    const tech = await measure('technician', () => Technician.findOne({ user: req.user._id }).select('_id').lean());
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
-    const kit = await syncDailyKit(tech._id, req.query.date || new Date());
-
-    // Enrich with job details
-    const assignments = await Assignment.find({
-      _id: { $in: kit.assignmentIds || [] },
-    }).populate("bookingId", "serviceName serviceType services technicianAssistant servicePreparation status").lean();
-
-    const jobDetails = assignments.map(a => ({
-      assignmentId: a._id,
-      bookingId: a.bookingId?._id || a.bookingId,
-      serviceName: a.serviceName || a.bookingId?.serviceName || "Service",
-      serviceType: a.serviceType || a.bookingId?.serviceType || "core",
-      startTime: a.startTime || "",
-      status: a.status,
-    }));
-    const installationOrders = await Order.find({ _id: { $in: kit.orderIds || [] } })
-      .select("orderReference customer items fulfillmentType delivery.preferredDate timeSlot status preparation")
-      .lean();
-    for (const order of installationOrders) {
-      jobDetails.push({
-        orderId: order._id,
-        serviceName: `Delivery & Installation · ${order.orderReference || String(order._id).slice(-6).toUpperCase()}`,
-        serviceType: "order_installation",
-        startTime: order.timeSlot || "",
-        status: order.status,
-        customerName: order.customer?.name || "Customer",
-      });
-    }
-    const projectAssignments = await DailyAssignment.find({ _id: { $in: kit.dailyAssignmentIds || [] } })
-      .populate("projectId", "projectNumber customer.name service.name")
-      .populate("workOrderId", "workOrderNumber title")
-      .sort({ startTime: 1 })
-      .lean();
-    for (const row of projectAssignments) {
-      jobDetails.push({
-        projectId: row.projectId?._id || row.projectId,
-        workOrderId: row.workOrderId?._id || row.workOrderId,
-        dailyAssignmentId: row._id,
-        serviceName: `Project · ${row.workOrderId?.workOrderNumber || row.workOrderId?.title || row.projectId?.projectNumber || "Work Order"}`,
-        serviceType: "project",
-        startTime: row.startTime || "",
-        status: row.status,
-        customerName: row.projectId?.customer?.name || "Project customer",
-      });
-    }
-
-    // Collect AI contingency part suggestions from repair bookings
-    const aiContingencySuggestions = [];
-    for (const a of assignments) {
-      const booking = a.bookingId;
-      if (!booking) continue;
-      const isRepair = (a.serviceType === "repair" || booking.serviceType === "repair" || booking.serviceType === "mixed");
-      if (!isRepair) continue;
-      const assistant = booking.technicianAssistant;
-      if (!assistant || !assistant.possibleParts || !assistant.possibleParts.length) continue;
-      // Only suggest if AI diagnosis has been reviewed
-      if (!assistant.verifiedByTechnician) continue;
-      const confirmedNames = new Set(
-        (booking.servicePreparation?.aiContingencyParts || []).map(p => String(p.name || "").toLowerCase())
-      );
-      for (const part of assistant.possibleParts) {
-        const name = typeof part === "string" ? part : part?.name || "";
-        if (!name) continue;
-        aiContingencySuggestions.push({
-          name,
-          serviceName: typeof part === "object" ? (part.serviceName || a.serviceName || "Repair") : a.serviceName || "Repair",
-          bookingId: String(booking._id),
-          assignmentId: String(a._id),
-          alreadyConfirmed: confirmedNames.has(name.toLowerCase()),
-        });
-      }
-    }
-
-    const sharedKits = await require('../utils/sharedStandardDailyKits').createService().read(tech._id, req.query.date || new Date());
-    return res.json({ success: true, kit: kit.toObject(), jobDetails, aiContingencySuggestions, sharedKits });
+    res.set('Cache-Control', 'private, no-store');
+    const view = await require('../utils/technicianDailyKitRead').createService().read(tech._id, req.query.date || new Date(), measure);
+    return res.json(view);
   } catch (err) { next(err); }
 });
 

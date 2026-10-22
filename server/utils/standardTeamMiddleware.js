@@ -2,15 +2,21 @@
 const team = require('./standardJobTeam');
 module.exports = async function standardTeamMiddleware(req, res, next) {
   try {
+    const measure = req.measurePerformance || ((_stage, work) => work());
     const id = req.params.id;
     if (!require('mongoose').isValidObjectId(id)) return next();
-    const assignment = await require('../models/Assignment').findById(id).select('_id bookingId technicianId serviceType serviceItemId status bookingDate startTime').lean();
+    const detailRead = req.method === 'GET' && /^\/?$/.test(req.path);
+    const assignment = await measure('assignmentAccess', () => require('../models/Assignment').findById(id).select(detailRead ? '-arrivalProofUrl -startProofUrl' : '_id bookingId technicianId serviceType serviceItemId status bookingDate startTime').lean());
     if (!assignment || assignment.serviceType === 'project') return next();
-    const job = await require('../models/BookingService').findById(assignment.bookingId).select(require('./technicianWorkSync').BOOKING_WORK_SELECT + ' customerCancellation').lean();
+    const job = await measure('bookingAccess', () => require('../models/BookingService').findById(assignment.bookingId).select(detailRead
+      ? require('./technicianDataPresentation').TECHNICIAN_BOOKING_EXCLUDE_SELECT
+      : require('./technicianWorkSync').BOOKING_WORK_SELECT + ' customerCancellation').lean());
+    if (detailRead) req.technicianWorkContext = { assignment, booking: job };
     const action = req.path.replace(/^\//, '');
     if (!['GET', 'HEAD'].includes(req.method) && !['note', 'emergency', 'cancel', 'decline'].includes(action)) require('./customerCancellationPolicy').assertNoHold(job);
     if (!team.members(job).length) return next();
-    const tech = await require('../models/Technician').findOne({ user: req.user._id }).lean();
+    const tech = await measure('technician', () => require('../models/Technician').findOne({ user: req.user._id }).lean());
+    if (detailRead) req.technicianWorkContext.tech = tech;
     // A technician keeps read access to their own completed/cancelled visit
     // after Operations releases or replaces its current team. Writes still
     // require the current team membership below.

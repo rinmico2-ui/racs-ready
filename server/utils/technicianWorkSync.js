@@ -41,10 +41,10 @@ function assignmentWorkDecision(assignment, booking, { includeProjects = false }
   return { current: true, historical: false };
 }
 
-async function technicianAssignmentScope(technicianId, { Assignments = require("../models/Assignment"), Bookings = require("../models/BookingService") } = {}) {
+async function technicianAssignmentScope(technicianId, { Assignments = require("../models/Assignment"), Bookings = require("../models/BookingService"), filter = {} } = {}) {
   // Validate before pagination and counting; filtering one returned page leaves
   // phantom jobs in run sheets, badges and subsequent pages.
-  const assignments = await Assignments.find({ technicianId, status: { $ne: "expired" } })
+  const assignments = await Assignments.find({ ...filter, technicianId, status: filter.status || { $ne: "expired" } })
     .select("bookingId technicianId serviceItemId serviceType status bookingDate startTime").lean();
   const ids = [...new Map(assignments.filter(item => item.bookingId).map(item => [ref(item.bookingId), item.bookingId])).values()];
   const bookings = ids.length ? await Bookings.find({ _id: { $in: ids } }).select(BOOKING_WORK_SELECT).lean() : [];

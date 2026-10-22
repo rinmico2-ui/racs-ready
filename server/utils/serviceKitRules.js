@@ -115,6 +115,7 @@ function createService({ Rules = Rule, Core = CoreService, Repair = RepairServic
 // Resolve by saved service identity. Exact-name fallback only supports older
 // bookings without IDs; ambiguous names never select an arbitrary rule.
 async function rulesForBooking(booking, opts = {}) {
+  const { preparationRead } = require('./preparationRead');
   const singleBooking = !Array.isArray(booking.services) || booking.services.length <= 1;
   let entries = Array.isArray(booking.services) && booking.services.length ? booking.services
     : [{ serviceId: booking.serviceId || booking.service?._id, name: booking.service?.name || booking.serviceName,
@@ -132,10 +133,10 @@ async function rulesForBooking(booking, opts = {}) {
   };
   const coreQuery = queryFor('CoreService'), repairQuery = queryFor('RepairService');
   const [cores, repairs, categories] = await Promise.all([
-    coreQuery ? CoreService.find(coreQuery).select('name slug').lean() : [],
-    repairQuery ? RepairService.find(repairQuery).select('name slug').lean() : [],
+    coreQuery ? preparationRead(opts, 'coreCatalog', coreQuery, () => CoreService.find(coreQuery).select('name slug').lean()) : [],
+    repairQuery ? preparationRead(opts, 'repairCatalog', repairQuery, () => RepairService.find(repairQuery).select('name slug').lean()) : [],
     missing.some(item => (item.type || booking.serviceType) === 'repair')
-      ? ServiceCategory.find({ archivedAt: null }).select('name slug unitTypes').lean() : [],
+      ? preparationRead(opts, 'repairCategories', 'active', () => ServiceCategory.find({ archivedAt: null }).select('name slug unitTypes').lean()) : [],
   ]);
   const resolved = entries.map(item => {
     let serviceModel = (item.type || booking.serviceType) === 'repair' ? 'RepairService' : 'CoreService';
@@ -165,7 +166,7 @@ async function rulesForBooking(booking, opts = {}) {
       quantity: Math.max(1, Number(opts.serviceItemId ? opts.quantity || item.quantity : item.quantity) || 1) };
   });
   const ids = resolved.map(row => row.serviceId).filter(id => mongoose.isValidObjectId(id));
-  const rules = ids.length ? await Rule.find({ serviceId: { $in: ids }, mode: 'custom' }).lean() : [];
+  const rules = ids.length ? await preparationRead(opts, 'kitRules', ids.map(String).sort(), () => Rule.find({ serviceId: { $in: ids }, mode: 'custom' }).lean()) : [];
   const map = new Map(rules.map(rule => [`${rule.serviceModel}:${ref(rule.serviceId)}`, rule]));
   return resolved.map(row => ({ ...row, rule: map.get(`${row.serviceModel}:${ref(row.serviceId)}`) || null }));
 }

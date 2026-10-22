@@ -11,6 +11,8 @@ const TECHNICIAN_BOOKING_EXCLUDE_SELECT = [
   "-customerAccountAccess",
   "-adminNotes",
   "-internalNotes",
+  "-arrivalProofUrl",
+  "-startProofUrl",
 ].join(" ");
 
 const TECHNICIAN_ORDER_EXCLUDE_SELECT = [
@@ -125,6 +127,8 @@ const TECHNICIAN_RESPONSE_PRIVATE_KEYS = new Set([
   "adminNotes",
   "internalNotes",
   "checkoutRequestId",
+  "arrivalProofUrl",
+  "startProofUrl",
 ]);
 
 /**
@@ -148,6 +152,10 @@ function presentTechnicianApiPayload(value, parentKey = "") {
 
   const result = {};
   for (const [key, item] of Object.entries(source)) {
+    if (key === 'proofPhoto' && typeof item === 'string' && /^data:image\//i.test(item)) {
+      result.hasCompletionProof = true;
+      continue;
+    }
     if (TECHNICIAN_RESPONSE_PRIVATE_KEYS.has(key)) continue;
     if (key === "email" && ["customer", "customerId"].includes(parentKey)) continue;
     result[key] = presentTechnicianApiPayload(item, key);

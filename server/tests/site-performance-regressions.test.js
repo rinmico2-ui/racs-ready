@@ -43,7 +43,7 @@ test('public-only static routing is mounted before session and user database mid
   const assets = source.indexOf("require('./middleware/publicAssets')");
   assert.ok(assets >= 0);
   assert.ok(assets < source.indexOf('session({'));
-  assert.ok(assets < source.indexOf('app.use(attachCurrentUser)'));
+  assert.ok(assets < source.indexOf("app.use(timedMiddleware('identity', attachCurrentUser))"));
   assert.match(source, /requireBookingEvidenceAccess/);
   assert.doesNotMatch(read('../middleware/publicAssets.js'), /router\.use\(['"]\/uploads/);
 });

@@ -1,4 +1,5 @@
 const Tool = require('../models/Tool');
+const { preparationRead } = require('./preparationRead');
 
 const SERVICE_KITS = [
   { match: /repair|inspect|diagnos|troubleshoot|problem|issue/i, equipment: ['tool kit', 'ladder', 'multimeter', 'gauge manifold', 'leak detector', 'thermometer'], consumables: [['gloves', 1], ['cleaning cloth', 1]] },
@@ -19,10 +20,10 @@ function scoreMatch(item, wanted) {
 }
 
 async function buildLegacyServicePreparation(booking, opts = {}) {
-  const inventory = await Tool.find({
+  const inventory = await preparationRead(opts, 'inventory', 'operational', () => Tool.find({
     active: { $ne: false }, status: { $ne: 'discontinued' },
     assetStatus: { $nin: ['under_maintenance', 'damaged', 'retired'] },
-  }).select('itemName category description type inventoryClass quantity reservedQuantity unit assignable assetStatus').lean();
+  }).select('itemName category description type inventoryClass quantity reservedQuantity unit assignable assetStatus').lean());
   return buildDefaultServicePreparation(booking, inventory, opts);
 }
 
@@ -109,7 +110,7 @@ async function buildServicePreparation(booking, opts = {}) {
       serviceName: selected.item.name, serviceType: selected.item.type || 'core', services: [selected.item] } : booking, opts);
   }
   const configuredIds = [...new Set(entries.flatMap(entry => (entry.rule?.[entry.phase] || []).map(row => String(row.toolId))))];
-  const tools = configuredIds.length ? await Tool.find({ _id: { $in: configuredIds } }).lean() : [];
+  const tools = configuredIds.length ? await preparationRead(opts, 'configuredTools', [...configuredIds].sort(), () => Tool.find({ _id: { $in: configuredIds } }).lean()) : [];
   const toolMap = new Map(tools.map(tool => [String(tool._id), tool]));
   const recommendations = [];
   for (const entry of entries) {

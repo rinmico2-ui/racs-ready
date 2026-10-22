@@ -7105,7 +7105,7 @@
         </div>`;
       }
       // Recovery for records created by the former premature-completion bug.
-      if (!isRepair && a.status === 'completed' && !(a.proofPhoto || a.bookingId?.proofPhoto)) {
+      if (!isRepair && a.status === 'completed' && !(a.proofPhoto || a.hasCompletionProof || a.bookingId?.proofPhoto || a.bookingId?.hasCompletionProof)) {
         return `<button type="button" class="btn btn-danger" onclick="openProofModal('${a._id}','${esc(a.customerName)}','${esc(a.serviceName)}',${a.estimatedFee || 0});"><i class="bi bi-camera me-2"></i>Proof Required</button>`;
       }
 
@@ -9054,7 +9054,7 @@ ${isRepair ? `
       if (!force && cacheIsFresh) return repairQueueCache.items;
       if (repairQueueCache.promise) return repairQueueCache.promise;
 
-      repairQueueCache.promise = fetch('/api/technician/dashboard/overview', { credentials: 'same-origin' })
+      repairQueueCache.promise = fetch('/api/technician/repair-queue', { credentials: 'same-origin' })
         .then(response => response.ok ? response.json() : { repairQueue: [] })
         .then(dashData => {
           repairQueueCache.items = (dashData.repairQueue || []).map(r => ({
@@ -9189,8 +9189,8 @@ ${isRepair ? `
         if (status === 'all') document.getElementById('countAll').textContent = (data.total || 0) + filteredRepairs.length;
         // renderTodayWorkOrder owns the Today badge because it uses the exact
         // filtered collection visible in the daily run sheet.
-        if (window._updateWorkKpis) await window._updateWorkKpis();
-        else await fetchTabCounts(true);
+        // Informational totals must not keep a saved visit or its controls waiting.
+        Promise.resolve(window._updateWorkKpis ? window._updateWorkKpis() : fetchTabCounts(true)).catch(() => {});
       } catch (e) {
         if (loadSequence !== assignmentsLoadSequence || loadRevision !== (window.TechnicianWorkUpdates?.revision || 0)) return;
         if (quiet && allItems.length) { console.warn('Assignment refresh failed; keeping the current work list.'); return; }
@@ -10154,7 +10154,7 @@ function preparationEscapeHtml(value) {
 
       return window._btnLoading(btn, async () => {
         const finishUpdate = window.TechnicianWorkUpdates.beginMutation();
-        let updated = false;
+        let updated = false, renderedSavedStatus = false;
         try {
         const res = await fetch(`/api/technician/assignments/${id}/status`, {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
@@ -10163,7 +10163,9 @@ function preparationEscapeHtml(value) {
         const data = await res.json();
         if (res.ok) {
           updated = true;
-          const refreshed = await finishUpdate(true);
+          const refreshing = finishUpdate(true);
+          renderedSavedStatus = typeof window.applySavedAssignment === 'function' && await window.applySavedAssignment(data);
+          const refreshed = renderedSavedStatus ? true : await refreshing;
           const statusLabels = { en_route: 'En Route', on_site: 'Arrived On Site', in_progress: 'Work In Progress', completed: 'Job Completed' };
           showNotification({
             type: refreshed === false ? 'warning' : status === 'completed' ? 'success' : 'info',
@@ -10216,7 +10218,7 @@ function preparationEscapeHtml(value) {
         }
         } catch (error) {
           showNotification({ type: 'error', title: 'Update Failed', message: 'Unable to update the job. Check your connection and try again.', duration: 5000 });
-        } finally { await finishUpdate(updated); }
+        } finally { const refreshing = finishUpdate(updated); if (!renderedSavedStatus) await refreshing; }
       });
     };
 
@@ -11691,18 +11693,40 @@ function preparationEscapeHtml(value) {
       return !results.includes(false);
     };
 
+    window.applySavedAssignment = async function (payload) {
+      const saved = payload?.assignment;
+      if (!saved?._id || !saved.status) return false;
+      const id = String(saved._id);
+      const previous = String(window._detailAssignment?._id) === id ? window._detailAssignment
+        : allItems.find(row => String(row._id) === id);
+      if (!previous) return false;
+      const parent = typeof previous.bookingId === 'object' ? previous.bookingId : null;
+      const current = { ...previous, ...saved, bookingId: parent ? { ...parent,
+        ...(payload.bookingStatus ? { status: payload.bookingStatus } : {}) } : saved.bookingId,
+        bookingStatus: payload.bookingStatus || previous.bookingStatus,
+        equipmentItems: previous.equipmentItems || [], payments: previous.payments || [], reservedParts: previous.reservedParts || [] };
+      allItems = allItems.map(row => String(row._id) === id ? { ...row, ...current } : row);
+      window.allItems = allItems; window._allAssignments = allItems;
+      if (currentFilter === 'today') renderTodayWorkOrder(allItems); else renderCardPage();
+      if (String(window._currentDetailId) === id) {
+        const rendered = await window.showDetail(id, { assignment: current, techLocation: window._detailTechLocation });
+        if (rendered === false) return false;
+      }
+      return true;
+    };
+
     let detailLoadSequence = 0, detailLoad = null, detailLoadController = null;
-    window.showDetail = function (id) {
+    window.showDetail = function (id, savedSnapshot = null) {
       const revision = window.TechnicianWorkUpdates?.revision || 0;
-      if (detailLoad?.id === String(id) && detailLoad.revision === revision) return detailLoad.promise;
+      if (!savedSnapshot && detailLoad?.id === String(id) && detailLoad.revision === revision) return detailLoad.promise;
       const sequence = ++detailLoadSequence;
-      const promise = loadAssignmentDetail(id, sequence, revision).finally(() => {
+      const promise = loadAssignmentDetail(id, sequence, revision, savedSnapshot).finally(() => {
         if (detailLoad?.promise === promise) detailLoad = null;
       });
       detailLoad = { id: String(id), promise, revision };
       return promise;
     };
-    async function loadAssignmentDetail(id, sequence, revision) {
+    async function loadAssignmentDetail(id, sequence, revision, savedSnapshot = null) {
       detailLoadController?.abort();
       const request = new AbortController();
       detailLoadController = request;
@@ -11731,20 +11755,24 @@ function preparationEscapeHtml(value) {
         left.classList.add('panel-open');
         left.classList.add('list-hidden');
 
-        const res = await fetch(`/api/technician/assignments/${id}`, { credentials: 'same-origin', cache: 'no-store', signal: request.signal });
-        if (!isCurrent()) return;
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
+        let detail = savedSnapshot;
+        if (!detail) {
+          const res = await fetch(`/api/technician/assignments/${id}?includeResources=1`, { credentials: 'same-origin', cache: 'no-store', signal: request.signal });
           if (!isCurrent()) return;
-          if (res.status === 404 || errData.code === 'ASSIGNMENT_ACCESS_CHANGED') {
-            window.closeDetailPanel();
-            showNotification({ type: 'info', title: 'Assignment updated', message: errData.error || 'This assignment is no longer available. Your work list has been refreshed.', duration: 5000 });
-            await loadAssignments(currentFilter, currentPage, document.getElementById('searchInput')?.value || '', { quiet: true });
-            return;
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            if (!isCurrent()) return;
+            if (res.status === 404 || errData.code === 'ASSIGNMENT_ACCESS_CHANGED') {
+              window.closeDetailPanel();
+              showNotification({ type: 'info', title: 'Assignment updated', message: errData.error || 'This assignment is no longer available. Your work list has been refreshed.', duration: 5000 });
+              await loadAssignments(currentFilter, currentPage, document.getElementById('searchInput')?.value || '', { quiet: true });
+              return;
+            }
+            throw new Error(errData.error || `HTTP ${res.status}`);
           }
-          throw new Error(errData.error || `HTTP ${res.status}`);
+          detail = await res.json();
         }
-        const { assignment: a, techLocation } = await res.json();
+        const { assignment: a, techLocation } = detail;
         if (!isCurrent()) return;
         if (a.workUnavailable) {
           window.closeDetailPanel();
@@ -11789,15 +11817,16 @@ function preparationEscapeHtml(value) {
         const coreStepChanged = previousAssignment?.status === a.status
           && itemProgressKey(previousAssignment, 'core') !== itemProgressKey(a, 'core')
           && itemProgressKey(previousAssignment, 'repair') === itemProgressKey(a, 'repair');
-        const reuseResourceHistory = previousAssignment && (sharedStepChanged || coreStepChanged)
+        const suppliedResources = a.resourceHistoryIncluded === true;
+        const reuseResourceHistory = previousAssignment && (savedSnapshot || sharedStepChanged || coreStepChanged)
           && paymentKey(previousAssignment) === paymentKey(a)
           && ['equipmentItems', 'payments', 'reservedParts'].every(field => Array.isArray(previousAssignment[field]));
         // Arrival/start/Core progress do not change payment or equipment history.
         // Show the saved visit immediately using the history already on screen;
         // regular detail refreshes still reload all supporting records.
-        a.equipmentItems = reuseResourceHistory ? previousAssignment.equipmentItems : [];
-        a.payments = reuseResourceHistory ? previousAssignment.payments : [];
-        a.reservedParts = reuseResourceHistory ? previousAssignment.reservedParts : [];
+        a.equipmentItems = suppliedResources ? a.equipmentItems : reuseResourceHistory ? previousAssignment.equipmentItems : [];
+        a.payments = suppliedResources ? a.payments : reuseResourceHistory ? previousAssignment.payments : [];
+        a.reservedParts = suppliedResources ? a.reservedParts : reuseResourceHistory ? previousAssignment.reservedParts : [];
         const resourceLoads = [];
         const loadResource = async (path, target, field) => {
           try {
@@ -11805,7 +11834,7 @@ function preparationEscapeHtml(value) {
             if (response.ok) { const data = await response.json(); a[target] = data[field] || []; }
           } catch (error) { /* Optional resource history cannot hide the saved visit status. */ }
         };
-        if (eqBookingId && loadVisitResources && !reuseResourceHistory) {
+        if (eqBookingId && loadVisitResources && !reuseResourceHistory && !suppliedResources) {
           resourceLoads.push(loadResource(`/api/technician/equipment/${eqBookingId}`, 'equipmentItems', 'items'));
           resourceLoads.push(loadResource(`/api/technician/bookings/${eqBookingId}/payments`, 'payments', 'payments'));
           if (isRepairAssignment(a)) resourceLoads.push(loadResource(`/api/technician/bookings/${eqBookingId}/reserved-parts`, 'reservedParts', 'reservations'));

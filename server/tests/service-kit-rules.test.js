@@ -25,7 +25,7 @@ function load(file, dependencies) {
   const module = { exports: {} };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, file), 'utf8'), {
     module, exports: module.exports, console, Date, Map, Set, RegExp,
-    require: name => name in dependencies ? dependencies[name] : require(name),
+    require: name => name in dependencies ? dependencies[name] : require('node:module').createRequire(path.resolve(__dirname, file))(name),
   }, { filename: file });
   return module.exports;
 }
@@ -36,7 +36,8 @@ function fixture() {
   const tools = [{ _id: EQ, itemName: 'Field Kit', type: 'equipment', inventoryClass: 'operational_asset', quantity: 3 },
     { _id: SUPPLY, itemName: 'Tape', type: 'consumable', quantity: 0 }, { _id: PART, itemName: 'Motor', type: 'part', quantity: 12 }];
   const rules = [];
-  const base = rows => ({ find: filter => query(rows.filter(row => matches(row, filter))), findById: id => query(rows.find(row => String(row._id) === String(id))) });
+  const reads = [];
+  const base = rows => ({ find: filter => { reads.push(rows); return query(rows.filter(row => matches(row, filter))); }, findById: id => query(rows.find(row => String(row._id) === String(id))) });
   const Core = base(core), Repair = base(repair), Categories = base(categories), Tools = { ...base(tools), effectiveInventoryClass: tool => tool.inventoryClass || 'operational_asset' };
   let indexCalls = 0;
   const Rules = { ...base(rules), collection: { async createIndex() { indexCalls++; } },
@@ -62,7 +63,7 @@ function fixture() {
   const orderApi = load('../utils/orderPreparation.js', { mongoose, './servicePreparation': preparation, './bookingDateTime': require('../utils/bookingDateTime') });
   const save = (payload, serviceModel = 'CoreService', serviceId = CORE) => service.save({ serviceModel, serviceId, payload, userId: USER });
   const item = (toolId = EQ, quantity = 1, quantityBasis = 'per_visit') => ({ toolId, quantity, quantityBasis });
-  return { core, repair, categories, tools, rules, api, service, preparation, orderApi, save, item, indexCalls: () => indexCalls };
+  return { core, repair, categories, tools, rules, reads, api, service, preparation, orderApi, save, item, indexCalls: () => indexCalls };
 }
 test('every core and repair service is listed, including inactive services and zero-stock consumables', async () => {
   const f = fixture(), result = await f.service.list();
@@ -71,6 +72,18 @@ test('every core and repair service is listed, including inactive services and z
   assert.equal(result.services.filter(service => service.name === 'Aircon Installation').length, 2);
   assert.equal(result.catalog.length, 2);
   assert.equal(result.catalog.find(tool => tool.id === SUPPLY).available, 0);
+});
+
+test('multiple jobs reuse planning reads while a new operation sees current inventory', async () => {
+  const f = fixture(), options = { readCache: new Map() };
+  const booking = { serviceType: 'core', service: { name: 'Aircon Installation' } };
+  const results = await Promise.all([f.preparation.buildServicePreparation(booking, options), f.preparation.buildServicePreparation(booking, options)]);
+  assert.deepEqual(plain(results[0]), plain(results[1]));
+  for (const rows of [f.core, f.rules, f.tools]) assert.equal(f.reads.filter(read => read === rows).length, 1);
+  f.tools[0].quantity = 1;
+  const fresh = await f.preparation.buildServicePreparation(booking, { readCache: new Map() });
+  assert.equal(f.reads.filter(read => read === f.tools).length, 2);
+  assert.equal(fresh.catalog.find(row => row.inventoryId === EQ).available, 1);
 });
 test('admin defaults use the same inventory choices and base quantities as technician generation', async () => {
   const f = fixture(); f.tools[0].itemName = 'Tool Kit';

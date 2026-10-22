@@ -216,6 +216,7 @@ async function partRequirementsFor(assignments, bookings, requirements) {
 }
 
 async function requirementsFor(assignments, bookings, orders, projectRequirements, preferToolIds, technicianId) {
+  const readCache = new Map();
   const bookingMap = new Map(bookings.map(booking => [String(booking._id), booking]));
   const linkedOrderBookingIds = new Set(
     orders.map(order => order.bookingId).filter(Boolean).map(String),
@@ -229,7 +230,7 @@ async function requirementsFor(assignments, bookings, orders, projectRequirement
     // the sole inventory-demand source for delivery + installation. Matching
     // bookingId also protects legacy rows before the optional backfill runs.
     if (!booking || booking.sourceOrderId || linkedOrderBookingIds.has(String(booking._id))) continue;
-    const prep = await buildServicePreparation(booking, { preferToolIds, serviceItemId: assignment.serviceItemId, quantity: assignment.quantity });
+    const prep = await buildServicePreparation(booking, { preferToolIds, readCache, serviceItemId: assignment.serviceItemId, quantity: assignment.quantity });
     for (const rec of prep.recommendations || []) {
       mergeRequirement(requirements, rec, {
         assignmentId: assignment._id,
@@ -240,7 +241,7 @@ async function requirementsFor(assignments, bookings, orders, projectRequirement
   }
   for (const order of orders) {
     if (technicianId && !require('./standardJobTeam').isPrimary(order, technicianId)) continue;
-    const prep = await buildOrderInstallationPreparation(order, { preferToolIds });
+    const prep = await buildOrderInstallationPreparation(order, { preferToolIds, readCache });
     if (prep.ruleControlled && !prep.recommendations?.length) noItemsOrderIds.push(order._id);
     for (const rec of prep.recommendations || []) {
       mergeRequirement(requirements, rec, {

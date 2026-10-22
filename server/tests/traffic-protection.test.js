@@ -235,5 +235,5 @@ test("production wiring admits requests before sessions, body parsers and paymen
   assert.ok(guard < source.indexOf('express.raw({ type: "application/json"'));
   assert.ok(guard < source.indexOf('express.json({ limit: "64kb"'));
   assert.ok(guard < source.indexOf("session({"));
-  assert.ok(guard < source.indexOf("app.use(attachCurrentUser)"));
+  assert.ok(guard < source.indexOf("app.use(timedMiddleware('identity', attachCurrentUser))"));
 });

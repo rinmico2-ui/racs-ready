@@ -11,6 +11,7 @@ const helmet = require("helmet");
 const compression = require("compression");
 const cookieParser = require("cookie-parser");
 const attachCurrentUser = require("./middleware/currentUser");
+const { timedMiddleware } = require("./utils/requestTiming");
 const User = require("./models/User");
 const dns = require("dns");
 const { rateLimit } = require("./utils/boundedRateLimit");
@@ -401,7 +402,7 @@ sessionStore.on("error", (err) => {
 });
 
 app.use(
-  session({
+  timedMiddleware('session', session({
     name: "sid",
     secret: SESSION_SECRET,
     resave: false,
@@ -413,11 +414,11 @@ app.use(
       sameSite: "Strict",
       maxAge: SESSION_TTL,
     },
-  }),
+  })),
 );
 
 // Attach the current user to templates/res.locals when possible (non-blocking)
-app.use(attachCurrentUser);
+app.use(timedMiddleware('identity', attachCurrentUser));
 app.use("/api", apiLimiter);
 app.use("/appointments", apiLimiter);
 app.use((req, res, next) => {
