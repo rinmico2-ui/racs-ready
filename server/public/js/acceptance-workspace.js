@@ -11,7 +11,7 @@
 
   function render({ container, stats, records, total = records.length, onAction }) {
     records = records.map(record => {
-      const pending = (record.technicians || []).filter(member => member.status === 'pending');
+      const pending = (record.technicians || []).filter(member => ['pending', 'expired'].includes(member.status));
       const dates = pending.map(member => new Date(member.deadlineAt).getTime()).filter(Number.isFinite);
       return { ...record, deadline: dates.length ? new Date(Math.min(...dates)) : record.deadline };
     });

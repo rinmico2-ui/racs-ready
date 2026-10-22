@@ -69,8 +69,8 @@ test("booking review opens on demand from responsive launchers", () => {
 test("service cards show a clear selected state and booking actions", () => {
   assert.match(script, /<span>Add<\/span>/);
   assert.match(script, /<span>Selected<\/span>/);
-  assert.match(script, /Change \$\{esc\(service\.name\)\}/);
-  assert.match(script, /Remove \$\{esc\(service\.name\)\}/);
+  assert.match(script, /Edit \$\{esc\(group\.title\)\} and its services/);
+  assert.match(script, /Remove \$\{esc\(group\.title\)\} and all its services/);
   assert.match(styles, /\.service-card\.is-selected[\s\S]*?border:\s*2px solid #16a34a/);
 });
 

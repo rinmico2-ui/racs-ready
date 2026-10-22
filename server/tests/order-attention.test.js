@@ -2,6 +2,18 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { orderAttentionState, requestedOrderCutoff } = require("../utils/orderAttention");
 
+test('assignment accepts the saved customer schedule in equivalent formats but requires rescheduling to change it', () => {
+  const { assertOrderAssignmentSchedule } = require('../utils/orderAttention');
+  for (const fulfillmentType of ['delivery_only', 'delivery_installation']) {
+    const order = { fulfillmentType, delivery:{preferredDate:'2026-10-21T16:00:00.000Z'}, timeSlot:'10:30 PM - 11:30 PM' };
+    assert.doesNotThrow(() => assertOrderAssignmentSchedule(order));
+    assert.doesNotThrow(() => assertOrderAssignmentSchedule(order, {scheduledDate:'2026-10-22', timeSlot:'22:30'}));
+    for (const input of [{scheduledDate:'2026-10-23'}, {timeSlot:'23:00'}, {scheduledDate:'invalid'}, {timeSlot:'invalid'}]) {
+      assert.throws(() => assertOrderAssignmentSchedule(order, input), error => error.status === 409 && error.code === 'ORDER_SCHEDULE_CHANGE_REQUIRES_RESCHEDULE');
+    }
+  }
+});
+
 test("uses a Manila delivery window plus the 30-minute operational grace", () => {
   const order = {
     status: "pending_payment",

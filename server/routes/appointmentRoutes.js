@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+router.use('/:id/repair-findings', require('./coreRepairDiscoveryRoutes'));
 const { validateBookingUnitLimit } = require("../utils/bookingUnitLimit");
 const { resolveWalkInCoreSelection, pinWalkInRelocations } = require("../utils/walkInCoreSelection");
 const auth = require("../middleware/authenticate");
@@ -59,6 +60,9 @@ const {
   findPaymentProof,
   openPaymentProofDownload,
 } = require("../utils/paymentProofStorage");
+
+router.get('/:id/cancellation-request', auth.authenticate, auth.requireRole('customer'), require('../controllers/customerCancellationController').read);
+router.post('/:id/cancellation-request', auth.authenticate, auth.requireRole('customer'), require('../controllers/customerCancellationController').submit);
 
 function isPathWithin(root, candidate) {
   const relative = path.relative(path.resolve(root), path.resolve(candidate));
@@ -818,6 +822,7 @@ router.get("/", auth.authenticate, async (req, res) => {
       }
     }
     if (req.user.role === "customer") customerItems = await attachMaintenanceCancellation(customerItems);
+    if (req.user.role === "customer") customerItems = await require('../utils/customerCancellationService').attachSummaries(customerItems);
     const items = customerItems.map(presenter);
     return res.json({
       items,
@@ -1645,6 +1650,8 @@ router.get(
         repairServices,
         serviceCategories,
         technicians: assignableTechnicians,
+        defaultInspectionFee: await require('../utils/repairInspectionPricing').getDefaultRepairInspectionFee(),
+        inspectionDuration: await require('../utils/bookingPolicy').getInspectionDurationMinutes(),
       });
     } catch (err) {
       console.error("walk-in options error", err);
@@ -1800,32 +1807,33 @@ router.post(
       let totalUnits = validateBookingUnitLimit(requestedItems);
       if (totalUnits > 40) return res.status(400).json({ error: "A booking can contain a maximum of 40 units." });
       const resolvedItems = [];
+      const catalogRepairs = requestedItems.filter(item => item.type === 'repair' && !item.serviceId && !item._id);
+      const catalogRepairPrices = catalogRepairs.length
+        ? await require('../utils/repairInspectionPricing').resolveRepairInspectionFees(catalogRepairs) : [];
+      const catalogRepairPriceByItem = new Map(catalogRepairs.map((item, index) => [item, catalogRepairPrices[index]]));
+      let inspectionDuration;
       for (const requested of requestedItems) {
         const requestedId = requested.serviceId || requested._id;
-        let doc = await CoreService.findOne({ _id: requestedId, active: true }).lean();
-        let type = "core";
-        if (!doc) { doc = await RepairService.findOne({ _id: requestedId, active: true }).lean(); type = "repair"; }
-        if (!doc) return res.status(404).json({ error: "One of the selected services is unavailable." });
-        const quantity = Math.max(1, Math.min(40, Number(requested.quantity) || 1));
-        let unitPrice = Math.max(0, Number(type === "repair" ? (doc.initialPrice ?? doc.basePrice) : doc.basePrice) || 0);
-        let durationPerUnit = Math.max(15, Number(doc.durationMinutes || doc.estimatedDurationMinutes) || 60);
-        const coreSelection = type === "core" ? resolveWalkInCoreSelection(doc, requested) : null;
-        if (coreSelection) {
-          unitPrice = coreSelection.unitPrice;
-          durationPerUnit = coreSelection.duration;
+        let doc = requestedId ? await CoreService.findOne({ _id: requestedId, active: true }).lean() : null;
+        let type = !requestedId && requested.type === 'repair' ? 'repair' : 'core';
+        if (requestedId && !doc) { doc = await RepairService.findOne({ _id: requestedId, active: true }).lean(); type = "repair"; }
+        if (!doc && (requestedId || type !== 'repair')) return res.status(404).json({ error: "One of the selected services is unavailable." });
+        if (type === 'repair') {
+          const pricing = catalogRepairPriceByItem.get(requested) ||
+            (await require('../utils/repairInspectionPricing').resolveRepairInspectionFees([{ ...requested, serviceId: doc?._id || null, type: 'repair' }]))[0];
+          inspectionDuration ??= await require('../utils/bookingPolicy').getInspectionDurationMinutes();
+          resolvedItems.push(require('../utils/walkInRepairSelection').resolveWalkInRepairSelection(requested, pricing, inspectionDuration));
+          continue;
         }
-        const duration = durationPerUnit;
-        const problemDescription = String(requested.problemDescription || requested.repairIssue || "").trim().slice(0, 1000);
-        if (type === "repair" && problemDescription.length < 10) return res.status(400).json({ error: `Describe the problem for ${doc.name} using at least 10 characters.` });
-        const itemName = type === "repair" && requested.applianceType ? `${String(requested.applianceType).slice(0, 100)} Repair` : doc.name;
-        resolvedItems.push({ serviceId: doc._id, name: itemName, type, quantity, unitPrice, totalPrice: unitPrice * quantity, duration,
-          ...(coreSelection ? { applianceKind: coreSelection.applianceKind, applianceGroupId: coreSelection.applianceGroupId, relocation: coreSelection.relocation } : {}),
-          hp: Number(requested.hp) || undefined, hpDescription: String(requested.hpDescription || "").slice(0, 100), airconType: String(requested.airconType || "").slice(0, 100), airconTypeName: String(requested.airconTypeName || "").slice(0, 100),
-          applianceType: String(requested.applianceType || doc.applianceType || "").slice(0, 100), applianceTypeName: String(requested.applianceTypeName || "").slice(0, 100),
-          brand: String(requested.brand || "").slice(0, 100), model: String(requested.model || "").slice(0, 100), problemDescription,
-          unitCategory: String(requested.unitCategory || "").slice(0, 50), symptoms: Array.isArray(requested.symptoms) ? requested.symptoms.slice(0, 8).map(value => String(value).slice(0, 50)) : [],
-          photos: Array.isArray(requested.photos) ? requested.photos.slice(0, 5).filter(url => /^\/uploads\/repairs\/[\w.-]+$/.test(String(url))) : [],
-          repairIssue: problemDescription, isAirconService: Boolean(doc.isAirconService), phase: type === "repair" ? "repair_phase_1" : "core" });
+        const coreSelection = resolveWalkInCoreSelection(doc, requested);
+        const quantity = Number(requested.quantity || 1);
+        const kind = coreSelection.applianceKind;
+        resolvedItems.push({ ...coreSelection, serviceId: doc._id, name: doc.name, type: 'core', phase: 'core', quantity,
+          applianceType: kind === 'aircon' ? coreSelection.airconType : kind || requested.applianceType || doc.applianceType,
+          applianceTypeName: kind && kind !== 'aircon' ? require('../public/js/appliance-services').labels[kind] : coreSelection.airconTypeName,
+          hpDescription: coreSelection.hp ? `${coreSelection.hp} HP` : '',
+          brand: String(requested.brand || '').trim().slice(0, 80), model: String(requested.model || '').trim().slice(0, 50),
+          isAirconService: kind ? kind === 'aircon' : Boolean(doc.isAirconService) });
       }
       totalUnits = validateBookingUnitLimit(resolvedItems);
       const primaryItem = resolvedItems[0];
@@ -2023,6 +2031,7 @@ router.post(
         serviceType: resolvedItems.some(item => item.type === "core") && resolvedItems.some(item => item.type === "repair") ? "mixed" : primaryItem.type,
         isMultiService: resolvedItems.length > 1 || totalUnits > 1,
         services: resolvedItems,
+        repairUnitTracking: resolvedItems.some(item => item.type === 'repair'),
         quantity: totalUnits,
         isProject: isLargeScale,
         projectScheduling: normalizedProjectScheduling,
@@ -2118,12 +2127,20 @@ router.post(
 
         // Selection by an admin is only an assignment offer. The booking must
         // stay here until the technician explicitly accepts it.
-        appointment.status = BookingStatus.ASSIGNED;
+        appointment.status = resolvedItems.some(item => item.type === 'repair') ? 'inspection_scheduled' : BookingStatus.ASSIGNED;
         appointment.assignmentId = assignment._id;
         appointment.assignedAt = assignedAt;
         appointment.assignedBy = req.user?._id;
+        appointment.technician = { _id: selectedTechnician._id, name: selectedTechnician.name,
+          email: selectedTechnicianUser.email, phone: selectedTechnician.phone };
+        appointment.technicianTeam = [{ technicianId: selectedTechnician._id, assignmentId: assignment._id,
+          name: selectedTechnician.name, status: 'pending', deadlineAt: assignment.acceptanceDeadline }];
+        appointment.technicianTeamSchedule = require('../utils/standardJobTeam').scheduleKey('booking', appointment);
+        if (appointment.status === 'inspection_scheduled') {
+          appointment.inspection = { technicianId: selectedTechnician._id, scheduledDate: bookingDate, scheduledTime: String(startMin) };
+        }
         for (const item of appointment.services || []) {
-          item.status = "assigned";
+          item.status = item.type === 'repair' ? 'inspection_scheduled' : 'assigned';
           item.technicianId = selectedTechnician._id;
           item.technicianName = selectedTechnician.name;
           item.assignmentId = assignment._id;
@@ -2135,7 +2152,7 @@ router.post(
             kind: item.type === "repair" ? "inspection" : "service",
           };
           item.statusHistory.push({
-            status: "assigned",
+            status: item.status,
             changedAt: assignedAt,
             changedBy: req.user?._id,
             changedByName: req.user?.name || req.user?.email || "Admin/Secretary",
@@ -2197,7 +2214,7 @@ router.post(
         const plan = require("../utils/projectServiceChange").prepareProjectServiceChange(appointment, {
           startDate: normalizedProjectScheduling.preferredStartDate,
           endDate: normalizedProjectScheduling.preferredCompletionDeadline,
-          inspectionDurationMinutes: 60,
+          inspectionDurationMinutes: inspectionDuration || 60,
         });
         // Preferences are a request; Operations approves the actual daily plan.
         delete plan.plannedStartDate;
@@ -2484,7 +2501,10 @@ router.get("/:id", auth.authenticate, async (req, res) => {
       }
     }
 
-    if (req.user.role === "customer") [appt] = await attachMaintenanceCancellation([appt]);
+    if (req.user.role === "customer") {
+      [appt] = await attachMaintenanceCancellation([appt]);
+      [appt] = await require('../utils/customerCancellationService').attachSummaries([appt]);
+    }
     const appointment = req.user.role === "customer"
       ? presentCustomerBooking(appt)
       : req.user.role === "technician"
@@ -2507,6 +2527,8 @@ router.post(
       const appt = await BookingService.findById(id);
       if (!appt)
         return res.status(404).json({ error: "Appointment not found" });
+
+      if (require('../utils/customerCancellationPolicy').open(appt)) return res.status(409).json({ error: 'Review the customer cancellation request and its payment in the Resolution Center first.', code: 'CUSTOMER_CANCELLATION_PENDING' });
 
       // Reject confirmation of past bookings — require reschedule instead
       if (isBookingPast(appt)) {
@@ -2716,6 +2738,12 @@ router.post(
       );
 
       const customerMaintenance = !isAdmin && !isSecretary && isAftercareBooking(appt);
+      if (req.user.role === 'customer' && !customerMaintenance) {
+        req.body.reason = normalizeLifecycleReason(reason, 'Cancellation');
+        req.body.reasonCode ||= 'other';
+        return require('../controllers/customerCancellationController').submit(req, res);
+      }
+      if (isAdmin || isSecretary) require('../utils/customerCancellationPolicy').assertNoHold(appt);
       // Only allow cancellation if:
       // 1. User is admin or secretary, OR
       // 2. User is the customer AND appointment is pending
@@ -2850,6 +2878,8 @@ router.post(
       if (!isCustomer) {
         return res.status(403).json({ error: "You can only request reschedule for your own appointments" });
       }
+
+      if (require('../utils/customerCancellationPolicy').open(appt)) return res.status(409).json({ error: 'Your cancellation request is under review. Wait for the decision before changing the schedule.', code: 'CUSTOMER_CANCELLATION_PENDING' });
 
       const isProjectRequest = Boolean(
         req.body.isProject || appt.isProject || appt.projectScheduling,
@@ -4379,6 +4409,7 @@ router.post("/:id/service-change-requests/:requestId/decision", auth.authenticat
     const booking = await BookingService.findById(req.params.id);
     if (!booking) return res.status(404).json({ error: "Booking not found" });
     const change = booking.serviceChangeRequests.id(req.params.requestId);
+    if (require('../utils/coreRepairDiscovery').discoveries(booking).length) return res.status(409).json({ error: 'Review the on-site repair finding before changing this booking scope.', code: 'REPAIR_FINDING_SCOPE_LOCKED' });
     if (!change) return res.status(404).json({ error: "Change request not found" });
     if (!["pending", "schedule_proposed"].includes(change.status)) return res.status(409).json({ error: "This change request has already been decided." });
 
@@ -4543,6 +4574,7 @@ router.post("/:id/service-items/:itemId/assign", auth.authenticate, auth.require
     const Assignment = require("../models/Assignment");
     const Technician = require("../models/Technician");
     const booking = await BookingService.findById(req.params.id);
+    require('../utils/customerCancellationPolicy').assertNoHold(booking);
     const technician = await Technician.findOne({ _id: req.body.technicianId, active: { $ne: false } });
     if (!booking || !technician) return res.status(404).json({ error: "Booking or technician not found" });
     const item = booking.services.id(req.params.itemId);
@@ -4578,6 +4610,7 @@ router.post("/:id/service-items/:itemId/assign", auth.authenticate, auth.require
 router.post("/:id/schedule-inspection", auth.authenticate, auth.requireRole(["admin", "secretary"]), async (req, res, next) => {
   try {
     const booking = await BookingService.findById(req.params.id);
+    require('../utils/customerCancellationPolicy').assertNoHold(booking);
     if (!booking) return res.status(404).json({ error: "Booking not found" });
     if (booking.status !== "repair_requested") {
       return res.status(400).json({ error: `Cannot schedule inspection from status: ${booking.status}` });
@@ -5225,6 +5258,12 @@ router.post('/:id/reschedule-action', auth.authenticate, async (req, res) => {
     if (String(booking.customerId) !== String(req.user._id) && !['admin', 'secretary'].includes(req.user.role)) {
       return res.status(403).json({ error: 'Not authorized' });
     }
+
+    if (action === 'cancel' && req.user.role === 'customer' && !isAftercareBooking(booking)) {
+      req.body.reasonCode ||= 'plans_changed'; req.body.reason = normalizedReason;
+      return require('../controllers/customerCancellationController').submit(req, res);
+    }
+    if (require('../utils/customerCancellationPolicy').open(booking)) return res.status(409).json({ error: 'Review the pending cancellation request before changing this schedule.', code: 'CUSTOMER_CANCELLATION_PENDING' });
 
     const io = req.app.get('io');
     const isRepair = booking.serviceModel === 'RepairService' || booking.serviceType === 'repair';

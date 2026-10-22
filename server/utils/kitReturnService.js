@@ -16,7 +16,7 @@ function text(value) {
   return (value || '').trim();
 }
 function createService(overrides = {}) {
-  const m = { mongoose: require('mongoose'), ...Object.fromEntries(['KitReturn', 'DailyKit', 'EquipmentAssignment', 'Tool', 'StockAdjustment'].map(name => [name, require('../models/' + name)])), ...overrides };
+  const m = { mongoose: require('mongoose'), ...Object.fromEntries(['KitReturn', 'DailyKit', 'EquipmentAssignment', 'Tool', 'StockAdjustment', 'StockReservation'].map(name => [name, require('../models/' + name)])), ...overrides };
   const equipment = () => m.equipmentService || require('./technicianToolsService').createService();
   const validId = value => { if (!m.mongoose.isValidObjectId(value)) throw fail('Invalid return record.', 400); };
   async function transaction(work, providedSession) {
@@ -66,7 +66,7 @@ function createService(overrides = {}) {
           technicianId: row.technicianId, dailyKitId: row.dailyKitId, equipmentAssignmentId: row._id,
           toolId: row.equipmentId, name: row.equipmentName, category: 'equipment', condition, notes, equipmentUse,
           unused: ['good', 'fair'].includes(condition) ? quantity : 0, damaged: condition === 'damaged' ? quantity : 0, missing: condition === 'lost' ? quantity : 0,
-          bookingIds: unique([row.bookingId, ...items.flatMap(item => [...(item.bookingIds || []), ...(item.issuedBookingIds || [])])]),
+          bookingIds: unique([row.bookingId, ...(row.bookingIds || []), ...items.flatMap(item => [...(item.bookingIds || []), ...(item.issuedBookingIds || [])])]),
           orderIds: unique([...(row.orderIds || []), ...items.flatMap(item => [...(item.orderIds || []), ...(item.issuedOrderIds || [])])]), reportedBy: userId,
         }], { session });
         reports.push(report);
@@ -169,6 +169,21 @@ function createService(overrides = {}) {
           item.quantityUsed = Number(item.quantityUsed || 0) + qty.used;
           item.quantityDamaged = Number(item.quantityDamaged || 0) + qty.damaged;
           item.quantityMissing = Number(item.quantityMissing || 0) + qty.missing;
+          if (item.category === 'repair_part') {
+            // A checked-out reservation mirrors these issued parts. Closing
+            // its unused balance must not credit warehouse stock a second time.
+            const reservations = await m.StockReservation.find({ toolId: report.toolId, status: 'checked_out',
+              bookingId: { $in: unique([...(item.bookingIds || []), ...(item.issuedBookingIds || [])]) } }).session(session);
+            const left = { ...qty };
+            for (const reservation of reservations) {
+              let capacity = Math.max(0, Number(reservation.quantity) - ['quantityFulfilled', 'quantityReturned', 'quantityDamaged', 'quantityMissing'].reduce((sum, key) => sum + Number(reservation[key] || 0), 0));
+              for (const [key, field] of [['unused', 'quantityReturned'], ['used', 'quantityFulfilled'], ['damaged', 'quantityDamaged'], ['missing', 'quantityMissing']]) {
+                const amount = Math.min(capacity, left[key]); reservation[field] = Number(reservation[field] || 0) + amount; left[key] -= amount; capacity -= amount;
+              }
+              if (!capacity) { reservation.status = reservation.quantityFulfilled > 0 ? 'fulfilled' : 'cancelled'; reservation.fulfilledAt = new Date(); }
+              await reservation.save({ session });
+            }
+          }
           for (const key of ['unused', 'used', 'damaged', 'missing']) report[key] = qty[key];
           // Project material ledgers are mirrored; they are not another stock
           // deduction or another credit on return.

@@ -486,7 +486,7 @@ router.get("/all", authenticate, requireRole(["admin", "secretary"]), async (req
     // Also return summary counts for KPI cards
     const [attentionCandidates, statusRows, fulfillmentRows] = await Promise.all([
       Order.find({ ...scopeFilter, status: { $in: [...REVIEWABLE_ORDER_STATUSES] } })
-        .select("status fulfillmentType delivery.preferredDate pickupDate timeSlot")
+        .select("status fulfillmentType delivery.preferredDate pickupDate timeSlot isProject projectScheduling technicianId technicianTeam technicianAcceptance statusHistory")
         .lean(),
       Order.aggregate([{ $match: scopeFilter }, { $group: { _id: "$status", count: { $sum: 1 } } }]),
       Order.aggregate([{ $group: { _id: "$fulfillmentType", count: { $sum: 1 } } }]),
@@ -1218,10 +1218,14 @@ function validFieldProof(value) {
   return proof.length <= 7 * 1024 * 1024 && /^data:image\/(?:jpeg|jpg|png|webp);base64,/i.test(proof);
 }
 
-async function syncLinkedInstallationBooking(order, technician, io) {
+async function syncLinkedInstallationBooking(order, technician, io, { session } = {}) {
   if (order.fulfillmentType !== "delivery_installation" || !order.bookingId) return;
-  const booking = await BookingService.findById(order.bookingId);
-  if (!booking || booking.isProject) return;
+  const query = BookingService.findById(order.bookingId);
+  const booking = await (session ? query.session(session) : query);
+  if (!booking || booking.isProject) {
+    if (session) throw Object.assign(new Error('The linked installation changed. Ask operations to review this order.'), { status: 409, code: 'ORDER_INSTALLATION_LINK_CHANGED' });
+    return;
+  }
   const bookingStatus = {
     technician_assigned: "scheduled",
     technician_accepted: "confirmed",
@@ -1279,7 +1283,7 @@ async function syncLinkedInstallationBooking(order, technician, io) {
   }
   if (order.status === "completed") booking.completedAt = order.completedAt || new Date();
   if (order.proofPhoto) booking.proofPhoto = order.proofPhoto;
-  await booking.save();
+  await booking.save(session ? { session } : undefined);
 
   const customerId = booking.customerId?._id || booking.customerId;
   if (io && customerId && bookingStatus) {
@@ -1723,7 +1727,7 @@ router.patch("/:id/status", authenticate, async (req, res) => {
       return res.status(400).json({ error: "Each installed unit must have a unique serial number." });
     }
 
-    const order = await Order.findById(req.params.id);
+    let order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ error: "Order not found" });
     if (order.isProject) return res.status(409).json({ error: "This installation is managed through its project crew and daily work plan.", code: "ORDER_PROJECT_WORKFLOW_REQUIRED" });
 
@@ -1831,50 +1835,62 @@ router.patch("/:id/status", authenticate, async (req, res) => {
       }
     }
 
-    order.pushStatus(status, note || "", { actor: req.user && req.user._id, actorRole: req.user && req.user.role, actorName: (req.user && (req.user.name || req.user.email)) || 'System' });
-    if (status === "out_for_delivery") order.enRouteAt = now;
-    if (status === "arrived") {
-      order.arrivedAt = now;
-      order.arrivalProofUrl = arrivalProofUrl;
-      order.arrivalProofCapturedAt = now;
-    }
-    if (status === "installing") {
-      order.startedAt = now;
-      order.startProofUrl = startProofUrl;
-      order.startProofNotes = String(startProofNotes || "").slice(0, 500);
-      order.startProofCapturedAt = now;
-    }
-    if (status === "completed") order.proofPhoto = completionProofUrl;
-
-    // Snapshot the configured warranty when the order is completed. Existing
-    // orders retain the terms that were active on their completion date.
-    if (wasCompleted) {
-      const completedAt = now;
-      order.completedAt = completedAt;
-      let serialIndex = 0;
-      for (const item of order.items || []) {
-        const unitCount = (item.isHvac !== false || item.parentHvacId || item.capacity) ? Math.max(1, Number(item.quantity) || 1) : 0;
-        item.serialNumbers = normalizedSerialNumbers.slice(serialIndex, serialIndex + unitCount);
-        serialIndex += unitCount;
+    if (status === "out_for_delivery") {
+      if (!tech && order.technicianId) tech = await Technician.findById(order.technicianId);
+      order = await require('../utils/orderDispatch').commitOrderDeparture({
+        order, actor: req.user, note, kit: departureKit,
+        syncLinked: (current, session) => syncLinkedInstallationBooking(current, tech, null, { session }),
+      });
+      const io = req.app.get("io");
+      if (io && order.bookingId && order.userId) io.to(`customer:${order.userId}`).emit("booking:status-change", {
+        bookingId: order.bookingId, orderId: order._id, status: 'on-the-way',
+        technicianName: tech?.name || 'Technician', timestamp: Date.now(),
+      });
+    } else {
+      order.pushStatus(status, note || "", { actor: req.user && req.user._id, actorRole: req.user && req.user.role, actorName: (req.user && (req.user.name || req.user.email)) || 'System' });
+      if (status === "arrived") {
+        order.arrivedAt = now;
+        order.arrivalProofUrl = arrivalProofUrl;
+        order.arrivalProofCapturedAt = now;
       }
-      if (order.fulfillmentType === "delivery_installation") {
-        order.preparation = order.preparation || {};
-        order.preparation.installation = {
-          ...(order.preparation.installation?.toObject?.() || order.preparation.installation || {}),
-          status: "completed",
-          blockers: [],
-        };
+      if (status === "installing") {
+        order.startedAt = now;
+        order.startProofUrl = startProofUrl;
+        order.startProofNotes = String(startProofNotes || "").slice(0, 500);
+        order.startProofCapturedAt = now;
       }
-      const warrantyRule = warrantyRuleForOrder(await getAftercarePolicy());
-      const warrantySnapshot = buildOrderWarrantySnapshot(order, completedAt, warrantyRule);
-      if (warrantySnapshot) order.warranty = warrantySnapshot;
-    }
+      if (status === "completed") order.proofPhoto = completionProofUrl;
 
-    await order.save();
-    if (!tech && order.technicianId) tech = await Technician.findById(order.technicianId);
-    await syncLinkedInstallationBooking(order, tech, req.app.get("io")).catch((error) => {
-      console.warn("[orders] Linked installation booking status sync failed:", error.message);
-    });
+      // Snapshot the configured warranty when the order is completed. Existing
+      // orders retain the terms that were active on their completion date.
+      if (wasCompleted) {
+        const completedAt = now;
+        order.completedAt = completedAt;
+        let serialIndex = 0;
+        for (const item of order.items || []) {
+          const unitCount = (item.isHvac !== false || item.parentHvacId || item.capacity) ? Math.max(1, Number(item.quantity) || 1) : 0;
+          item.serialNumbers = normalizedSerialNumbers.slice(serialIndex, serialIndex + unitCount);
+          serialIndex += unitCount;
+        }
+        if (order.fulfillmentType === "delivery_installation") {
+          order.preparation = order.preparation || {};
+          order.preparation.installation = {
+            ...(order.preparation.installation?.toObject?.() || order.preparation.installation || {}),
+            status: "completed",
+            blockers: [],
+          };
+        }
+        const warrantyRule = warrantyRuleForOrder(await getAftercarePolicy());
+        const warrantySnapshot = buildOrderWarrantySnapshot(order, completedAt, warrantyRule);
+        if (warrantySnapshot) order.warranty = warrantySnapshot;
+      }
+
+      await order.save();
+      if (!tech && order.technicianId) tech = await Technician.findById(order.technicianId);
+      await syncLinkedInstallationBooking(order, tech, req.app.get("io")).catch((error) => {
+        console.warn("[orders] Linked installation booking status sync failed:", error.message);
+      });
+    }
 
     if (tech) {
       if (status === "out_for_delivery") tech.availabilityStatus = "On The Way";
@@ -1933,12 +1949,28 @@ router.patch("/:id/status", authenticate, async (req, res) => {
 
     res.json({ success: true, order: presentOrderForRequest(req, order) });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(Number(err.status) || 500).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
   }
 });
 
 // Record an on-site collection after product delivery/installation. No gateway
 // is contacted and only an administrator may subsequently verify it.
+router.get("/:id/collection-summary", authenticate, requireRole("technician"), async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id).select("_id orderReference customer.name total balanceAmount downpaymentPercentage paymentMethod paymentStatus technicianId status isProject").lean();
+    const tech = await Technician.findOne({ user: req.user._id }).select("_id").lean();
+    if (!order) return res.status(404).json({ error: "Order not found" });
+    if (!tech || String(order.technicianId) !== String(tech._id)) return res.status(403).json({ error: "Order is not assigned to you" });
+    if (order.isProject) return res.status(409).json({ error: "This installation is managed through its project crew and daily work plan." });
+    if (!["arrived", "installing", "completed"].includes(order.status)) return res.status(400).json({ error: "Payment can only be collected at customer handover." });
+    const balanceDue = await outstandingOrderBalance(order);
+    const total = Math.max(0, money(order.total || 0));
+    res.set("Cache-Control", "private, no-store");
+    res.json({ orderId: order._id, orderReference: order.orderReference, customerName: order.customer?.name,
+      total, amountPaid: Math.max(0, money(total - balanceDue)), balanceDue, paymentStatus: order.paymentStatus });
+  } catch (err) { res.status(500).json({ error: "Could not load the current order balance. Please try again." }); }
+});
+
 router.post("/:id/collect-payment", authenticate, requireRole("technician"), async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
@@ -1949,7 +1981,7 @@ router.post("/:id/collect-payment", authenticate, requireRole("technician"), asy
     if (!["arrived", "installing", "completed"].includes(order.status)) {
       return res.status(400).json({ error: "Payment can only be collected at customer handover." });
     }
-    const { amount, method = "cash", reference, proofUrl, customerSignature, notes, location } = req.body || {};
+    const { amount, method = "cash", reference, cashReceivedConfirmed, notes, location } = req.body || {};
     const paymentMethod = String(method).toLowerCase();
     const value = Number(amount);
     if (!["cash", "gcash", "bank"].includes(paymentMethod)) return res.status(400).json({ error: "Invalid payment method." });
@@ -1964,16 +1996,20 @@ router.post("/:id/collect-payment", authenticate, requireRole("technician"), asy
         balanceDue: amountDue,
       });
     }
-    if (!customerSignature) return res.status(400).json({ error: "Customer signature is required." });
-    if (["gcash", "bank"].includes(paymentMethod) && (!String(reference || "").trim() || !proofUrl)) return res.status(400).json({ error: "Reference number and receipt screenshot are required." });
+    if (paymentMethod === "cash" && cashReceivedConfirmed !== true) return res.status(400).json({ error: "Confirm that you received the cash before recording this collection." });
+    if (["gcash", "bank"].includes(paymentMethod) && (typeof reference !== "string" || !reference.trim())) return res.status(400).json({ error: "Enter the GCash or bank transfer reference number." });
+    const paymentReference = paymentMethod === "cash" ? undefined : reference.trim();
     const now = new Date();
     const payment = new Payment({
       orderId: order._id, amount: value, method: paymentMethod,
       type: "final",
       gateway: paymentMethod === "cash" ? "cod" : paymentMethod, status: "waiting_for_remittance",
-      reference: String(reference || "").trim() || undefined, proofUrl: proofUrl || undefined, customerSignature,
+      reference: paymentReference,
       collectedBy: tech._id, collectedByName: tech.name, collectedAt: now, collectionLocation: location || undefined, notes,
-      events: [{ status: "payment_collected", actor: req.user._id, actorName: tech.name, actorRole: "technician", at: now, metadata: { method: paymentMethod } }, { status: "waiting_for_remittance", actor: req.user._id, actorName: tech.name, actorRole: "technician", at: now }]
+      events: [{ status: "payment_collected", actor: req.user._id, actorName: tech.name, actorRole: "technician", at: now,
+        note: paymentMethod === "cash" ? "Technician confirmed receipt of the full cash balance." : "Customer transfer recorded.",
+        metadata: { method: paymentMethod, reference: paymentReference || null, ...(paymentMethod === "cash" ? { cashReceivedConfirmed: true, amount: value } : {}) } },
+        { status: "waiting_for_remittance", actor: req.user._id, actorName: tech.name, actorRole: "technician", at: now }]
     });
     // Claim the outstanding balance before recording the ledger row. The
     // version predicate prevents two devices from collecting it concurrently.
@@ -1981,6 +2017,8 @@ router.post("/:id/collect-payment", authenticate, requireRole("technician"), asy
       _id: order._id,
       __v: order.__v,
       balanceAmount: order.balanceAmount,
+      technicianId: tech._id,
+      status: order.status,
     }, {
       $set: {
         paymentStatus: "waiting_for_remittance",
@@ -2008,7 +2046,9 @@ router.post("/:id/collect-payment", authenticate, requireRole("technician"), asy
     await claimedOrder.save().catch((historyError) => {
       console.warn("[orders] Payment was recorded but the status note could not be appended:", historyError.message);
     });
-    res.status(201).json({ message: "Payment recorded. Waiting for admin remittance verification.", paymentId: payment._id });
+    emitOrderStatus(req, claimedOrder, { paymentCollected: true });
+    res.status(201).json({ message: "Payment recorded. Waiting for admin remittance verification.", paymentId: payment._id,
+      balanceAmount: 0, paymentStatus: "waiting_for_remittance" });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -2922,16 +2962,17 @@ router.post("/:id/assign-technician", authenticate, requireRole(["admin", "secre
 
     let order = await Order.findById(id);
     if (!order) return res.status(404).json({ error: "Order not found" });
+    require('../utils/orderAttention').assertOrderAssignmentSchedule(order, { scheduledDate, timeSlot });
     require('../utils/visitRecovery').assertContact('order', order);
     require('../utils/visitRecovery').assertRecoverySchedule('order', order, req.body);
     if (assignmentSource === 'reviewed_plan' && order.fulfillmentType === 'delivery_installation') { req.body.technicianIds = [String(technicianId)]; return require('../utils/standardJobTeamService').assignmentResponse('order', req, res); }
     if (order.technicianTeam?.length) { req.body.technicianIds = [String(technicianId)]; return require('../utils/standardJobTeamService').assignmentResponse('order', req, res); }
     if (order.isProject) return res.status(409).json({ error: "This installation is managed through its project crew and daily work plan.", code: "ORDER_PROJECT_WORKFLOW_REQUIRED" });
 
-    // Use the scheduledDate if given, otherwise fall back to order's existing preferredDate
-    const finalScheduledDate = scheduledDate || (order.delivery && order.delivery.preferredDate
+    // Technician assignment always uses the customer's saved appointment.
+    const finalScheduledDate = order.delivery && order.delivery.preferredDate
       ? manilaDateKey(order.delivery.preferredDate)
-      : null);
+      : null;
     if (!finalScheduledDate) {
       return res.status(400).json({ error: "Set a future delivery date before assigning a technician." });
     }
@@ -2952,7 +2993,7 @@ router.post("/:id/assign-technician", authenticate, requireRole(["admin", "secre
     const proposedSchedule = {
       ...order.toObject(),
       delivery: { ...(order.delivery?.toObject?.() || order.delivery || {}), preferredDate: new Date(finalScheduledDate) },
-      timeSlot: timeSlot || order.timeSlot,
+      timeSlot: order.timeSlot,
     };
     const scheduleCutoff = requestedOrderCutoff(proposedSchedule);
     if (!scheduleCutoff || scheduleCutoff.getTime() <= Date.now()) {
@@ -2985,13 +3026,14 @@ router.post("/:id/assign-technician", authenticate, requireRole(["admin", "secre
     if (!order || !assignableStatuses.includes(order.status) || order.technicianId && order.status !== "technician_declined") {
       throw new OrderCheckoutError("This order was changed while you were assigning it. Refresh and try again.", 409, "ORDER_ASSIGNMENT_STALE");
     }
-    if (!scheduledDate && manilaDateKey(order.delivery?.preferredDate) !== finalScheduledDate) {
+    if (manilaDateKey(order.delivery?.preferredDate) !== finalScheduledDate) {
       throw new OrderCheckoutError("The delivery date changed. Refresh the order before assigning a technician.", 409, "ORDER_ASSIGNMENT_STALE");
     }
+    require('../utils/orderAttention').assertOrderAssignmentSchedule(order, { scheduledDate: finalScheduledDate, timeSlot });
     const latestSchedule = {
       ...order.toObject(),
       delivery: { ...(order.delivery?.toObject?.() || order.delivery || {}), preferredDate: new Date(finalScheduledDate) },
-      timeSlot: timeSlot || order.timeSlot,
+      timeSlot: order.timeSlot,
     };
     const latestPlan = (await buildOrderAssignmentPlan([latestSchedule], { reservePlan: false, includeAllCandidates: true }))[0];
     if (!latestPlan?.candidates?.some(candidate => candidate.technicianId === String(technicianId))) {
@@ -3010,14 +3052,6 @@ router.post("/:id/assign-technician", authenticate, requireRole(["admin", "secre
       phone: tech.phone || '',
       email: tech.email || ''
     };
-
-    // Update delivery date using finalScheduledDate (customer's preferred date or provided)
-    if (order.delivery && finalScheduledDate) {
-      order.delivery.preferredDate = new Date(finalScheduledDate);
-    }
-    if (timeSlot) {
-      order.timeSlot = timeSlot;
-    }
 
     // Transition status
     const prevStatus = order.status;
@@ -3048,7 +3082,7 @@ router.post("/:id/assign-technician", authenticate, requireRole(["admin", "secre
             email: tech.email || "",
           },
           bookingDate: new Date(finalScheduledDate),
-          startTime: timeSlot || "09:00",
+          startTime: order.timeSlot || "09:00",
           endTime: orderCapacityEndTime(order, getBufferMinutesSync()),
           status: "scheduled",
           serviceType: "core",

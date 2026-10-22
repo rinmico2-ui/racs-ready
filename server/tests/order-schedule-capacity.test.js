@@ -40,3 +40,11 @@ test("unlinked orders count once, linked bookings prevent duplicate capacity cou
   assert.ok(query.fulfillmentType.$in.includes("delivery_only"));
   assert.equal((await loadActiveOrderCapacityRows("2030-01-02", "2030-01-02", { excludeOrderId: "order-1", activeBookingIds: new Set(["booking-2"]) })).length, 0);
 });
+
+test('a late dispatch reservation remains effective only for its matching customer schedule', () => {
+  const order = { fulfillmentType:'delivery_installation', delivery:{preferredDate:'2030-01-02'}, timeSlot:'09:00', items:[{quantity:1}], routeDurationMin:15 };
+  const key = require('../utils/standardJobTeam').scheduleKey('order', order);
+  order.assignmentCapacity = { scheduleKey:key, startMinutes:560, endMinutes:680 };
+  assert.equal(orderCapacityInterval(order, 45).endTime, 680);
+  assert.equal(orderCapacityInterval({ ...order, timeSlot:'13:00' }, 45).endTime, 900);
+});

@@ -72,7 +72,7 @@ test("restored manual payments return to the receipt step without persisting evi
 });
 
 test("service booking restores its payment choice after returning from a payment app", () => {
-  assert.match(servicesScript, /paymentChannel: \['gcash', 'maya', 'bank_transfer', 'other'\]/);
+  assert.match(servicesScript, /paymentChannel: \['gcash', 'maya', 'bank_transfer', 'other', 'cash'\]/);
   assert.match(servicesScript, /window\.addEventListener\('pageshow', event =>/);
   assert.match(servicesScript, /bookingPaymentRestoreNotice/);
   assert.match(servicesView, /Your booking was restored\./);

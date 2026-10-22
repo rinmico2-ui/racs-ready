@@ -8,6 +8,31 @@
   const escape = value => clean(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
   const money = value => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 2 }).format(value);
 
+  function serviceDescription(service) {
+    const name = `${service.slug || ''} ${service.name || ''}`.toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+    if (/dismantl|reinstall/.test(name)) return 'Remove an aircon and install it again.';
+    if (/install/.test(name)) return 'Set up and install an aircon.';
+    if (/clean/.test(name)) return 'Remove dust and dirt from your aircon.';
+    if (/recharg|freon/.test(name)) return 'Refill the refrigerant used for cooling.';
+    if (/leak/.test(name)) return 'Check the cooling system for refrigerant leaks.';
+    if (/pump down/.test(name)) return 'Prepare the refrigerant before removing or servicing the aircon.';
+    if (/reprocess/.test(name)) return 'Service the aircon\u2019s cooling system.';
+    if (/maintenan/.test(name)) return 'Routine checks and care for your aircon.';
+    return clean(service.description) || 'Choose this service if it is the work you need.';
+  }
+
+  function groupServiceCards(items) {
+    const available = items.filter(item => item.available || item.checked);
+    const unavailable = items.filter(item => !item.available && !item.checked);
+    const common = available.filter(item => /clean|install/.test(`${item.service.slug || ''} ${item.service.name || ''}`.toLowerCase()) && !/dismantl|reinstall/.test(`${item.service.slug || ''} ${item.service.name || ''}`.toLowerCase()));
+    const others = available.filter(item => !common.includes(item));
+    const cards = group => group.map(item => item.html).join('');
+    const main = common.length && others.length
+      ? `${cards(common)}<details class="cab-more-services" ${others.some(item => item.checked) ? 'open' : ''}><summary><span>More services<small>See other types of work</small></span><span class="cab-more-count">${others.length}<i class="bi bi-chevron-down" aria-hidden="true"></i></span></summary><div>${cards(others)}</div></details>`
+      : cards(available);
+    return main + (unavailable.length ? `<details class="cab-more-services cab-unavailable-services"><summary><span>Services not available<small>For the aircon details you entered</small></span><span class="cab-more-count">${unavailable.length}<i class="bi bi-chevron-down" aria-hidden="true"></i></span></summary><div>${cards(unavailable)}</div></details>` : '');
+  }
+
   function createModel(catalog, { newId = () => `appliance_${globalThis.crypto.randomUUID()}` } = {}) {
     let units = [], count = 1, shared = {}, detailsMode = 'shared', servicesMode = 'shared', sharedServices = [], individualServicesInitialized = false;
     const services = catalog.filter(service => service.active !== false && A.profile(service, 'aircon') && !A.isRelocation(service));
@@ -134,7 +159,7 @@
 
   function mount({ host, catalog, selection, enabled, step, update, changed, restoreShared, help, guided = false }) {
     const model = createModel(catalog);
-    let active = false, detailSignature = '', serviceSignature = '', restored = false, singleWasUsed = false;
+    let active = false, detailSignature = '', serviceSignature = '', restored = false, singleWasUsed = false, activeServiceUnit = 0;
     const quantity = host.querySelector('.cab-quantity'), limit = host.querySelector('[data-limit]'), feedback = host.querySelector('[data-quantity-feedback]');
     const sharedCard = host.querySelector('[data-unit-details]'), legacyServices = host.querySelector('[data-services]');
     const footer = host.querySelector('.cab-footer'), footerReview = footer.querySelector('[data-booking-review]');
@@ -157,8 +182,9 @@
     sharedCard.after(detailsRoot);
     const servicesRoot = document.createElement('section');
     servicesRoot.className = 'cab-batch-services'; servicesRoot.dataset.coreBatch = ''; servicesRoot.hidden = true;
-    servicesRoot.innerHTML = `<fieldset class="cab-batch-choice"><legend>Which aircons need these services?</legend><div class="cab-batch-switch"><label><input type="radio" name="batchServicesMode" value="shared" checked><span><strong>All aircons</strong><small>Choose common services once</small></span></label><label><input type="radio" name="batchServicesMode" value="individual"><span><strong>Choose per aircon</strong><small>Adjust services for each unit</small></span></label></div></fieldset><div data-batch-service-list></div><p class="cab-batch-status" data-batch-service-status role="status" aria-live="polite"></p>`;
+    servicesRoot.innerHTML = `<fieldset class="cab-batch-choice"><legend>Do all aircons need the same services?</legend><div class="cab-batch-switch"><label><input type="radio" name="batchServicesMode" value="shared" checked><span><strong>Yes, same services</strong><small>Choose once for all aircons</small></span></label><label><input type="radio" name="batchServicesMode" value="individual"><span><strong>No, choose for each</strong><small>Choose what each aircon needs</small></span></label></div></fieldset><button type="button" class="cab-service-help" data-service-help hidden><i class="bi bi-question-circle" aria-hidden="true"></i>Need help choosing?</button><p class="cab-service-progress" data-batch-service-progress role="status" aria-live="polite"></p><div data-batch-service-list></div><p class="cab-batch-status" data-batch-service-status role="status" aria-live="polite"></p>`;
     legacyServices.after(servicesRoot);
+    servicesRoot.querySelector('[data-service-help]').hidden = !document.getElementById('racbotToggle');
     const options = (values, value, empty) => `<option value="">${empty}</option>` + values.map(([key,label]) => `<option value="${escape(key)}" ${String(key) === String(value ?? '') ? 'selected' : ''}>${escape(label)}</option>`).join('');
     const unitTitle = index => `Aircon ${index + 1}`;
     const unitDescription = unit => [unit.brand, model.types().find(([type]) => type === unit.airconType)?.[1], unit.hp ? `${unit.hp} HP` : ''].filter(Boolean).join(' · ');
@@ -197,29 +223,59 @@
       const affected = states.map((state, position) => !state.available ? unitTitle(index === undefined ? position : index) : '').filter(Boolean);
       const prices = allAvailable ? states.map(state => state.pricing.unitPrice) : [];
       const total = prices.reduce((sum, value) => sum + value, 0);
-      const priceText = !allAvailable ? 'Not offered' : units.length === 1 ? money(total) : `${money(total)} total`;
-      const range = prices.length ? Math.min(...prices) === Math.max(...prices) ? `${money(prices[0])} per aircon` : `${money(Math.min(...prices))}–${money(Math.max(...prices))} per aircon` : '';
-      const unavailable = checked ? 'Remove this choice or update the unit details.' : index === undefined ? 'Choose per aircon to select it for compatible units.' : 'Choose another service for this unit.';
-      return `<label class="cab-batch-service ${allAvailable ? '' : 'is-unavailable'}"><input type="checkbox" data-batch-service="${escape(service._id)}" ${index === undefined ? '' : `data-service-unit="${index}"`} ${checked ? 'checked' : ''} ${!allAvailable && !checked ? 'disabled' : ''}><span><strong>${escape(service.name)}</strong><small>${allAvailable ? escape(units.length > 1 ? range : `${states[0].pricing.duration} min`) : escape(`Not offered for ${affected.join(', ')}. ${unavailable}`)}</small></span><b>${priceText}</b></label>`;
+      const range = prices.length && Math.min(...prices) !== Math.max(...prices);
+      const priceText = !allAvailable ? 'Unavailable' : range ? `${money(Math.min(...prices))}\u2013${money(Math.max(...prices))}` : money(prices[0]);
+      const priceNote = units.length > 1 ? `each \u00b7 ${money(total)} for all ${units.length}` : 'for this aircon';
+      const minutes = allAvailable ? [...new Set(states.map(state => state.pricing.duration))] : [];
+      const duration = minutes.length === 1 ? `About ${minutes[0]} min` : 'Time varies by aircon';
+      const unavailable = checked ? 'Uncheck this service or update the aircon details.' : index === undefined ? 'Choose services for each aircon to add this only where available.' : 'Choose another service for this aircon.';
+      const html = `<label class="cab-batch-service ${allAvailable ? '' : 'is-unavailable'}"><input type="checkbox" data-batch-service="${escape(service._id)}" ${index === undefined ? '' : `data-service-unit="${index}"`} ${checked ? 'checked' : ''} ${!allAvailable && !checked ? 'disabled' : ''}><span class="cab-batch-service-copy"><span class="cab-service-name"><strong>${escape(service.name)}</strong><span class="cab-service-state" aria-hidden="true"><span data-service-unselected>Select</span><span data-service-selected><i class="bi bi-check2" aria-hidden="true"></i>Selected</span></span></span><small class="cab-service-description">${escape(serviceDescription(service))}</small><small class="cab-service-time">${allAvailable ? escape(duration) : escape(`Not available for ${affected.join(', ')}. ${unavailable}`)}</small></span><span class="cab-batch-service-price"><b>${priceText}</b>${allAvailable ? `<small>${escape(priceNote)}</small>` : ''}</span></label>`;
+      return { service, html, available: allAvailable, checked };
+    }
+    const unitServiceTotal = unit => unit.serviceIds.reduce((sum, id) => {
+      try { return sum + A.price(model.services.find(service => String(service._id) === id), unit).unitPrice; } catch (_) { return sum; }
+    }, 0);
+    const unitServicesReady = unit => Boolean(unit?.serviceIds.length) && unit.serviceIds.every(id => {
+      const service = model.services.find(service => String(service._id) === id);
+      return service && model.choice(service, unit).available;
+    });
+    function refreshServiceSummaries(units) {
+      const ready = units.filter(unitServicesReady).length;
+      servicesRoot.querySelector('[data-batch-service-progress]').textContent = ready === units.length
+        ? `All ${units.length} aircons have services. Check your choices, then add them to your booking.`
+        : `${ready} of ${units.length} aircons have services. Choose at least one service for each aircon.`;
+      servicesRoot.querySelectorAll('[data-open-service-unit]').forEach(button => {
+        const index = Number(button.dataset.openServiceUnit), unit = units[index], ready = unitServicesReady(unit);
+        const names = unit.serviceIds.map(id => model.services.find(service => String(service._id) === id)?.name).filter(Boolean);
+        button.querySelector('[data-unit-selected-services]').textContent = names.length ? names.join(' + ') : 'No services selected yet';
+        button.querySelector('[data-unit-pick-status]').textContent = ready ? `${names.length} selected` : names.length ? 'Check selection' : 'Choose a service';
+        button.querySelector('[data-unit-service-total]').textContent = names.length ? money(unitServiceTotal(unit)) : '\u2014';
+        button.closest('.cab-batch-unit-services').classList.toggle('has-services', ready);
+      });
+      servicesRoot.querySelectorAll('[data-next-service-unit], [data-review-service-units]').forEach(button => {
+        button.disabled = !unitServicesReady(units[activeServiceUnit]);
+      });
     }
     function refreshServices(force = false) {
       if (!active || step() !== 3) return;
       const units = model.activeUnits();
+      if (activeServiceUnit >= units.length) activeServiceUnit = units.length - 1;
       const estimate = model.estimate(), error = estimate.tasks ? estimate.errors.find(error => error.field === 'service') : null;
       notify(error?.message || '', Boolean(error), true);
-      const signature = JSON.stringify([units.map(({ serviceIds, ...unit }) => unit), model.servicesMode]);
+      const signature = JSON.stringify([units.map(({ serviceIds, ...unit }) => unit), model.servicesMode, activeServiceUnit]);
       if (!force && signature === serviceSignature) {
-        servicesRoot.querySelectorAll('[data-unit-service-total]').forEach(node => {
-          const unit = units[Number(node.dataset.unitServiceTotal)];
-          node.textContent = money(unit.serviceIds.reduce((sum,id) => { try { return sum + A.price(model.services.find(service => String(service._id) === id),unit).unitPrice; } catch (_) { return sum; } },0));
-        });
+        refreshServiceSummaries(units);
         return;
       }
       serviceSignature = signature;
       const list = servicesRoot.querySelector('[data-batch-service-list]');
-      if (model.servicesMode === 'shared') list.innerHTML = `<p class="cab-note">Selected services apply to all ${model.count} aircons. Each aircon uses its own catalog price.</p>${model.services.map(service => serviceMarkup(service, units)).join('')}`;
-      else list.innerHTML = `<p class="cab-note">Review the services for each aircon. Shared choices are filled in for you.</p>${units.map((unit,index) => `<section class="cab-batch-unit-services" aria-label="Services for ${unitTitle(index)}"><div class="cab-batch-service-head"><div><h4>${unitTitle(index)}</h4><p>${escape(unitDescription(unit))}</p></div><span data-unit-service-total="${index}">${money(unit.serviceIds.reduce((sum,id) => { try { return sum + A.price(model.services.find(service => String(service._id) === id), unit).unitPrice; } catch (_) { return sum; } },0))}</span></div>${model.services.map(service => serviceMarkup(service,[unit],index)).join('')}</section>`).join('')}`;
+      if (model.servicesMode === 'shared') list.innerHTML = `<div class="cab-service-scope"><i class="bi bi-snow" aria-hidden="true"></i><div><strong>Services for all ${model.count} aircons</strong><p>Tap to select. Tap again to remove. Prices below show the cost for each aircon.</p></div></div>${groupServiceCards(model.services.map(service => serviceMarkup(service, units)))}`;
+      else list.innerHTML = `<p class="cab-note cab-unit-picker-note" tabindex="-1" data-unit-picker-note>Choose one aircon at a time. Your existing choices are kept.</p>${units.map((unit, index) => {
+        const open = activeServiceUnit === index, key = `${host.id || 'core'}-aircon-services-${index}`;
+        return `<section class="cab-batch-unit-services ${open ? 'is-open' : ''}" aria-label="Services for ${unitTitle(index)}"><h4><button type="button" class="cab-unit-service-toggle" id="${escape(key)}-toggle" data-open-service-unit="${index}" aria-expanded="${open}" aria-controls="${escape(key)}"><span class="cab-aircon-number" aria-hidden="true">${index + 1}</span><span class="cab-aircon-identity"><strong>${unitTitle(index)}</strong><span>${escape(unitDescription(unit))}</span><small data-unit-selected-services></small></span><span class="cab-aircon-service-summary"><span class="cab-unit-pick-status" data-unit-pick-status></span><strong data-unit-service-total="${index}"></strong><span class="cab-aircon-edit">${open ? 'Choosing services' : 'Choose / change'}<i class="bi bi-chevron-${open ? 'up' : 'down'}" aria-hidden="true"></i></span></span></button></h4><div class="cab-unit-service-panel" id="${escape(key)}" aria-labelledby="${escape(key)}-toggle" ${open ? '' : 'hidden'}>${open ? `<p class="cab-unit-service-instruction">What does ${unitTitle(index)} need? Select one or more services.</p>${groupServiceCards(model.services.map(service => serviceMarkup(service, [unit], index)))}<div class="cab-unit-service-next">${index + 1 < units.length ? `<button type="button" data-next-service-unit="${index + 1}">Next: ${unitTitle(index + 1)}<i class="bi bi-arrow-right" aria-hidden="true"></i></button>` : '<button type="button" data-review-service-units>Review all aircons<i class="bi bi-check2" aria-hidden="true"></i></button>'}</div>` : ''}</div></section>`;
+      }).join('')}`;
       if (!model.services.length) list.innerHTML = '<p class="cab-empty">No Core services are offered for these aircons. Contact staff for assistance.</p>';
+      refreshServiceSummaries(units);
     }
     function sync() {
       const current = selection(), shouldActivate = enabled() && current.applianceKind === 'aircon' && Number(current.quantity) > 1;
@@ -238,7 +294,7 @@
       if (footerReview) footerReview.hidden = !quote.hidden;
       if (!quote.hidden) {
         const state = model.estimate();
-        quote.querySelector('[data-batch-quote-units]').textContent = `${state.count} aircons · ${state.tasks} service task${state.tasks === 1 ? '' : 's'}`;
+        quote.querySelector('[data-batch-quote-units]').textContent = `${state.count} aircons · ${state.tasks} service${state.tasks === 1 ? '' : 's'} selected`;
         quote.querySelector('[data-batch-quote-total]').textContent = state.tasks ? money(state.total) : '—';
       }
       modes.hidden = !active; servicesRoot.hidden = !active; legacyServices.hidden = active;
@@ -256,7 +312,11 @@
       const input = event.target;
       try {
         if (input.name === 'batchDetailsMode') { model.setDetailsMode(input.value); detailSignature = ''; }
-        else if (input.name === 'batchServicesMode') model.setServicesMode(input.value);
+        else if (input.name === 'batchServicesMode') {
+          model.setServicesMode(input.value);
+          const missing = model.activeUnits().findIndex(unit => !unitServicesReady(unit));
+          activeServiceUnit = missing < 0 ? 0 : missing;
+        }
         else if (input.dataset.batchService) model.selectService(input.dataset.batchService, input.checked, input.dataset.serviceUnit === undefined ? undefined : Number(input.dataset.serviceUnit));
         else if (input.dataset.unitField) {
           const index = Number(input.dataset.unitIndex), field = input.dataset.unitField;
@@ -278,12 +338,35 @@
           }
         }
         update(); changed();
-      } catch (error) { notify(error.message, true, Boolean(input.dataset.batchService)); }
+      } catch (error) {
+        if (input.dataset.batchService) {
+          const unit = model.activeUnits()[Number(input.dataset.serviceUnit) || 0];
+          input.checked = unit.serviceIds.includes(input.dataset.batchService);
+        }
+        notify(error.message, true, Boolean(input.dataset.batchService));
+      }
     };
     [modes, detailsRoot, servicesRoot].forEach(root => {
       root.addEventListener('change', onChange);
       root.addEventListener('input', event => { event.stopPropagation(); if (['brandCustom','model'].includes(event.target.dataset.unitField)) onChange(event); });
       root.addEventListener('click', event => {
+        if (event.target.closest('[data-service-help]')) {
+          event.preventDefault(); event.stopPropagation();
+          document.getElementById('racbotToggle')?.click();
+          return;
+        }
+        const serviceUnit = event.target.closest('[data-open-service-unit], [data-next-service-unit], [data-review-service-units]');
+        if (serviceUnit) {
+          event.preventDefault(); event.stopPropagation();
+          if (serviceUnit.disabled) return;
+          const nextUnit = Number(serviceUnit.dataset.openServiceUnit ?? serviceUnit.dataset.nextServiceUnit);
+          activeServiceUnit = serviceUnit.hasAttribute('data-review-service-units') || serviceUnit.hasAttribute('data-open-service-unit') && activeServiceUnit === nextUnit ? -1 : nextUnit;
+          refreshServices(true);
+          const target = activeServiceUnit < 0 ? servicesRoot.querySelector('[data-unit-picker-note]') : servicesRoot.querySelector('[data-open-service-unit="' + activeServiceUnit + '"]');
+          target?.focus({ preventScroll: true });
+          target?.scrollIntoView({ block: 'start', behavior: 'instant' });
+          return;
+        }
         const copy = event.target.closest('[data-copy-unit]'), unitHelp = event.target.closest('[data-unit-help-index]');
         if (!copy && !unitHelp) return;
         event.preventDefault(); event.stopPropagation();
@@ -305,9 +388,9 @@
       active: () => active, differentDetails: () => model.detailsMode === 'individual',
       detailsValid: () => model.activeUnits().every(unit => !model.issue(unit)),
       snapshot: () => model.snapshot(), restore(value) { model.restore(value); restored = true; },
-      reset() { model.reset(); detailSignature = ''; serviceSignature = ''; active = false; singleWasUsed = false; modes.hidden = true; detailsRoot.hidden = true; servicesRoot.hidden = true; legacyServices.hidden = false; quote.hidden = true; if (footerReview) footerReview.hidden = false; host.classList.remove('cab-batch-active'); },
+      reset() { model.reset(); detailSignature = ''; serviceSignature = ''; activeServiceUnit = 0; active = false; singleWasUsed = false; modes.hidden = true; detailsRoot.hidden = true; servicesRoot.hidden = true; legacyServices.hidden = false; quote.hidden = true; if (footerReview) footerReview.hidden = false; host.classList.remove('cab-batch-active'); },
     };
   }
 
-  return { createModel, mount };
+  return { createModel, mount, serviceDescription, groupServiceCards };
 });

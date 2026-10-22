@@ -2,8 +2,18 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { buildMongoConnectionUri, disableRetryableWritesForDirectConnection, isTlsProtectedMongoUri, isSingleLabelMongoUri, parseDirectHosts } = require("../utils/mongoConnection");
+const { buildMongoConnectionUri, disableRetryableWritesForDirectConnection, isTlsProtectedMongoUri, isSingleLabelMongoUri, parseDirectHosts, nonNegativeInteger } = require("../utils/mongoConnection");
 const { isUnsupportedMongoWriteFeature } = require("../utils/mongoWriteSupport");
+
+test("an explicitly empty idle MongoDB pool is honored without changing production defaults", () => {
+  assert.equal(nonNegativeInteger("0", 2), 0);
+  assert.equal(nonNegativeInteger(0, 1), 0);
+  assert.equal(nonNegativeInteger("2", 1), 2);
+  for (const value of [undefined, null, "", "invalid", "-1", "9007199254740992"]) {
+    assert.equal(nonNegativeInteger(value, 2), 2);
+    assert.equal(nonNegativeInteger(value, 1), 1);
+  }
+});
 
 test("requires TLS on production MongoDB URIs", () => {
   assert.equal(isTlsProtectedMongoUri("mongodb+srv://cluster.example/app"), true);

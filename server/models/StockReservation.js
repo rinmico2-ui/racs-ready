@@ -58,6 +58,10 @@ const stockReservationSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    quantityFulfilled: { type: Number, min: 0, default: 0 },
+    quantityReturned: { type: Number, min: 0, default: 0 },
+    quantityDamaged: { type: Number, min: 0, default: 0 },
+    quantityMissing: { type: Number, min: 0, default: 0 },
 
     cancelledAt: {
       type: Date,

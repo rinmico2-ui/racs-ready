@@ -8,6 +8,8 @@
 %>
 <link rel="stylesheet" href="/css/enterprise-calendar.css?v=2">
 <link rel="stylesheet" href="/css/resolution-center-dialogs.css?v=20261012-tab-loading">
+<link rel="stylesheet" href="/css/core-repair-findings.css?v=20261022-discovery">
+<script src="/js/core-repair-findings.js?v=20261022-discovery"></script>
 <style>
   .attention-card { background:#fff; border-radius:12px; padding:1rem; border:1px solid #e2e8f0; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
   .attention-icon { width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; }
@@ -196,7 +198,7 @@
           <select class="form-select" id="resolutionIssue" aria-label="Issue type">
             <option value="">All issue types</option>
             <option value="emergency">Emergency reported</option>
-            <optgroup label="Bookings"><option value="no_show">No-show</option><option value="past_date">Past date</option><option value="incomplete">Incomplete service</option><option value="no_technician">No technician</option><option value="technician_issue">Technician issue</option><option value="schedule_conflict">Schedule conflict</option><option value="customer_reschedule">Customer reschedule</option><option value="cancelled">Cancellation review</option></optgroup>
+            <optgroup label="Bookings"><option value="customer_cancellation">Customer cancellation</option><option value="no_show">No-show</option><option value="past_date">Past date</option><option value="incomplete">Incomplete service</option><option value="no_technician">No technician</option><option value="technician_issue">Technician issue</option><option value="schedule_conflict">Schedule conflict</option><option value="customer_reschedule">Customer reschedule</option><option value="cancelled">Cancellation review</option></optgroup>
             <optgroup label="Orders"><option value="payment_review_overdue">Payment review overdue</option><option value="assignment_overdue">Assignment overdue</option><option value="dispatch_overdue">Dispatch overdue</option><option value="pickup_overdue">Pickup overdue</option></optgroup>
           </select>
           <select class="form-select" id="resolutionSeverity" aria-label="Severity"><option value="">All priorities</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option></select>
@@ -444,6 +446,8 @@
 </div>
 
 <link rel="stylesheet" href="/css/visit-recovery.css?v=20261019">
+<link rel="stylesheet" href="/css/customer-cancellation.css?v=20261020">
+<script src="/js/customer-cancellation.js?v=20261020" defer></script>
 <script src="/js/enterprise-calendar.js"></script>
 <script src="/js/visit-recovery.js?v=20261019" defer></script>
 <script src="/js/resolution-evidence.js?v=20261009"></script>
@@ -468,7 +472,7 @@
   const queryParams = new URLSearchParams(window.location.search);
   const requestedFilter = queryParams.get('issue') || queryParams.get('status') || '';
   const legacyFilterMap = { 'no-show-reported':'no_show', pending_reassignment:'technician_issue', 're-scheduled':'customer_reschedule', awaiting_assignment:'no_technician' };
-  const validIssueFilters = ['emergency', 'no_show', 'cancelled', 'incomplete', 'no_technician', 'technician_issue', 'schedule_conflict', 'customer_reschedule', 'past_date', 'payment_review_overdue', 'assignment_overdue', 'dispatch_overdue', 'pickup_overdue'];
+  const validIssueFilters = ['customer_cancellation', 'emergency', 'no_show', 'cancelled', 'incomplete', 'no_technician', 'technician_issue', 'schedule_conflict', 'customer_reschedule', 'past_date', 'payment_review_overdue', 'assignment_overdue', 'dispatch_overdue', 'pickup_overdue'];
   let currentFilter = legacyFilterMap[requestedFilter] || (validIssueFilters.includes(requestedFilter) ? requestedFilter : '');
   let currentSource = ['booking', 'order'].includes(queryParams.get('source')) ? queryParams.get('source') : '';
   if (currentSource === 'order' && !RESOLUTION_CAN_VIEW_ORDERS) currentSource = '';
@@ -503,6 +507,7 @@
   };
 
   const ISSUE_BADGES = {
+    customer_cancellation: {label:'Customer cancellation', icon:'bi-chat-square-text', color:'#9f1239', background:'#fff1f2'},
     no_show: { label:'No-Show', icon:'bi-person-exclamation', color:'#dc2626', background:'#fef2f2' },
     past_date: { label:'Past Date', icon:'bi-calendar-x', color:'#b91c1c', background:'#fef2f2' },
     cancelled: { label:'Cancelled', icon:'bi-x-circle', color:'#475569', background:'#f1f5f9' },
@@ -747,6 +752,7 @@
   async function openFocusedResolutionCase(source, id) {
     const item = findResolutionCase(source, id);
     if (!item) return;
+    if (source === 'booking' && item.allowedActions?.includes('review_cancellation')) return openCustomerCancellationCase(item.id);
     if (item.paymentReview?.required) return openResolutionPaymentReview(source, item.id);
     if (item.recoveryAvailable && item.allowedActions?.includes('recover')) return openVisitRecoveryCase(source, item.id, item.issueType);
     if (source === 'order') {
@@ -774,10 +780,14 @@
     </div>`;
   }
 
+  function openCustomerCancellationCase(id) { return window.CustomerCancellationReview.open(id, RESOLUTION_API_BASE, () => loadQueue()); }
+
   function renderBookingActions(item, encodedReference) {
     const allowed = new Set(item.allowedActions || []);
+    if (item.coreRepairFinding) return `<button type="button" class="btn btn-warning" onclick="CoreRepairFindings.open('${item.id}',{role:location.pathname.startsWith('/secretary')?'secretary':'admin',onSaved:()=>loadQueue()})">Review service finding</button><button type="button" class="btn btn-outline-secondary" onclick="viewDetail('${item.id}')">View booking & payments</button>`;
     const viewAction = `<button class="btn btn-outline-secondary" onclick="viewDetail('${item.id}')"><i class="bi bi-eye me-1"></i>View booking</button>`;
     const closeAction = allowed.has('close') ? `<button class="btn btn-outline-dark" onclick="closeCase('${item.id}','${item.issueType}')"><i class="bi bi-check2-circle me-1"></i>Close case</button>` : '';
+    if (allowed.has('review_cancellation')) return viewAction + `<button type="button" class="btn btn-danger" onclick="openCustomerCancellationCase('${item.id}')">Review Cancellation</button>` + contactActions(item);
     if (item.status === 'cancelled' || item.issueType === 'cancelled') return viewAction + closeAction + contactActions(item);
     if (item.paymentReview?.required) return `${viewAction}<button type="button" class="btn btn-success" onclick="openResolutionPaymentReview('booking','${item.id}')">${escapeHtml(item.paymentReview.actionLabel || 'Review payment')}</button><button type="button" class="btn btn-outline-secondary" disabled title="Review the payment arrangement first">Resolve case</button><p class="rc-payment-gate small text-danger mb-0 w-100" role="status">${escapeHtml(item.paymentReview.reason)}</p>${contactActions(item)}`;
     const canSchedule = allowed.has('reschedule');
@@ -1360,7 +1370,7 @@
   async function openResolutionPaymentReview(source, id) {
     if (resolutionPaymentBusy) return;
     const item = findResolutionCase(source, id);
-    if (!item || ![item, ...(item.issues || [])].some(issue => issue.allowedActions?.some(action => ['verify_payment', 'confirm_cash'].includes(action)))) {
+    if (!item || ![item, ...(item.issues || [])].some(issue => issue.allowedActions?.some(action => ['verify_payment', 'confirm_cash', ...(source === 'booking' ? ['review_cancellation'] : [])].includes(action)))) {
       showToast('info', 'This payment no longer needs review. Refresh the list.'); return;
     }
     const record = await (source === 'order' ? viewOrderDetail(id) : viewDetail(id));

@@ -37,6 +37,32 @@ test("a closed review note alone does not cancel valid work; historical visits r
   assert.equal(assignmentWorkDecision(assignment, { ...booking, isProject: true }).current, false);
 });
 
+test('a shared mixed visit remains accessible after Core is complete while Repair is still open', async () => {
+  for (const status of ['arrived', 'inspection_in_progress', 'awaiting_customer_decision', 'repair_in_progress']) {
+    const shared = { ...assignment, status: 'in_progress', serviceType: 'mixed' };
+    const source = { ...booking, serviceType: 'mixed', status: 'in-progress',
+      technicianTeam: [{ technicianId: 't1', assignmentId: 'a1', status: 'accepted' }], services: [
+        { _id: 'core', technicianId: 't1', assignmentId: 'a1', status: 'completed' },
+        { _id: 'repair', technicianId: 't1', assignmentId: 'a1', status },
+      ] };
+    assert.equal(assignmentWorkDecision(shared, source).current, true, status);
+    const scope = await technicianAssignmentScope('t1', { Assignments: { find: () => query([shared]) }, Bookings: { find: () => query([source]) } });
+    assert.equal(scope._id, undefined, 'The shared visit stays in lists and counts');
+    assert.equal(assignmentWorkDecision({ ...shared, serviceItemId: 'core' }, source).current, false, 'A completed item-specific assignment stays closed');
+  }
+});
+
+test('shared visits use the current parent schedule while item assignments retain their individual schedules', () => {
+  const source = { ...booking, serviceType: 'mixed', services: [
+    { _id: 'core', technicianId: 't1', assignmentId: 'a1', status: 'completed', schedule: { date: new Date('2026-10-11'), startTime: '15:00' } },
+    { _id: 'repair', technicianId: 't1', assignmentId: 'a1', status: 'arrived', schedule: { date: assignment.bookingDate, startTime: '08:00' } },
+  ] };
+  assert.equal(assignmentWorkDecision({ ...assignment, serviceType: 'mixed' }, source).current, true);
+  source.services[1].status = 'completed';
+  assert.equal(assignmentWorkDecision(assignment, source).current, true, 'Final payment/proof remains accessible until the parent visit closes');
+  assert.equal(assignmentWorkDecision(assignment, { ...source, assignmentId: 'replacement', technicianId: 'replacement' }).current, false);
+});
+
 test("work scope excludes the three cancelled sample visits before pagination and counts using two batched reads", async () => {
   const rows = Array.from({ length: 4 }, (_, index) => ({ ...assignment, _id: `a${index}`, bookingId: `b${index}` }));
   const sources = rows.map((row, index) => ({ ...booking, _id: row.bookingId, assignmentId: row._id, status: index < 3 ? "cancelled" : "confirmed" }));

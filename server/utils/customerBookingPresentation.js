@@ -153,6 +153,7 @@ const CUSTOMER_HIDDEN_FIELDS = [
   "visitRecoveryHistory",
   "internalNotes",
   "adminNotes",
+  "customerCancellation",
 ];
 
 function presentCustomerBooking(booking = {}) {

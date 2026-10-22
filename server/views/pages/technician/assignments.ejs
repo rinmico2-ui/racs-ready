@@ -1362,7 +1362,7 @@
 <!-- Collect Payment Modal -->
 <div class="modal fade" id="collectPaymentModal" tabindex="-1" role="dialog" aria-modal="true"
   data-bs-backdrop="static">
-  <div class="modal-dialog modal-dialog-centered">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content" style="border:none;border-radius:16px;overflow:hidden;">
       <div class="modal-header"
         style="background:linear-gradient(135deg,#059669,#047857);color:#fff;padding:1.25rem 1.5rem;border-bottom:none;">
@@ -1460,19 +1460,28 @@
 
         <div id="paymentSummaryBox"
           style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;padding:16px;margin-bottom:16px;">
-          <div class="d-flex justify-content-between mb-2" style="font-size:0.85rem;">
+          <div id="paymentMixedBreakdown" hidden></div>
+          <div class="justify-content-between mb-2" id="paymentCoreServiceRow" style="display:none;font-size:0.85rem;">
+            <span class="text-muted">Service charge:</span>
+            <span class="fw-semibold" id="paymentCoreServiceFee">₱0</span>
+          </div>
+          <div class="justify-content-between mb-2" id="paymentTravelRow" style="display:none;font-size:0.85rem;">
+            <span class="text-muted">Travel fee:</span>
+            <span class="fw-semibold" id="paymentTravelFee">₱0</span>
+          </div>
+          <div class="justify-content-between mb-2" id="paymentPartsRow" style="display:none;font-size:0.85rem;">
             <span class="text-muted">Parts Total:</span>
             <span class="fw-semibold" id="paymentPartsTotal">₱0</span>
           </div>
-          <div class="d-flex justify-content-between mb-2" style="font-size:0.85rem;">
+          <div class="justify-content-between mb-2" id="paymentLaborRow" style="display:none;font-size:0.85rem;">
             <span class="text-muted">Labor Fee:</span>
             <span class="fw-semibold" id="paymentLaborCost">₱0</span>
           </div>
           <div class="d-flex justify-content-between mb-2" style="font-size:0.85rem;">
-            <span class="text-muted">Total Service Fee:</span>
+            <span class="text-muted">Total bill:</span>
             <span class="fw-bold" id="paymentTotalFee">₱0</span>
           </div>
-          <div class="d-flex justify-content-between mb-2" id="paymentDownpaymentRow"
+          <div class="justify-content-between mb-2" id="paymentDownpaymentRow"
             style="display:none;font-size:0.85rem;">
             <span class="text-muted" id="paymentCreditLabel">Less: Recorded payments:</span>
             <span class="fw-semibold text-primary" id="paymentDownpayment">-₱0</span>
@@ -1485,32 +1494,41 @@
         </div>
 
         <div class="mb-3">
-          <label class="form-label fw-bold" style="font-size:0.85rem;">Amount Received <span
+          <label for="paymentAmountInput" class="form-label fw-bold" style="font-size:0.85rem;">Amount Received <span
               class="text-danger">*</span></label>
           <div class="input-group">
             <span class="input-group-text"
               style="border-radius:10px 0 0 10px;background:#f1f5f9;font-weight:700;">₱</span>
-            <input type="number" class="form-control" id="paymentAmountInput" min="0" step="0.01" placeholder="0.00"
+            <input type="number" class="form-control" id="paymentAmountInput" min="0" step="0.01" placeholder="0.00" aria-describedby="paymentAmountHint"
               style="border-radius:0 10px 10px 0;font-size:1rem;font-weight:600;">
           </div>
-          <small class="text-muted" id="paymentAmountHint">Enter the full balance amount</small>
+          <small class="text-muted" id="paymentAmountHint">Record the full balance received from the customer.</small>
         </div>
 
         <div class="mb-3">
-          <label class="form-label fw-bold" style="font-size:0.85rem;">Payment Method <span class="text-danger">*</span></label>
+          <label for="collectionMethod" class="form-label fw-bold" style="font-size:0.85rem;">Payment Method <span class="text-danger">*</span></label>
           <select class="form-select" id="collectionMethod"><option value="cash">Cash</option><option value="gcash">GCash</option><option value="bank">Bank Transfer</option></select>
         </div>
-        <div class="mb-3 d-none" id="collectionReferenceWrap"><label class="form-label fw-bold" style="font-size:0.85rem;">Reference Number <span class="text-danger">*</span></label><input class="form-control" id="collectionReference"></div>
-        <div class="mb-3" id="collectionProofWrap"><label class="form-label fw-bold" style="font-size:0.85rem;">Payment Receipt / Screenshot <span id="collectionProofRequired" class="text-danger d-none">*</span></label><input type="file" accept="image/*" capture="environment" class="form-control" id="collectionProof"></div>
-        <div class="mb-3"><label class="form-label fw-bold" style="font-size:0.85rem;">Customer Signature <span class="text-muted fw-normal">(optional)</span></label><input class="form-control" id="collectionSignature" placeholder="Customer types full name as signature"></div>
-        <div class="mb-3"><label class="form-label fw-bold" style="font-size:0.85rem;">Customer Confirmation Photo <span class="text-muted fw-normal">(optional)</span></label><input type="file" accept="image/*" capture="environment" class="form-control" id="collectionCustomerPhoto"><small class="text-muted">Cash requires at least a signature, receipt photo, or customer confirmation photo.</small></div>
-        <div class="mb-3">
-          <label class="form-label fw-bold" style="font-size:0.85rem;">Notes (optional)</label>
-          <input type="text" class="form-control" id="paymentNotesInput" placeholder="e.g. Cash received, exact amount"
-            style="border-radius:10px;font-size:0.9rem;">
+        <div class="mb-3 rounded-3 border p-3 bg-white" id="collectionCashWrap">
+          <div class="form-check mb-1">
+            <input class="form-check-input" type="checkbox" id="collectionCashConfirmed" aria-describedby="collectionCashHint" required>
+            <label class="form-check-label fw-semibold" for="collectionCashConfirmed" id="collectionCashConfirmationLabel">I received this amount in cash.</label>
+          </div>
+          <small class="text-muted d-block" id="collectionCashHint">Count the cash before confirming.</small>
         </div>
+        <div class="mb-3 d-none" id="collectionReferenceWrap">
+          <label for="collectionReference" class="form-label fw-bold" style="font-size:0.85rem;">Reference number <span class="text-danger">*</span></label>
+          <input class="form-control" id="collectionReference" disabled>
+        </div>
+        <details class="mb-3 rounded-3 border p-3 bg-white" id="collectionSupportingDetails">
+          <summary class="fw-semibold" style="cursor:pointer;">Add a note <span class="text-muted fw-normal">(optional)</span></summary>
+          <div class="mt-3">
+            <label for="paymentNotesInput" class="form-label">Notes <span class="text-muted">(optional)</span></label>
+            <input type="text" class="form-control" id="paymentNotesInput" placeholder="Add a payment note" style="border-radius:10px;font-size:0.9rem;">
+          </div>
+        </details>
 
-        <div id="paymentErrorBox" class="alert alert-danger d-none" style="font-size:0.85rem;"></div>
+        <div id="paymentErrorBox" role="alert" class="alert alert-danger d-none" style="font-size:0.85rem;"></div>
       </div>
       <div class="modal-footer" style="border-top:1px solid #e2e8f0;padding:1rem 1.5rem;background:#fff;">
         <button type="button" class="btn btn-light" data-bs-dismiss="modal" style="border-radius:8px;">Skip for
@@ -6766,10 +6784,10 @@
       completed: 'Job finished. Thank you!'
     };
 
-    function renderWorkProgress(steps, activeIdx, currentKey) {
+    function renderWorkProgress(steps, activeIdx, currentKey, actionOverride) {
       const liveKeys = ['en_route','arrived','on_site','in_progress','repair','inspect','quote'];
       const isLive = liveKeys.includes(currentKey);
-      const act = WORK_PROGRESS_ACTIONS[currentKey] || { t: steps[activeIdx]?.label || currentKey, s: 'In progress', icon: steps[activeIdx]?.icon || 'bi-info-circle' };
+      const act = actionOverride || WORK_PROGRESS_ACTIONS[currentKey] || { t: steps[activeIdx]?.label || currentKey, s: 'In progress', icon: steps[activeIdx]?.icon || 'bi-info-circle' };
       const curIdx = activeIdx >= 0 ? activeIdx : steps.findIndex(s => s.key === currentKey);
       const tasks = steps.map((step, i) => {
         let cls = '';
@@ -7044,13 +7062,26 @@
     function getWizardPageActions(pageId, a, allowMixedRepairActions = false) {
       if (!a) return '';
       if (a.crewRole === 'support' && window.RACSJobTeams) return RACSJobTeams.assignmentActions(a);
+      if (a.status === 'completed' || pageId === 'invoice') {
+        const collection = window.RepairVisitPayment?.collection(a.bookingId || a);
+        if (collection && !collection.allowed) {
+          const message = String(collection.reason).replace(/[&<>"']/g, value => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[value]));
+          return `<div class="alert alert-info mb-0" role="status">${message}</div>`;
+        }
+      }
       const emergencyAction = window.RACSJobTeams?.emergencyAction(a) || '';
       if (a.serviceType !== 'project' && ['en_route','on_site'].includes(a.status) && window.RACSVisitSchedule.state(a).code === 'SCHEDULE_NOT_TODAY') return dailyPreparationButton(a) + '<div class="alert alert-info mb-0">This visit is on a future date. Arrival and Start Work unlock on the scheduled Philippine date.</div>' + emergencyAction;
       if (a.status === 'accepted' && window.RACSJobTeams && !RACSJobTeams.ready(a.technicianTeam || a.bookingId?.technicianTeam) && pageId !== 'ai-assistant') return '<div class="alert alert-info mb-0">Waiting for every team member to accept. The whole team must accept before departure.'+(isRepairAssignment(a)?'<button type="button" class="btn btn-sm btn-outline-primary ms-2" onclick="switchDetailTab(\'ai-assistant\')">Review AI preparation</button>':'')+'</div>' + emergencyAction;
       if ((a.continuation || a.bookingId?.continuation)?.status === 'pending') return '<div class="alert alert-warning mb-0">This visit ended. Operations is arranging the next schedule. Completed work and payments remain recorded.</div>';
+      if (window.MixedServiceWorkspace?.active(a)) {
+        const held = (a.bookingId?.services || []).some(item => item.coreRepairHold?.state === 'on_hold');
+        const continuation = !held ? `<button type="button" class="btn btn-outline-secondary" data-continuation-request onclick="RACSWorkContinuation.request('booking','${a._id}')"><i class="bi bi-calendar-plus me-1" aria-hidden="true"></i>Continue on another visit</button>` : '';
+        const findings = window.CoreRepairFindings?.actions(a) || '';
+        return MixedServiceWorkspace.actions(a, pageId, findings + emergencyAction + continuation);
+      }
       const actions = getWizardPageActionsForVisit(pageId, a, allowMixedRepairActions);
-      const canContinue = a.status === 'in_progress' && ['overview', 'core-service', 'repair-service', 'repair', 'inspection'].includes(pageId) && !actions.includes('data-continuation-request');
-      return actions + emergencyAction + (canContinue ? `<button type="button" class="btn btn-outline-secondary" data-continuation-request onclick="RACSWorkContinuation.request('booking','${a._id}')"><i class="bi bi-calendar-plus me-1"></i>Continue on another visit</button>` : '');
+      const canContinue = a.status === 'in_progress' && ['overview', 'core-service', 'repair-service', 'repair', 'inspection'].includes(pageId) && !actions.includes('data-continuation-request') && !(a.bookingId?.services || []).some(item => item.coreRepairHold?.state === 'on_hold');
+      return (window.CoreRepairFindings?.notice(a) || '') + actions + (window.CoreRepairFindings?.actions(a) || '') + emergencyAction + (canContinue ? `<button type="button" class="btn btn-outline-secondary" data-continuation-request onclick="RACSWorkContinuation.request('booking','${a._id}')"><i class="bi bi-calendar-plus me-1"></i>Continue on another visit</button>` : '');
     }
 
     function getWizardPageActionsForVisit(pageId, a, allowMixedRepairActions = false) {
@@ -7064,7 +7095,7 @@
       }
       if (a.status === 'in_progress' && (isRepair || isMixedAssignment(a)) && (['inspection', 'repair-service'].includes(pageId) || (isRepair && pageId === 'overview' && a.bookingId?.repairUnitTracking && ['pending','awaiting_customer'].includes(a.bookingId?.quotationReview?.status)))) {
         const repairs = `<button type="button" class="btn btn-success" onclick="openRepairUnits('booking','${bId}')">Inspect and quote</button>`;
-        const collect = a.bookingId?.quotationReview && !window.RepairVisitPayment.summary(a.bookingId).settled
+        const collect = !isMixedAssignment(a) && a.bookingId?.quotationReview && !window.RepairVisitPayment.summary(a.bookingId).settled
           ? `<button type="button" class="btn btn-warning" onclick="openInspectionPaymentModal('${bId}',window._detailAssignment,'Inspection recorded per appliance','Diagnosis recorded per appliance',()=>refreshOpenAssignmentDetail('inspection'))">Collect inspection fee</button>` : '';
         return repairs + collect;
       }
@@ -7435,8 +7466,9 @@ if (a.status === 'accepted') {
       const completedItems = coreItems.filter(item => String(item.status) === 'completed');
       const allCompleted = completedItems.length === coreItems.length;
 
-      const canStart = visitStarted && pendingItems.length > 0;
-      const canCompleteAll = visitStarted && inProgressItems.length > 0 && pendingItems.length === 0;
+      const guidedActions = window.MixedServiceWorkspace?.active(a);
+      const canStart = !guidedActions && a.crewRole !== 'support' && visitStarted && pendingItems.length > 0;
+      const canCompleteAll = !guidedActions && a.crewRole !== 'support' && visitStarted && inProgressItems.length > 0 && pendingItems.length === 0;
 
       const totalAmount = coreItems.reduce((sum, item) => sum + Number(item.totalPrice || ((item.unitPrice || 0) * (item.quantity || 1)) || 0), 0);
       const progressPct = Math.round((completedItems.length / coreItems.length) * 100);
@@ -7536,6 +7568,7 @@ if (a.status === 'accepted') {
           return;
         }
         if (!response.ok) throw new Error(data.error || 'Unable to update Core service.');
+        await refreshOpenAssignmentDetail(data.allServicesCompleted ? 'completion' : 'core-service');
         await Swal.fire({
           icon: 'success',
           title: data.allServicesCompleted ? (data.hasDeclinedRepair ? 'Booking Finished' : 'Booking Completed') : isStarting ? 'Core Work Started' : 'Core Service Completed',
@@ -7549,7 +7582,6 @@ if (a.status === 'accepted') {
           timer: 1800,
           showConfirmButton: false
         });
-        await refreshOpenAssignmentDetail(data.allServicesCompleted ? 'completion' : 'core-service');
       } catch (error) {
         if (btn) btn.disabled = false;
         Swal.fire('Unable to Complete', error.message, 'error');
@@ -7623,6 +7655,7 @@ if (a.status === 'accepted') {
           return;
         }
         if (!response.ok) throw new Error(data.error || 'Unable to complete Core services.');
+        await refreshOpenAssignmentDetail(data.allServicesCompleted ? 'completion' : 'core-service');
         await Swal.fire({
           icon: 'success',
           title: data.allServicesCompleted ? (data.hasDeclinedRepair ? 'Booking Finished' : 'Booking Completed') : 'Core Services Completed',
@@ -7630,11 +7663,10 @@ if (a.status === 'accepted') {
             ? data.hasDeclinedRepair
               ? 'All Core work is complete and the declined Repair service is closed.'
               : 'Every Core and Repair service in this booking is complete.'
-            : `${inProgressCount} Core service${inProgressCount > 1 ? 's' : ''} completed.`,
+            : `${inProgressCount} Core service${inProgressCount > 1 ? 's' : ''} completed. Repair work is still open; this booking remains in progress.`,
           timer: 1800,
           showConfirmButton: false
         });
-        await refreshOpenAssignmentDetail(data.allServicesCompleted ? 'completion' : 'core-service');
       } catch (error) {
         if (btn) { btn.disabled = false; btn.innerHTML = `<i class="bi bi-check-circle me-2"></i>Complete All Core Services${inProgressCount > 1 ? ' · ' + inProgressCount + ' items' : ''}`; }
         Swal.fire('Unable to Complete', error.message, 'error');
@@ -7685,6 +7717,9 @@ if (a.status === 'accepted') {
     };
 
     function renderMixedRepairPage(a) {
+      if ((window.MixedServiceWorkspace?.started(a) || a.status === 'completed') && a.bookingId?.repairUnitTracking) {
+        return `<div class="ent-panel">${MixedServiceWorkspace.repairSummary(a)}</div>`;
+      }
       const escHtml = value => value == null ? '' : String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
       const booking = a.bookingId || {};
       const repairItems = mixedRepairItems(a);
@@ -7766,6 +7801,17 @@ if (a.status === 'accepted') {
       const hasCoreItems = serviceItems.some(item => item.type === 'core');
       const hasRepairItems = serviceItems.some(item => item.type === 'repair');
       const isMixed = a.serviceType === 'mixed' || b.serviceType === 'mixed' || (hasCoreItems && hasRepairItems);
+      if (isMixed && window.MixedServiceDetails) {
+        return MixedServiceDetails.render(a, {
+          reference: bookingRef,
+          dateTime: (date || 'Schedule to be confirmed') + (a.startTime ? ' at ' + toPhTime(a.startTime) : ''),
+          hasCoords, lat: custLat, lng: custLng,
+          instructions: window.SpecialInstructions?.renderBooking(b) || '',
+          team: window.RACSJobTeams?.bookingTeamCard(a) || '',
+          preparation: renderDailyPreparationCard(a),
+          emergency: window.RACSJobTeams?.emergencyNotice(b, { assignmentId: a._id }) || ''
+        });
+      }
       const statusText = statusLabels[a.status] || a.status;
       const serviceName = isMixed ? `${serviceItems.length} Services` : (a.serviceName || 'Service');
       const typeText = isMixed ? 'MIXED SERVICE - CORE + REPAIR' : ((a.serviceType || 'Core') + ' service').toUpperCase();
@@ -9040,6 +9086,7 @@ ${isRepair ? `
       setAssignmentListMode(status);
       if (status === 'available') return loadAvailableJobs({ quiet });
       const loadSequence = ++assignmentsLoadSequence;
+      const loadRevision = window.TechnicianWorkUpdates?.revision || 0;
       try {
         const container = document.getElementById('assignmentsContainer');
         if (!quiet) {
@@ -9058,13 +9105,13 @@ ${isRepair ? `
         // Other tabs no longer wait for the dashboard overview endpoint.
         const needsSupplementalRepairs = status === 'all' || status === 'pending_acceptance' || status === 'active';
         const [assignRes, repairItems] = await Promise.all([
-          fetch(url, { credentials: 'same-origin' }),
+          fetch(url, { credentials: 'same-origin', cache: 'no-store' }),
           needsSupplementalRepairs ? getSupplementalRepairItems() : Promise.resolve([]),
         ]);
 
         if (!assignRes.ok) throw new Error('Failed');
         const data = await assignRes.json();
-        if (loadSequence !== assignmentsLoadSequence) return;
+        if (loadSequence !== assignmentsLoadSequence || loadRevision !== (window.TechnicianWorkUpdates?.revision || 0)) return;
         allItems = data.items || [];
 
         // Filter repairs based on current filter
@@ -9145,7 +9192,7 @@ ${isRepair ? `
         if (window._updateWorkKpis) await window._updateWorkKpis();
         else await fetchTabCounts(true);
       } catch (e) {
-        if (loadSequence !== assignmentsLoadSequence) return;
+        if (loadSequence !== assignmentsLoadSequence || loadRevision !== (window.TechnicianWorkUpdates?.revision || 0)) return;
         if (quiet && allItems.length) { console.warn('Assignment refresh failed; keeping the current work list.'); return; }
         if (status === 'today') {
           const summary = document.getElementById('todayWorkOrderSummary');
@@ -9399,6 +9446,7 @@ ${isRepair ? `
       }
       if (btn) { btn.classList.add('btn-loading'); btn.disabled = true; }
       const finishUpdate = window.TechnicianWorkUpdates.beginMutation();
+      let updated = false;
       try {
         // Check out any reserved repair parts first
         const checkoutResult = await checkoutReservedParts(bookingId);
@@ -9411,7 +9459,9 @@ ${isRepair ? `
         });
         const data = await res.json();
         if (res.ok) {
-          showNotification({ type: 'success', title: 'En Route', message: 'Heading to customer. Safe travels!', duration: 4000 });
+          updated = true;
+          const refreshed = await finishUpdate(true);
+          showNotification({ type: refreshed === false ? 'warning' : 'success', title: refreshed === false ? 'Status Saved' : 'En Route', message: refreshed === false ? 'En Route is saved, but the latest details could not be loaded. Check your connection and refresh your jobs.' : 'Heading to customer. Safe travels!', duration: 4000 });
           // ── Auto-open route map ──
           let a = allItems.find(function (item) { return String(item.bookingId?._id || item.bookingId) === String(bookingId); });
           if (!a && window._detailAssignment && String(window._detailAssignment.bookingId?._id || window._detailAssignment.bookingId) === String(bookingId)) {
@@ -9435,7 +9485,7 @@ ${isRepair ? `
           showNotification({ type: 'error', title: 'Failed', message: data.error || 'Could not start en route', duration: 5000 });
         }
       } catch (e) { showNotification({ type: 'error', title: 'Network Error', message: 'Please try again', duration: 5000 }); }
-      finally { finishUpdate(); if (btn) { btn.classList.remove('btn-loading'); btn.disabled = false; btn._btnLoadingActive = false; } }
+      finally { await finishUpdate(updated); if (btn) { btn.classList.remove('btn-loading'); btn.disabled = false; btn._btnLoadingActive = false; } }
     };
 
     // ── Reserve / check out parts ─────────────────────────────────────────
@@ -9720,6 +9770,8 @@ ${isRepair ? `
         return;
       }
       if (btn) { btn.classList.add('btn-loading'); btn.disabled = true; }
+      const finishUpdate = window.TechnicianWorkUpdates?.beginMutation();
+      let updated = false;
       try {
         const res = await fetch(`/api/technician/repairs/${bookingId}/status`, {
           method: 'POST',
@@ -9729,19 +9781,18 @@ ${isRepair ? `
         });
         const data = await res.json();
         if (res.ok) {
-          showNotification({ type: 'success', title: 'Status Updated', message: `Status changed to ${status.replace(/_/g, ' ')}`, duration: 4000 });
+          updated = true;
+          const refreshed = await finishUpdate?.(true);
+          showNotification({ type: refreshed === false ? 'warning' : 'success', title: refreshed === false ? 'Status Saved' : 'Status Updated', message: refreshed === false ? 'Your status is saved, but the latest details could not be loaded. Check your connection and refresh your jobs.' : `Status changed to ${status.replace(/_/g, ' ')}`, duration: 4000 });
           if (status === 'on_site' && window.hideRoutePanel) {
             window.hideRoutePanel();
           }
-          loadAssignments(currentFilter, currentPage, document.getElementById('searchInput').value);
-          if (window._currentDetailId && document.getElementById('rightPanel').classList.contains('open')) {
-            showDetail(window._currentDetailId);
-          }
+          if (!finishUpdate) await window._refreshTechnicianWork?.();
         } else {
           showNotification({ type: 'error', title: 'Update Failed', message: data.error || 'Failed to update status', duration: 5000 });
         }
       } catch (e) { showNotification({ type: 'error', title: 'Network Error', message: 'Please try again', duration: 5000 }); }
-      finally { if (btn) { btn.classList.remove('btn-loading'); btn.disabled = false; } }
+      finally { await finishUpdate?.(updated); if (btn) { btn.classList.remove('btn-loading'); btn.disabled = false; } }
     };
 
     async function captureArrivalProof(triggerButton) {
@@ -10103,6 +10154,7 @@ function preparationEscapeHtml(value) {
 
       return window._btnLoading(btn, async () => {
         const finishUpdate = window.TechnicianWorkUpdates.beginMutation();
+        let updated = false;
         try {
         const res = await fetch(`/api/technician/assignments/${id}/status`, {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
@@ -10110,11 +10162,13 @@ function preparationEscapeHtml(value) {
         });
         const data = await res.json();
         if (res.ok) {
+          updated = true;
+          const refreshed = await finishUpdate(true);
           const statusLabels = { en_route: 'En Route', on_site: 'Arrived On Site', in_progress: 'Work In Progress', completed: 'Job Completed' };
           showNotification({
-            type: status === 'completed' ? 'success' : 'info',
-            title: 'Status Updated',
-            message: `Status changed to "${statusLabels[status] || status}".`,
+            type: refreshed === false ? 'warning' : status === 'completed' ? 'success' : 'info',
+            title: refreshed === false ? 'Status Saved' : 'Status Updated',
+            message: refreshed === false ? 'Your status is saved, but the latest details could not be loaded. Check your connection and refresh your jobs.' : `Status changed to "${statusLabels[status] || status}".`,
             duration: 4000
           });
           // ── Auto-open route map when going en route ──
@@ -10162,7 +10216,7 @@ function preparationEscapeHtml(value) {
         }
         } catch (error) {
           showNotification({ type: 'error', title: 'Update Failed', message: 'Unable to update the job. Check your connection and try again.', duration: 5000 });
-        } finally { finishUpdate(); }
+        } finally { await finishUpdate(updated); }
       });
     };
 
@@ -10615,6 +10669,26 @@ function preparationEscapeHtml(value) {
     let collectTargetAssignment = null;
     let collectSubmitting = false;
 
+    function syncCollectionCashConfirmation(clearConfirmation = false) {
+      const amount = Number(document.getElementById('paymentAmountInput').value);
+      document.getElementById('collectionCashConfirmationLabel').textContent = Number.isFinite(amount) && amount > 0
+        ? `I received ₱${amount.toLocaleString('en-PH', { maximumFractionDigits: 2 })} in cash.`
+        : 'I received this amount in cash.';
+      if (clearConfirmation) document.getElementById('collectionCashConfirmed').checked = false;
+    }
+
+    function syncCollectionMethod() {
+      const cash = document.getElementById('collectionMethod').value === 'cash';
+      document.getElementById('collectionCashWrap').classList.toggle('d-none', !cash);
+      document.getElementById('collectionReferenceWrap').classList.toggle('d-none', cash);
+      document.getElementById('collectionCashConfirmed').disabled = !cash;
+      document.getElementById('collectionCashConfirmed').required = cash;
+      document.getElementById('collectionReference').disabled = cash;
+      document.getElementById('collectionReference').required = !cash;
+      document.getElementById('paymentErrorBox').classList.add('d-none');
+      syncCollectionCashConfirmation(true);
+    }
+
     window.openCollectPaymentModal = async function (id, assignment, autoComplete = false, postPaymentAction = null) {
       const bookingReference = assignment?.bookingId?._id || assignment?.bookingId;
       if (bookingReference && typeof bookingReference !== 'object') {
@@ -10625,10 +10699,18 @@ function preparationEscapeHtml(value) {
         } catch(error){await Swal.fire('Payment check unavailable',error.message,'error');return;}
       }
       const currentPayment = window.RepairVisitPayment.balance(assignment?.bookingId && typeof assignment.bookingId==='object' ? assignment.bookingId : assignment);
+      const collectionEligibility = window.RepairVisitPayment.collection(assignment?.bookingId && typeof assignment.bookingId==='object' ? assignment.bookingId : assignment);
+      if (!collectionEligibility.allowed) {
+        await Swal.fire({ icon:'info', title:'Repair payment is not due yet', text:collectionEligibility.reason, confirmButtonText:'Done' }); return;
+      }
       if (currentPayment.paidInFull) {
         if(postPaymentAction)return postPaymentAction();
         if(autoComplete)return openProofModal(id,assignment.customerName || '',assignment.serviceName || '',currentPayment.total,true);
         await Swal.fire({icon:'success',title:'Paid in full',text:'Payment is already recorded. No collection is needed.',confirmButtonText:'Done'});return;
+      }
+      const combinedBill = window.RepairVisitPayment.breakdown(assignment?.bookingId && typeof assignment.bookingId==='object' ? assignment.bookingId : assignment);
+      if (combinedBill.isMixedBooking && !combinedBill.ready) {
+        await Swal.fire({icon:'info',title:'One combined payment',text:combinedBill.blockedReason || 'Finish the appliance quotation decisions first. Aircon services and the approved repair will be collected together.',confirmButtonText:'Done'});return;
       }
       // Opening a modal is never a status transition. When `autoComplete` is
       // requested, payment is saved first and completion is committed only by
@@ -10638,15 +10720,16 @@ function preparationEscapeHtml(value) {
       collectSubmitting = false;
       window._completeAfterPayment = autoComplete;
       window._postPaymentAction = postPaymentAction;
-      const _b = assignment?.bookingId || {};
-      // Compute correct total: repairs = inspectionFee + travelFee + quotation, core = totalPrice
+      const _b = assignment?.bookingId && typeof assignment.bookingId === 'object' ? assignment.bookingId : assignment;
+      // The fresh booking balance supplies the bill, including travel and any quotation.
       const _paymentItems = Array.isArray(_b.services || assignment.services) ? (_b.services || assignment.services) : [];
-      const _isMixedPay = _b.serviceType === 'mixed'
-        || (_paymentItems.some(s => s.type === 'core') && _paymentItems.some(s => s.type === 'repair'));
-      const _isRepairPay = (_b.serviceType === 'repair') || _paymentItems.some(s => s.type === 'repair');
-      let total = 0;
-      if (_isRepairPay) total = window.RepairVisitPayment.summary(_b).initialBookingTotal + Number(_b.quotation?.totalCost || 0);
-      if (!total) total = assignment.totalPrice || assignment.estimatedFee || _b.totalPrice || _b.totalCost || 0;
+      const _isRepairPay = ['repair', 'mixed'].includes(_b.serviceType) || _paymentItems.some(s => s.type === 'repair');
+      const mixedBreakdown = document.getElementById('paymentMixedBreakdown');
+      mixedBreakdown.hidden = !combinedBill.isMixedBooking;
+      mixedBreakdown.innerHTML = combinedBill.isMixedBooking
+        ? '<p class="fw-semibold mb-2">One payment for this booking</p>' + combinedBill.lines.map(line => '<div class="d-flex justify-content-between mb-2 small"><span>' + line.label + '</span><strong>PHP ' + line.amount.toLocaleString('en-PH', {maximumFractionDigits:2}) + '</strong></div>').join('')
+        : '';
+      const total = currentPayment.total;
       // Downpayment already collected at booking — show it so the technician
       // isn't confused about the remaining balance to collect on-site.
       const downpayment = currentPayment.amountPaid;
@@ -10665,17 +10748,21 @@ function preparationEscapeHtml(value) {
       document.getElementById('paymentBalanceDue').textContent = '₱' + balance.toLocaleString();
       document.getElementById('paymentPartsTotal').textContent = '₱0';
       document.getElementById('paymentLaborCost').textContent = '₱0';
+      document.getElementById('paymentPartsRow').style.display = 'none';
+      document.getElementById('paymentLaborRow').style.display = 'none';
+      const travelFee = Math.max(0, Number(_b.travelFare ?? assignment.travelFare) || 0);
+      document.getElementById('paymentCoreServiceRow').style.display = _isRepairPay ? 'none' : 'flex';
+      document.getElementById('paymentCoreServiceFee').textContent = '₱' + Math.max(0, total - travelFee).toLocaleString('en-PH');
+      document.getElementById('paymentTravelRow').style.display = !_isRepairPay && travelFee > 0 ? 'flex' : 'none';
+      document.getElementById('paymentTravelFee').textContent = '₱' + travelFee.toLocaleString('en-PH');
       document.getElementById('paymentAmountInput').value = balance;
       document.getElementById('paymentAmountInput').max = balance;
-      document.getElementById('paymentAmountHint').textContent = `Enter the full balance amount (max ₱${balance.toLocaleString()})`;
+      document.getElementById('paymentAmountHint').textContent = 'Record the full balance received from the customer.';
       document.getElementById('paymentNotesInput').value = '';
       document.getElementById('collectionReference').value = '';
-      document.getElementById('collectionProof').value = '';
-      document.getElementById('collectionSignature').value = '';
-      document.getElementById('collectionCustomerPhoto').value = '';
+      document.getElementById('collectionSupportingDetails').open = false;
       document.getElementById('collectionMethod').value = 'cash';
-      document.getElementById('collectionReferenceWrap').classList.add('d-none');
-      document.getElementById('collectionProofRequired').classList.add('d-none');
+      syncCollectionMethod();
       document.getElementById('paymentErrorBox').classList.add('d-none');
       document.getElementById('confirmCollectBtn').disabled = false;
       document.getElementById('confirmCollectBtn').innerHTML = '<i class="bi bi-check-circle me-1"></i>Collect Payment';
@@ -10689,6 +10776,7 @@ function preparationEscapeHtml(value) {
       // Fetch quotation data from booking
       const bookingId = assignment.bookingId?._id || assignment.bookingId;
       const quotationBox = document.getElementById('paymentQuotationBox');
+      quotationBox.style.display = 'none';
       const quotationParts = document.getElementById('paymentQuotationParts');
       const repairBox = document.getElementById('paymentRepairBox');
       const repairParts = document.getElementById('paymentRepairParts');
@@ -10701,6 +10789,7 @@ function preparationEscapeHtml(value) {
         fetch(`/api/technician/appointments/${bookingId}`, { credentials: 'same-origin' })
           .then(r => r.json())
           .then(detail => {
+            if (collectTargetId !== id || collectSubmitting) return;
             const booking = detail.booking || detail;
 
             // Populate inspection findings
@@ -10740,10 +10829,12 @@ function preparationEscapeHtml(value) {
             // Populate quotation
             const q = booking.quotation || {};
             const qParts = q.parts || [];
-            if (qParts.length > 0 || q.laborCost) {
+            if (!combinedBill.isMixedBooking && (qParts.length > 0 || q.laborCost)) {
               const partsTotal = qParts.reduce((sum, p) => sum + ((p.cost || p.unitPrice || p.price || 0) * (p.quantity || 1)), 0);
               document.getElementById('paymentPartsTotal').textContent = '₱' + partsTotal.toLocaleString();
               document.getElementById('paymentLaborCost').textContent = '₱' + (q.laborCost || 0).toLocaleString();
+              document.getElementById('paymentPartsRow').style.display = partsTotal > 0 ? 'flex' : 'none';
+              document.getElementById('paymentLaborRow').style.display = Number(q.laborCost) > 0 ? 'flex' : 'none';
               quotationParts.innerHTML = qParts.map(p => {
                 const unitPrice = p.cost || p.unitPrice || p.price || 0;
                 const qty = p.quantity || 1;
@@ -10767,7 +10858,8 @@ function preparationEscapeHtml(value) {
               document.getElementById('paymentBalanceDue').textContent = '₱' + _bal.toLocaleString();
               document.getElementById('paymentAmountInput').value = _bal;
               document.getElementById('paymentAmountInput').max = _bal;
-              document.getElementById('paymentAmountHint').textContent = `Enter the full balance amount (max ₱${_bal.toLocaleString()})`;
+              document.getElementById('paymentAmountHint').textContent = 'Record the full balance received from the customer.';
+              syncCollectionCashConfirmation(true);
               // Quotation notes
               const notesRow = document.getElementById('paymentQuotationNotesRow');
               if (q.notes) {
@@ -10812,38 +10904,46 @@ function preparationEscapeHtml(value) {
       bootstrap.Modal.getOrCreateInstance(modalEl).show();
     };
 
-    document.getElementById('collectionMethod').addEventListener('change', function(){const manual=this.value==='gcash'||this.value==='bank';document.getElementById('collectionReferenceWrap').classList.toggle('d-none',!manual);document.getElementById('collectionProofRequired').classList.toggle('d-none',!manual);});
+    document.getElementById('collectionMethod').addEventListener('change', syncCollectionMethod);
+    document.getElementById('paymentAmountInput').addEventListener('input', () => syncCollectionCashConfirmation(true));
     document.getElementById('confirmCollectBtn').addEventListener('click', async function () {
+      if (collectSubmitting) return;
       const amount = parseFloat(document.getElementById('paymentAmountInput').value);
       const notes = document.getElementById('paymentNotesInput').value.trim();
       const method = document.getElementById('collectionMethod').value;
       const reference = document.getElementById('collectionReference').value.trim();
-      const customerSignature = document.getElementById('collectionSignature').value.trim();
-      const proofFile = document.getElementById('collectionProof').files[0];
-      const customerPhotoFile = document.getElementById('collectionCustomerPhoto').files[0];
+      const cashReceivedConfirmed = method === 'cash' && document.getElementById('collectionCashConfirmed').checked;
       const errorBox = document.getElementById('paymentErrorBox');
-      const balance = collectTargetAssignment.balanceAmount || 0;
+      const balance = Number(document.getElementById('paymentAmountInput').max);
 
-      if (!amount || amount <= 0) {
-        errorBox.textContent = 'Please enter a valid amount.';
+      if (!Number.isFinite(amount) || amount <= 0 || Math.abs(amount - balance) > 0.009) {
+        errorBox.textContent = `Record the full remaining balance of ₱${balance.toLocaleString('en-PH')}.`;
         errorBox.classList.remove('d-none');
         return;
       }
-      if ((method === 'cash' && !customerSignature && !proofFile && !customerPhotoFile) || ((method === 'gcash' || method === 'bank') && (!reference || !proofFile))) { errorBox.textContent = method === 'cash' ? 'Add at least one proof: customer signature, receipt photo, or customer confirmation photo.' : 'Reference number and receipt screenshot are required.'; errorBox.classList.remove('d-none'); return; }
+      if (method === 'cash' && !cashReceivedConfirmed) {
+        errorBox.textContent = 'Confirm that you received the cash before recording this collection.';
+        errorBox.classList.remove('d-none');
+        document.getElementById('collectionCashConfirmed').focus();
+        return;
+      }
+      if ((method === 'gcash' || method === 'bank') && !reference) {
+        errorBox.textContent = 'Enter the GCash or bank transfer reference number.';
+        errorBox.classList.remove('d-none');
+        return;
+      }
 
       this.disabled = true;
       this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing...';
       collectSubmitting = true;
 
       try {
-        const proofUrl = proofFile ? await new Promise((resolve,reject)=>{const fr=new FileReader();fr.onload=()=>resolve(fr.result);fr.onerror=reject;fr.readAsDataURL(proofFile);}) : null;
-        const customerPhotoUrl = customerPhotoFile ? await new Promise((resolve,reject)=>{const fr=new FileReader();fr.onload=()=>resolve(fr.result);fr.onerror=reject;fr.readAsDataURL(customerPhotoFile);}) : null;
         const location = await new Promise(resolve=>{if(!navigator.geolocation)return resolve(null);navigator.geolocation.getCurrentPosition(p=>resolve({lat:p.coords.latitude,lng:p.coords.longitude,accuracy:p.coords.accuracy}),()=>resolve(null),{timeout:5000,enableHighAccuracy:true});});
         const res = await fetch(`/api/technician/assignments/${collectTargetId}/collect-payment`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'same-origin',
-          body: JSON.stringify({ amount, method, reference, proofUrl, customerSignature, customerPhotoUrl, notes, location })
+          body: JSON.stringify({ amount, method, reference: method === 'cash' ? '' : reference, cashReceivedConfirmed, notes, location })
         });
         const data = await res.json();
         if (res.ok) {
@@ -10928,6 +11028,18 @@ function preparationEscapeHtml(value) {
         Swal.fire('Payment Unavailable', error.message, 'error');
         return;
       }
+      const collectionEligibility = window.RepairVisitPayment.collection(paymentBooking);
+      if (!collectionEligibility.allowed) return Swal.fire('Repair payment is not due yet', collectionEligibility.reason, 'info');
+      if (window.RepairVisitPayment.summary(paymentBooking).isMixedBooking) {
+        let assignment = window._detailAssignment;
+        if (String(assignment?.bookingId?._id || assignment?.bookingId || '') !== String(bookingId)) {
+          assignment = { bookingId: paymentBooking, customerName: paymentBooking.customer?.name,
+            serviceName: (paymentBooking.services || []).map(item => item.name).filter(Boolean).join(', ') };
+        }
+        assignment = {...assignment,_id:paymentBooking.assignmentId?._id || paymentBooking.assignmentId || assignment?._id};
+        if (!assignment?._id) return Swal.fire('Payment Unavailable','Refresh your assignments before collecting this booking payment.','error');
+        return window.openCollectPaymentModal(assignment._id, {...assignment,bookingId:paymentBooking}, false, () => completeRepair(bookingId));
+      }
       const currentBalance = window.RepairVisitPayment.balance(paymentBooking);
       if(currentBalance.paidInFull){await Swal.fire({icon:'success',title:'Paid in full',text:'Payment is recorded. Continue to completion proof.',confirmButtonText:'Continue'});return completeRepair(bookingId);}
       const repairTotal = Number(paymentBooking.quotation?.totalCost || totalAmount) || 0;
@@ -10974,11 +11086,6 @@ function preparationEscapeHtml(value) {
             <label class="form-label fw-semibold">Amount Collected</label>
             <input type="number" id="rpAmount" class="form-control" value="${totalAmount || 0}" min="0" style="border-radius:8px;font-weight:700;">
           </div>
-          <div class="mb-3" id="rpProofGroup">
-            <label class="form-label fw-semibold">Proof of Payment <span class="text-danger">*</span></label>
-            <input type="file" id="rpProofInput" class="form-control" accept="image/*" style="border-radius:8px;">
-            <small class="text-muted">Upload a receipt, transaction screenshot, or signed cash-payment acknowledgement.</small>
-          </div>
           <label class="form-check mb-0"><input id="rpCustomerConfirmed" class="form-check-input" type="checkbox"><span class="form-check-label" style="font-size:0.82rem;">Customer confirmed the final amount and payment.</span></label>
         </div>`;
 
@@ -10996,35 +11103,21 @@ function preparationEscapeHtml(value) {
           if (!amount || amount <= 0) { Swal.showValidationMessage('Enter a valid amount'); return; }
           if (Math.abs(amount - totalAmount) > 0.01) { Swal.showValidationMessage(`Amount must equal the final balance of ₱${totalAmount.toLocaleString()}`); return; }
           if (!document.getElementById('rpCustomerConfirmed')?.checked) { Swal.showValidationMessage('Confirm that the customer acknowledged the final amount and payment.'); return; }
-          const proof = document.getElementById('rpProofInput').files[0];
-          if (!proof) { Swal.showValidationMessage('Upload proof of payment before collecting.'); return; }
-          return { amount, method, proofFile: proof };
+          return { amount, method };
         }
       });
 
       if (!result.isConfirmed) return;
 
-      const { amount, method, proofFile } = result.value;
+      const { amount, method } = result.value;
       Swal.fire({ title: 'Processing...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
       try {
-        let proofUrl = '';
-        if (proofFile) {
-          const proofForm = new FormData();
-          proofForm.append('proofPhoto', proofFile);
-          const uploadRes = await fetch(`/api/technician/appointments/${bookingId}/upload-proof`, {
-            method: 'POST', credentials: 'same-origin', body: proofForm
-          });
-          const uploadData = await uploadRes.json();
-          if (!uploadRes.ok || !uploadData.url) throw new Error(uploadData.error || 'Proof of payment upload failed. Payment was not recorded.');
-          proofUrl = uploadData.url;
-        }
-
         const res = await fetch(`/api/technician/appointments/${bookingId}/collect-repair-payment`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'same-origin',
-          body: JSON.stringify({ amount, method, proofUrl }),
+          body: JSON.stringify({ amount, method }),
         });
 
         const data = await res.json();
@@ -11058,14 +11151,6 @@ function preparationEscapeHtml(value) {
         Swal.fire('Error', 'Network error.', 'error');
       }
     };
-    // Show/hide proof field based on payment method
-    document.addEventListener('change', function (e) {
-      if (e.target && e.target.id === 'rpMethod') {
-        const proofGroup = document.getElementById('rpProofGroup');
-        if (proofGroup) proofGroup.style.display = e.target.value === 'gcash' ? '' : 'none';
-      }
-    });
-
     // ── Proof of Completion ────────────────────────────────────────────────
     let proofTargetId = null;
     let proofFile = null;
@@ -11156,12 +11241,12 @@ function preparationEscapeHtml(value) {
         const assignment = allItems.find(i => String(i._id) === String(assignmentId))
           || (window._detailAssignment && String(window._detailAssignment._id) === String(assignmentId) ? window._detailAssignment : null);
         if (!assignment) return;
-        const bookingId = assignment.bookingId;
+        const bookingId = assignment.bookingId?._id || assignment.bookingId;
         // Filter kit items: consumables that include this bookingId
         const consumables = kit.items.filter(item =>
           item.category === 'consumable'
-          && item.bookingIds
-          && item.bookingIds.some(bid => String(bid) === String(bookingId))
+          && [...(item.bookingIds || []), ...(item.issuedBookingIds || [])].some(bid => String(bid?._id || bid) === String(bookingId))
+          && Number(item.quantityIssued || 0) > Number(item.quantityUsed || 0) + Number(item.quantityReturned || 0) + Number(item.quantityDamaged || 0) + Number(item.quantityMissing || 0) + Number(item.returnPendingQuantity || 0)
         );
         if (consumables.length === 0) {
           section.style.display = '';
@@ -11176,8 +11261,8 @@ function preparationEscapeHtml(value) {
         if (hintEl) hintEl.style.display = '';
         countEl.textContent = consumables.length + ' item' + (consumables.length > 1 ? 's' : '');
         listEl.innerHTML = consumables.map(item => {
-          const issued = item.quantityIssued || item.quantity || 0;
-          const alreadyUsed = item.quantityUsed || 0;
+          const issued = Number(item.quantityIssued || 0);
+          const alreadyUsed = Number(item.quantityUsed || 0) + Number(item.quantityReturned || 0) + Number(item.quantityDamaged || 0) + Number(item.quantityMissing || 0) + Number(item.returnPendingQuantity || 0);
           const maxAvail = Math.max(0, issued - alreadyUsed);
           return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f1f5f9;">
             <div style="flex:1;min-width:0;">
@@ -11186,7 +11271,7 @@ function preparationEscapeHtml(value) {
             </div>
             <input type="number" class="form-control form-control-sm proof-consumable-input"
               data-name="${_esc(item.name)}" data-max="${maxAvail}" data-unit="${_esc(item.unit || 'pcs')}"
-              min="1" max="${maxAvail}" value=""
+              min="0" max="${maxAvail}" step="any" value=""
               placeholder="0"
               style="width:60px;text-align:center;border-radius:8px;font-size:0.8rem;" oninput="validateProofConsumable(this)">
           </div>`;
@@ -11198,25 +11283,26 @@ function preparationEscapeHtml(value) {
       }
     }
     window.validateProofConsumable = function(el) {
-      const max = parseInt(el.dataset.max) || 0;
-      let val = parseInt(el.value) || 0;
+      const max = Number(el.dataset.max) || 0;
+      let val = Number(el.value);
       if (val > max) { el.value = max; val = max; }
       if (val < 0) { el.value = ''; val = 0; }
-      el.style.borderColor = val >= 1 ? '#059669' : '#fecaca';
+      el.style.borderColor = el.value.trim() !== '' && Number.isFinite(val) && val >= 0 ? '#059669' : '#fecaca';
       updateProofSubmitState();
     };
 
     // Submit is only allowed when a photo is attached AND every required
-    // consumable row has a recorded quantity (>= 1).
+    // consumable row has an actual quantity, including zero for unused items.
     window.updateProofSubmitState = function () {
       const btn = document.getElementById('submitProofBtn');
       if (!btn || proofSubmitting) return;
       const inputs = document.querySelectorAll('.proof-consumable-input');
       let missing = 0;
       inputs.forEach(input => {
-        const v = parseInt(input.value) || 0;
-        input.style.borderColor = v >= 1 ? '#059669' : '#fecaca';
-        if (v < 1) missing++;
+        const v = Number(input.value);
+        const valid = input.value.trim() !== '' && Number.isFinite(v) && v >= 0 && v <= Number(input.dataset.max);
+        input.style.borderColor = valid ? '#059669' : '#fecaca';
+        if (!valid) missing++;
       });
       btn.disabled = !proofFile || missing > 0;
     };
@@ -11287,8 +11373,8 @@ function preparationEscapeHtml(value) {
       // booking must have a recorded usage quantity before completing.
       const missing = [];
       document.querySelectorAll('.proof-consumable-input').forEach(input => {
-        const qty = parseInt(input.value) || 0;
-        if (qty < 1) missing.push(input.dataset.name);
+        const qty = Number(input.value);
+        if (input.value.trim() === '' || !Number.isFinite(qty) || qty < 0 || qty > Number(input.dataset.max)) missing.push(input.dataset.name);
       });
       if (missing.length > 0) {
         showProofError('Record consumables used: ' + missing.join(', '));
@@ -11304,8 +11390,8 @@ function preparationEscapeHtml(value) {
         const consumableInputs = document.querySelectorAll('.proof-consumable-input');
         const consumables = [...consumableInputs].map(input => ({
           itemName: input.dataset.name,
-          quantityUsed: parseInt(input.value) || 0,
-        })).filter(item => item.quantityUsed > 0);
+          quantityUsed: Number(input.value),
+        }));
 
         // Proof, completion, and Daily Kit usage are committed together by
         // the server so a failed upload cannot consume inventory.
@@ -11486,7 +11572,8 @@ function preparationEscapeHtml(value) {
       if (window._currentDetailId && document.getElementById('rightPanel')?.classList.contains('open')) {
         updates.push(window.showDetail(window._currentDetailId));
       }
-      await Promise.all(updates);
+      const results = await Promise.all(updates);
+      return !results.includes(false);
     };
     (function initAssignmentSocketListeners() {
       try {
@@ -11547,13 +11634,20 @@ function preparationEscapeHtml(value) {
       contentEl.querySelectorAll('.mw-detail-panel').forEach(p => p.classList.remove('active'));
       tab.classList.add('active');
       // Ensure the active tab is horizontally visible in the sticky bar
-      tab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      if (contentEl.classList.contains('mixed-service-details')) {
+        const tabs = tab.parentElement;
+        const target = tab.getBoundingClientRect(), bar = tabs.getBoundingClientRect();
+        tabs.scrollBy({ left: target.left - bar.left - (tabs.clientWidth - target.width) / 2, behavior: 'smooth' });
+      } else {
+        tab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
       const panel = contentEl.querySelector(`.mw-detail-panel[data-tab="${tabName}"]`);
       if (panel) {
         panel.classList.add('active');
         window._activeDetailTab = tabName;
         const body = document.getElementById('detailPanelBody');
-        if (body) body.scrollTop = 0;
+        if (body) body.scrollTop = contentEl.classList.contains('mixed-service-details') && window.innerWidth < 768
+          ? Math.max(0, contentEl.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop - 8) : 0;
         const actionBar = document.getElementById('detailPanelActions');
         if (actionBar && window._detailAssignment) {
           const actions = getWizardPageActions(tabName, window._detailAssignment);
@@ -11584,16 +11678,17 @@ function preparationEscapeHtml(value) {
     window.refreshOpenAssignmentDetail = async function (preferredTab) {
       const detailId = window._currentDetailId;
       if (!detailId) return loadAssignments(currentFilter, currentPage);
-      const previousDetailLoad = detailLoad?.id === String(detailId) ? detailLoad.promise : null;
       if (preferredTab) window._activeDetailTab = preferredTab;
-      await loadAssignments(currentFilter, currentPage, document.getElementById('searchInput')?.value || '');
-      // AI generation can finish during the original detail request. Wait for
-      // that request so showDetail fetches the saved report instead of reusing
-      // its earlier response through the in-flight request deduplication.
-      if (previousDetailLoad) await previousDetailLoad;
-      if (String(window._currentDetailId || '') !== String(detailId)) return;
-      await showDetail(detailId);
-      if (preferredTab) switchDetailTab(preferredTab);
+      // A saved action supersedes any older detail response. Load the list and
+      // active visit together instead of waiting for one before starting the other.
+      detailLoadController?.abort();
+      detailLoad = null;
+      const results = await Promise.all([
+        loadAssignments(currentFilter, currentPage, document.getElementById('searchInput')?.value || '', { quiet: true }),
+        window.showDetail(detailId)
+      ]);
+      if (String(window._currentDetailId || '') === String(detailId) && preferredTab) switchDetailTab(preferredTab);
+      return !results.includes(false);
     };
 
     let detailLoadSequence = 0, detailLoad = null, detailLoadController = null;
@@ -11601,19 +11696,21 @@ function preparationEscapeHtml(value) {
       const revision = window.TechnicianWorkUpdates?.revision || 0;
       if (detailLoad?.id === String(id) && detailLoad.revision === revision) return detailLoad.promise;
       const sequence = ++detailLoadSequence;
-      const promise = loadAssignmentDetail(id, sequence).finally(() => {
+      const promise = loadAssignmentDetail(id, sequence, revision).finally(() => {
         if (detailLoad?.promise === promise) detailLoad = null;
       });
       detailLoad = { id: String(id), promise, revision };
       return promise;
     };
-    async function loadAssignmentDetail(id, sequence) {
+    async function loadAssignmentDetail(id, sequence, revision) {
       detailLoadController?.abort();
       const request = new AbortController();
       detailLoadController = request;
+      const isCurrent = () => sequence === detailLoadSequence && revision === (window.TechnicianWorkUpdates?.revision || 0);
       try {
         const isRefreshingSameJob = String(window._currentDetailId || '') === String(id || '');
         const keepVisible = isRefreshingSameJob && document.getElementById('rightPanel').classList.contains('open') && document.getElementById('detailPanelContent').style.display !== 'none';
+        const previousAssignment = keepVisible ? window._detailAssignment : null;
         const previousScroll = keepVisible ? document.getElementById('detailPanelBody').scrollTop : 0;
         const activeTabBeforeRefresh = isRefreshingSameJob
           ? (document.querySelector('#detailPanelContent .mw-detail-tab.active')?.dataset?.tab || window._activeDetailTab)
@@ -11634,11 +11731,11 @@ function preparationEscapeHtml(value) {
         left.classList.add('panel-open');
         left.classList.add('list-hidden');
 
-        const res = await fetch(`/api/technician/assignments/${id}`, { credentials: 'same-origin', signal: request.signal });
-        if (sequence !== detailLoadSequence) return;
+        const res = await fetch(`/api/technician/assignments/${id}`, { credentials: 'same-origin', cache: 'no-store', signal: request.signal });
+        if (!isCurrent()) return;
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
-          if (sequence !== detailLoadSequence) return;
+          if (!isCurrent()) return;
           if (res.status === 404 || errData.code === 'ASSIGNMENT_ACCESS_CHANGED') {
             window.closeDetailPanel();
             showNotification({ type: 'info', title: 'Assignment updated', message: errData.error || 'This assignment is no longer available. Your work list has been refreshed.', duration: 5000 });
@@ -11648,7 +11745,7 @@ function preparationEscapeHtml(value) {
           throw new Error(errData.error || `HTTP ${res.status}`);
         }
         const { assignment: a, techLocation } = await res.json();
-        if (sequence !== detailLoadSequence) return;
+        if (!isCurrent()) return;
         if (a.workUnavailable) {
           window.closeDetailPanel();
           showNotification({ type: 'info', title: 'Job updated by staff', message: a.workUnavailableReason || 'This visit is no longer active. Your work list has been refreshed.', duration: 6000 });
@@ -11656,6 +11753,16 @@ function preparationEscapeHtml(value) {
           return;
         }
         window._detailAssignment = a;
+        document.getElementById('rightPanel').classList.toggle('mixed-detail-open', isMixedAssignment(a));
+        const detailBody = document.getElementById('detailPanelBody');
+        const detailHeader = document.getElementById('detailPanelHeader');
+        const routePanel = document.getElementById('routePanelMap');
+        if (isMixedAssignment(a)) {
+          if (detailHeader.parentElement !== detailBody) detailBody.prepend(detailHeader, routePanel);
+        } else if (detailHeader.parentElement === detailBody) {
+          detailBody.parentElement.insertBefore(detailHeader, detailBody);
+          detailBody.parentElement.insertBefore(routePanel, detailBody);
+        }
         window._currentDetailId = id;
         window._detailTechLocation = techLocation;
 
@@ -11670,38 +11777,42 @@ function preparationEscapeHtml(value) {
           }
         }
 
-        // Load assigned equipment for this booking
+        // These independent reads must not delay each other after a status save.
         const loadVisitResources = !['cancelled', 'declined', 'expired'].includes(a.status);
-        a.equipmentItems = [];
         const eqBookingId = a.bookingId?._id || (typeof a.bookingId === 'string' ? a.bookingId : '');
-        if (eqBookingId && loadVisitResources) {
+        const rpBookingId = eqBookingId;
+        const itemProgressKey = (assignment, type) => JSON.stringify((assignment?.bookingId?.services || [])
+          .filter(item => item.type === type).map(item => [String(item._id), item.status]));
+        const paymentKey = assignment => JSON.stringify([assignment?.paymentStatus, assignment?.amountPaid, assignment?.balanceAmount,
+          assignment?.bookingId?.paymentStatus, assignment?.bookingId?.amountPaid, assignment?.bookingId?.balanceAmount]);
+        const sharedStepChanged = previousAssignment?.status !== a.status && ['on_site', 'in_progress'].includes(a.status);
+        const coreStepChanged = previousAssignment?.status === a.status
+          && itemProgressKey(previousAssignment, 'core') !== itemProgressKey(a, 'core')
+          && itemProgressKey(previousAssignment, 'repair') === itemProgressKey(a, 'repair');
+        const reuseResourceHistory = previousAssignment && (sharedStepChanged || coreStepChanged)
+          && paymentKey(previousAssignment) === paymentKey(a)
+          && ['equipmentItems', 'payments', 'reservedParts'].every(field => Array.isArray(previousAssignment[field]));
+        // Arrival/start/Core progress do not change payment or equipment history.
+        // Show the saved visit immediately using the history already on screen;
+        // regular detail refreshes still reload all supporting records.
+        a.equipmentItems = reuseResourceHistory ? previousAssignment.equipmentItems : [];
+        a.payments = reuseResourceHistory ? previousAssignment.payments : [];
+        a.reservedParts = reuseResourceHistory ? previousAssignment.reservedParts : [];
+        const resourceLoads = [];
+        const loadResource = async (path, target, field) => {
           try {
-            const eqRes = await fetch(`/api/technician/equipment/${eqBookingId}`, { credentials: 'same-origin', signal: request.signal });
-            if (eqRes.ok) { const eqData = await eqRes.json(); a.equipmentItems = eqData.items || []; }
-          } catch (e) {}
+            const response = await fetch(path, {credentials:'same-origin',cache:'no-store',signal:request.signal});
+            if (response.ok) { const data = await response.json(); a[target] = data[field] || []; }
+          } catch (error) { /* Optional resource history cannot hide the saved visit status. */ }
+        };
+        if (eqBookingId && loadVisitResources && !reuseResourceHistory) {
+          resourceLoads.push(loadResource(`/api/technician/equipment/${eqBookingId}`, 'equipmentItems', 'items'));
+          resourceLoads.push(loadResource(`/api/technician/bookings/${eqBookingId}/payments`, 'payments', 'payments'));
+          if (isRepairAssignment(a)) resourceLoads.push(loadResource(`/api/technician/bookings/${eqBookingId}/reserved-parts`, 'reservedParts', 'reservations'));
         }
+        await Promise.all(resourceLoads);
 
-        // Load payment history for this booking
-        a.payments = [];
-        const payBookingId = a.bookingId?._id || (typeof a.bookingId === 'string' ? a.bookingId : '');
-        if (payBookingId && loadVisitResources) {
-          try {
-            const payRes = await fetch(`/api/technician/bookings/${payBookingId}/payments`, { credentials: 'same-origin', signal: request.signal });
-            if (payRes.ok) { const payData = await payRes.json(); a.payments = payData.payments || []; }
-          } catch (e) {}
-        }
-
-        // Load reserved repair parts for this booking
-        a.reservedParts = [];
-        const rpBookingId = a.bookingId?._id || (typeof a.bookingId === 'string' ? a.bookingId : '');
-        if (rpBookingId && loadVisitResources && isRepairAssignment(a)) {
-          try {
-            const rpRes = await fetch(`/api/technician/bookings/${rpBookingId}/reserved-parts`, { credentials: 'same-origin', signal: request.signal });
-            if (rpRes.ok) { const rpData = await rpRes.json(); a.reservedParts = rpData.reservations || []; }
-          } catch (e) {}
-        }
-
-        if (sequence !== detailLoadSequence) return;
+        if (!isCurrent()) return;
 
         // Recover Phase 1 requests created by the older logic that remained in
         // waiting_parts even after every requested quantity became reserved.
@@ -11762,7 +11873,7 @@ function preparationEscapeHtml(value) {
           }
         }
 
-        if (sequence !== detailLoadSequence) return;
+        if (!isCurrent()) return;
         const date = a.bookingDate ? new Date(a.bookingDate).toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '';
         const bookingRef = a.bookingReference || a._id?.toString().slice(-6).toUpperCase() || 'N/A';
 
@@ -11817,24 +11928,10 @@ function preparationEscapeHtml(value) {
         const isMixed = isMixedAssignment(a);
         const bookingStatus = a.bookingId?.status || a.bookingStatus;
 
-        if (isMixed) {
-          const mixedItems = a.bookingId?.services || [];
-          const mixedFinished = mixedItems.length > 0
-            && mixedItems.every(item => ['completed', 'cancelled', 'repair_declined'].includes(item.status));
-          const mixedSteps = [
-            { key: 'accepted', label: 'Accepted', icon: 'bi-check-lg' },
-            { key: 'en_route', label: 'En Route', icon: 'bi-sign-turn-right' },
-            { key: 'on_site', label: 'Arrived', icon: 'bi-geo-alt' },
-            { key: 'in_progress', label: 'Service Work', icon: 'bi-layers' },
-            { key: 'completed', label: 'Done', icon: 'bi-check-circle' }
-          ];
-          const mixedCurrent = mixedFinished ? 'completed'
-            : ['in_progress', 'completed'].includes(a.status) ? 'in_progress'
-              : a.status === 'on_site' ? 'on_site'
-                : a.status === 'en_route' ? 'en_route' : 'accepted';
-          const mixedStepIndex = mixedSteps.findIndex(step => step.key === mixedCurrent);
+        if (isMixed && window.MixedServiceDetails) {
+          const progress = MixedServiceDetails.progress(a);
           document.getElementById('detailPanelWorkflow').className = 'trk-card trk-work-progress compact-work-progress';
-          document.getElementById('detailPanelWorkflow').innerHTML = renderWorkProgress(mixedSteps, mixedStepIndex, mixedCurrent);
+          document.getElementById('detailPanelWorkflow').innerHTML = renderWorkProgress(progress.steps, progress.index, progress.current, progress.action);
         } else if (isRepair) {
           const hasQuotation = !!(a.quotation?.createdAt || a.bookingId?.quotation?.createdAt) ||
             ['repair_scheduled', 'ready_for_repair', 'repair_in_progress', 'repair_completed', 'under_warranty'].includes(bookingStatus);
@@ -11946,6 +12043,11 @@ function preparationEscapeHtml(value) {
         // ── Build tab categories for panel ──
         const nonRepairPages = ['overview', 'invoice', 'rating'];
         const visiblePages = isRepair ? REPAIR_PAGES.filter(p => PAGE_REGISTRY[p].visible(a)) : nonRepairPages.filter(p => PAGE_REGISTRY[p].visible(a));
+        const guidedMixedVisit = window.MixedServiceWorkspace?.started(a);
+        if (guidedMixedVisit) {
+          const workOrder = ['core-service', 'repair-service', 'overview'];
+          visiblePages.sort((left, right) => (workOrder.includes(left) ? workOrder.indexOf(left) : 10) - (workOrder.includes(right) ? workOrder.indexOf(right) : 10));
+        }
         const tabDefs = {
           'overview': { icon: 'bi-info-circle', label: 'Overview' },
           'core-service': { icon: 'bi-gear-wide-connected', label: 'Core Service' },
@@ -11959,9 +12061,20 @@ function preparationEscapeHtml(value) {
           'invoice': { icon: 'bi-file-earmark-text', label: 'Invoice' },
           'rating': { icon: 'bi-star', label: 'Rating' },
         };
+        if (isMixedAssignment(a)) {
+          tabDefs['core-service'].label = 'Core work';
+          tabDefs['repair-service'].label = 'Repair work';
+          tabDefs.overview.label = 'Overview';
+          tabDefs.completion.label = 'Completion';
+        }
 
         // Compute per-tab status badge and attention class
         function getTabStatus(pageId, assignment) {
+          if (isMixedAssignment(assignment) && window.MixedServiceDetails) {
+            if (pageId === 'core-service') return MixedServiceDetails.tabState(assignment, 'core');
+            if (pageId === 'repair-service') return MixedServiceDetails.tabState(assignment, 'repair');
+            if (pageId === 'completion') return null;
+          }
           const booking = assignment.bookingId || {};
           const services = booking.services || [];
           if (pageId === 'core-service') {
@@ -12032,6 +12145,8 @@ function preparationEscapeHtml(value) {
 
         const contentEl = document.getElementById('detailPanelContent');
         contentEl.classList.add('booking-order-detail-content');
+        contentEl.classList.toggle('mixed-service-active', Boolean(guidedMixedVisit));
+        contentEl.classList.toggle('mixed-service-details', isMixedAssignment(a));
         // Remove previous tab listener to avoid stacking
         contentEl._tabListener && contentEl.removeEventListener('click', contentEl._tabListener);
         if (visiblePages.length > 1) {
@@ -12045,8 +12160,10 @@ function preparationEscapeHtml(value) {
         } else {
           contentEl.innerHTML = panelsHtml;
         }
-        if (activeTabBeforeRefresh && visiblePages.includes(activeTabBeforeRefresh)) {
-          switchDetailTab(activeTabBeforeRefresh);
+        const preferredActiveTab = guidedMixedVisit && previousAssignment && previousAssignment.status !== 'in_progress'
+          ? 'core-service' : activeTabBeforeRefresh;
+        if (preferredActiveTab && visiblePages.includes(preferredActiveTab)) {
+          switchDetailTab(preferredActiveTab);
         } else {
           window._activeDetailTab = visiblePages[0] || null;
         }
@@ -12058,7 +12175,7 @@ function preparationEscapeHtml(value) {
         const actionBar = document.getElementById('detailPanelActions');
         const actionPage = window._activeDetailTab || 'overview';
         const actionsHtml = getWizardPageActions(actionPage, a);
-        const showApplianceRepairs = a.status === 'in_progress' && a.crewRole !== 'support' && a.bookingId?.repairUnitTracking && (!window.RACSJobTeams || RACSJobTeams.ready(a.technicianTeam || a.bookingId?.technicianTeam));
+        const showApplianceRepairs = !window.MixedServiceWorkspace?.active(a) && a.status === 'in_progress' && a.crewRole !== 'support' && a.bookingId?.repairUnitTracking && (!window.RACSJobTeams || RACSJobTeams.ready(a.technicianTeam || a.bookingId?.technicianTeam));
         if (actionsHtml || showApplianceRepairs) {
           actionBar.innerHTML = actionsHtml || '';
           if (showApplianceRepairs && !actionsHtml.includes('openRepairUnits') && !actionsHtml.includes('openInspectionModal')) {
@@ -12533,11 +12650,12 @@ function preparationEscapeHtml(value) {
         };
 
       } catch (e) {
-        if (sequence !== detailLoadSequence || e.name === 'AbortError') return;
+        if (!isCurrent() || e.name === 'AbortError') return;
         console.error('[showDetail] Error:', e);
         showNotification({ type: 'error', title: 'Load Failed', message: 'Failed to load assignment details.', duration: 5000 });
         document.getElementById('detailPanelLoading').style.display = 'none';
         if (document.getElementById('detailPanelContent').style.display === 'none') document.getElementById('detailPanelEmpty').style.display = '';
+        return false;
       } finally {
         if (detailLoadController === request) detailLoadController = null;
       }
@@ -14550,44 +14668,33 @@ function preparationEscapeHtml(value) {
   </div>
 </div>
 
-<!-- Materials / Parts Used Modal (during repair) -->
-<div class="modal fade" id="materialsModal" tabindex="-1" role="dialog" aria-modal="true">
-  <div class="modal-dialog modal-md modal-dialog-centered">
-    <div class="modal-content border-0" style="border-radius:8px;overflow:hidden;">
-      <div class="modal-header" style="background:#0f172a;color:#fff;border:none;">
-        <h6 class="fw-bold mb-0" style="font-size:0.9rem;"><i class="bi bi-box-seam me-2"></i>Materials Used</h6>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" style="opacity:0.5;"></button>
+<!-- Repair completion uses approved parts and issued consumables. -->
+<div class="modal fade" id="materialsModal" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="repairCompletionTitle" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content repair-completion-dialog">
+      <div class="modal-header repair-completion-header">
+        <div><small id="repairCompletionReference">REPAIR COMPLETION</small><h5 id="repairCompletionTitle">Proof of Completion</h5><p>Show the completed repair and confirm consumables used.</p></div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body p-4">
-        <p style="font-size:0.85rem;color:#64748b;">Record parts and materials used during this repair. Inventory will
-          be automatically deducted.</p>
-        <div id="materialsList" class="mb-2"></div>
-        <button type="button" class="btn btn-sm btn-outline-primary mb-3" onclick="addMaterialRow()"
-          style="border-radius:8px;">
-          <i class="bi bi-plus-circle me-1"></i>Add Material
-        </button>
-        <div class="mb-3">
-          <label class="form-label fw-semibold">Actions Performed</label>
-          <textarea id="materialsActions" class="form-control" rows="2"
-            placeholder="e.g. Replaced capacitor, recharged refrigerant" style="border-radius:10px;"></textarea>
+      <div class="modal-body repair-completion-body">
+        <div id="repairCompletionLoading" role="status" class="repair-completion-notice">Loading approved parts and your issued kit?</div>
+        <div id="repairCompletionError" role="alert" class="alert alert-danger" hidden></div>
+        <button type="button" id="repairCompletionReload" class="btn btn-sm btn-outline-secondary mb-3" hidden>Reload details</button>
+        <div id="repairCompletionDetails" hidden>
+          <details id="repairCompletionParts" class="repair-completion-card" hidden><summary><span>Replacement parts</span><span id="repairCompletionPartsCount"></span></summary><div id="repairCompletionPartsList"></div><p>Filled in from the approved quotation.</p></details>
+          <div id="repairCompletionNoParts" class="repair-completion-notice" hidden>No replacement parts were needed for this repair.</div>
+          <section id="repairCompletionConsumables" class="repair-completion-card" hidden aria-labelledby="repairCompletionConsumablesTitle"><h6 id="repairCompletionConsumablesTitle">Consumables used</h6><p>Enter the amount used. Enter 0 for unused items; these stay in your kit.</p><div id="repairCompletionConsumablesList"></div></section>
+          <div class="repair-completion-equipment"><i class="bi bi-tools" aria-hidden="true"></i><span id="repairCompletionEquipmentNote"></span></div>
         </div>
-        <div class="mb-3">
-          <label class="form-label fw-semibold">Proof of Completion Photo <span class="text-danger">*</span></label>
-          <input type="file" class="form-control" id="materialsProofInput"
-            accept="image/jpeg,image/jpg,image/png,image/webp" style="border-radius:10px;font-size:0.85rem;">
-          <small class="text-muted">Upload a photo showing the completed repair work (required).</small>
-          <div id="materialsProofPreview" class="mt-2" style="display:none;">
-            <img id="materialsProofImg" src=""
-              style="max-width:200px;max-height:150px;border-radius:8px;border:1px solid #e2e8f0;" />
-          </div>
+        <div class="repair-completion-photo">
+          <label for="repairCompletionPhoto" class="form-label fw-semibold">Completion photo <span class="text-danger">*</span></label>
+          <input type="file" id="repairCompletionPhoto" class="form-control" accept="image/jpeg,image/png,image/webp" capture="environment" aria-describedby="repairCompletionPhotoHint">
+          <small id="repairCompletionPhotoHint">One clear photo of the finished repair. JPG, PNG or WEBP, up to 5 MB.</small>
+          <img id="repairCompletionPreview" alt="Completion photo preview" hidden>
         </div>
+        <details class="repair-completion-card"><summary>Add a work note <span>(optional)</span></summary><label class="visually-hidden" for="repairCompletionNotes">Work notes</label><textarea id="repairCompletionNotes" class="form-control mt-3" rows="2" maxlength="1000" placeholder="Anything else the customer or admin should know?"></textarea></details>
       </div>
-      <div class="modal-footer border-top" style="background:#f8fafc;">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-warning text-dark" id="saveMaterialsBtn" onclick="saveMaterials()">
-          <i class="bi bi-check-circle me-2"></i>Save Materials & Complete Repair
-        </button>
-      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Back</button><button type="button" id="repairCompletionSubmit" class="btn btn-success" disabled>Submit &amp; Complete Repair</button></div>
     </div>
   </div>
 </div>
@@ -16122,6 +16229,9 @@ function preparationEscapeHtml(value) {
     _inspPayRequired = Boolean(required);
 
     const booking = assignment?.bookingId || assignment || {};
+    if (window.RepairVisitPayment.summary(booking).isMixedBooking && booking.repairExecution?.status === 'in_progress') {
+      return window.openCollectPaymentModal(assignment._id, assignment, false, proceedFn);
+    }
     if(window.RepairVisitPayment.summary(booking).settled){
       if(proceedFn)proceedFn();else Swal.fire({icon:'success',title:'Visit payment recorded',text:'There is no first-visit balance to collect.'});return;
     }
@@ -16525,184 +16635,16 @@ function preparationEscapeHtml(value) {
   // MATERIALS TRACKING
   // ═════════════════════════════════════════════════════════════════════════════
 
-  let _repairMaterialsBookingId = null;
-
   function openMaterialsModal(bookingId) {
-    _repairMaterialsBookingId = bookingId;
-    document.getElementById('materialsList').innerHTML = '';
-    document.getElementById('materialsActions').value = '';
-    // Clear proof photo
-    const proofInput = document.getElementById('materialsProofInput');
-    if (proofInput) proofInput.value = '';
-    const proofPreview = document.getElementById('materialsProofPreview');
-    if (proofPreview) proofPreview.style.display = 'none';
-
-    // Pre-populate with quotation parts if available
-    fetch(`/api/technician/appointments/${bookingId}`, { credentials: 'same-origin' })
-      .then(r => r.json())
-      .then(detail => {
-        const booking = detail.booking || detail;
-        const q = booking.quotation;
-        if (q && q.parts && q.parts.length > 0) {
-          q.parts.forEach(p => {
-            addMaterialRow(p.name || p.partName || '', p.quantity || 1, p.unit || 'pcs');
-          });
-        } else {
-          addMaterialRow();
+    return window.TechnicianRepairCompletion.open(bookingId, {
+      async onCompleted(data) {
+        if (data.invoice) showRepairInvoice(data.invoice);
+        if (!data.assignmentCompleted && data.remainingCoreItems?.length) {
+          showNotification({ type: 'info', title: 'Repair Completed', message: 'Core services still need completion. This booking remains active.', duration: 6000 });
+          if (window._currentDetailId) switchDetailTab('core-service');
         }
-        // Pre-fill actions from existing repairCompletion if present
-        const rc = booking.repairCompletion;
-        if (rc) {
-          if (rc.actionsPerformed?.length) {
-            document.getElementById('materialsActions').value = rc.actionsPerformed.join(', ');
-          }
-          if (rc.partsInstalled?.length && !(q?.parts?.length)) {
-            document.getElementById('materialsList').innerHTML = '';
-            rc.partsInstalled.forEach(p => addMaterialRow(p.name || '', p.quantity || 1, p.unit || 'pcs'));
-          }
-        }
-      })
-      .catch(() => addMaterialRow());
-
-    new bootstrap.Modal(document.getElementById('materialsModal')).show();
-  }
-
-  // Materials proof photo preview
-  document.getElementById('materialsProofInput')?.addEventListener('change', function (e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      Swal.fire('File Too Large', 'Proof photo must be under 5MB.', 'warning');
-      this.value = '';
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = function (ev) {
-      document.getElementById('materialsProofImg').src = ev.target.result;
-      document.getElementById('materialsProofPreview').style.display = 'block';
-    };
-    reader.readAsDataURL(file);
-  });
-
-  function addMaterialRow(name = '', qty = 1, unit = 'pcs') {
-    const list = document.getElementById('materialsList');
-    const row = document.createElement('div');
-    row.className = 'row g-2 mb-2 align-items-end';
-    const unitOptions = ['pcs', 'meter', 'roll', 'set', 'bottle', 'kg', 'liter', 'tube', 'can', 'pack'];
-    const unitOptsHtml = unitOptions.map(u => `<option value="${u}" ${unit === u ? 'selected' : ''}>${u}</option>`).join('');
-    row.innerHTML = `
-    <div class="col-5 inv-autocomplete-wrap">
-      <input type="text" class="form-control form-control-sm mat-name" placeholder="Search parts from inventory..." value="${name}" style="border-radius:8px;" autocomplete="off" />
-      <div class="inv-autocomplete-list"></div>
-    </div>
-    <div class="col-2"><input type="number" class="form-control form-control-sm mat-qty" value="${qty}" min="1" style="border-radius:8px;" /></div>
-    <div class="col-3">
-      <select class="form-select form-select-sm mat-unit" style="border-radius:8px;">
-        ${unitOptsHtml}
-      </select>
-    </div>
-    <div class="col-2"><button type="button" class="btn btn-sm btn-outline-danger w-100" onclick="this.closest('.row').remove();" style="border-radius:8px;"><i class="bi bi-trash"></i></button></div>`;
-    list.appendChild(row);
-    // Attach autocomplete
-    const nameInput = row.querySelector('.mat-name');
-    attachInventoryAutocomplete(nameInput, function (item) {
-      nameInput.value = item.itemName;
-      row.querySelector('.mat-qty').value = 1;
-      const unitSel = row.querySelector('.mat-unit');
-      const itemUnit = item.unit || 'pcs';
-      if (unitSel.querySelector(`option[value="${itemUnit}"]`)) {
-        unitSel.value = itemUnit;
       }
     });
-  }
-
-  async function saveMaterials() {
-    const btn = document.getElementById('saveMaterialsBtn');
-
-    // Require proof photo
-    const proofFileInput = document.getElementById('materialsProofInput');
-    if (proofFileInput && (!proofFileInput.files || proofFileInput.files.length === 0)) {
-      Swal.fire('Photo Required', 'Please upload a proof of completion photo before finishing.', 'warning');
-      return;
-    }
-
-    const materials = [];
-    document.querySelectorAll('#materialsList .row').forEach(row => {
-      const name = row.querySelector('.mat-name')?.value?.trim();
-      const qty = parseInt(row.querySelector('.mat-qty')?.value) || 0;
-      const unit = row.querySelector('.mat-unit')?.value || 'pcs';
-      if (name && qty > 0) materials.push({ name, quantity: qty, unit });
-    });
-    const actionsPerformed = document.getElementById('materialsActions').value.trim();
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
-    window._repairCompletionSubmitting = true;
-    try {
-      // Upload the required proof first without changing workflow state. The
-      // completion endpoint receives its URL and performs the final commit.
-      const proofFile = proofFileInput.files[0];
-      const proofForm = new FormData();
-      proofForm.append('proofPhoto', proofFile);
-      const proofResponse = await fetch(`/api/technician/appointments/${_repairMaterialsBookingId}/upload-proof`, {
-        method: 'POST', credentials: 'same-origin', body: proofForm
-      });
-      const proofData = await proofResponse.json();
-      if (!proofResponse.ok || !proofData.url) throw new Error(proofData.error || 'Proof upload failed. Repair was not completed.');
-
-      const payload = {
-        completionNotes: actionsPerformed || 'Repair completed',
-        actionsPerformed: actionsPerformed ? [actionsPerformed] : [],
-        partsInstalled: materials,
-        proofUrl: proofData.url,
-      };
-
-      // Then complete the repair
-      const resp = await fetch(`/api/technician/appointments/${_repairMaterialsBookingId}/complete-repair`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        credentials: 'same-origin'
-      });
-      const data = await resp.json();
-
-      if (resp.ok && data.success) {
-        window._repairCompletionSubmitting = false;
-        bootstrap.Modal.getInstance(document.getElementById('materialsModal'))?.hide();
-        if (data.invoice) {
-          showRepairInvoice(data.invoice);
-          await window.reloadAssignments();
-          if (!data.assignmentCompleted && data.remainingCoreItems?.length) {
-            window._showNotification({
-              type: 'info',
-              title: 'Repair Service Completed',
-              message: `${data.remainingCoreItems.length} Core service item(s) still need completion. The shared booking remains active.`,
-              duration: 7000
-            });
-          }
-          if (window._currentDetailId && document.getElementById('rightPanel').classList.contains('open')) {
-            await window.showDetail(window._currentDetailId);
-            if (!data.assignmentCompleted) switchDetailTab('core-service');
-          }
-        } else {
-          await window.reloadAssignments();
-          Swal.fire('Completed', 'Repair completed successfully.', 'success').then(() => {
-            if (window._currentDetailId && document.getElementById('rightPanel').classList.contains('open')) {
-              window.showDetail(window._currentDetailId);
-            }
-          });
-        }
-      } else {
-        window._repairCompletionSubmitting = false;
-        Swal.fire('Error', data.error || 'Failed to complete repair.', 'error');
-        btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-check-circle me-2"></i>Save Materials & Complete Repair';
-      }
-    } catch (e) {
-      window._repairCompletionSubmitting = false;
-      Swal.fire('Error', 'Network error: ' + e.message, 'error');
-      btn.disabled = false;
-      btn.innerHTML = '<i class="bi bi-check-circle me-2"></i>Save Materials & Complete Repair';
-    }
   }
 
   function showRepairInvoice(inv) {
@@ -18221,6 +18163,8 @@ function preparationEscapeHtml(value) {
       const booking = detail.booking || detail;
 
       if(!res.ok)throw Error(detail.error || 'Could not verify the latest payment.');
+      const collectionEligibility = window.RepairVisitPayment.collection(booking);
+      if (!collectionEligibility.allowed) return Swal.fire('Repair work is not ready to close', collectionEligibility.reason, 'info');
       const payment = window.RepairVisitPayment.balance(booking);
       const paymentDue = payment.amountDue;
       const needsRepairPay = !payment.paidInFull;
@@ -18626,9 +18570,20 @@ function preparationEscapeHtml(value) {
   tryOpen();
 })();
 </script>
-<script src="/js/technician-work-updates.js?v=20261016-coordinated-refresh"></script>
-<link rel="stylesheet" href="/css/repair-units.css?v=20261017-repair-tool-decisions">
-<script src="/js/repair-units.js?v=20261017-repair-workspace-v2"></script>
-<script src="/js/repair-visit-payment.js?v=20261017-repair-workspace-v2"></script>
-<script src="/js/repair-visit.js?v=20261017-repair-tool-decisions"></script>
+<script src="/js/technician-work-updates.js?v=20261022-awaited-refresh"></script>
+<script src="/js/technician-work-actions.js?v=20261022-mixed-visit"></script>
+<link rel="stylesheet" href="/css/core-repair-findings.css?v=20261022-discovery">
+<link rel="stylesheet" href="/css/mixed-service-workspace.css?v=20261022-core-design">
+<script src="/js/core-repair-policy.js?v=20261022-core-only"></script>
+<script src="/js/core-repair-findings.js?v=20261022-core-only"></script>
+<script src="/js/technician-repair-completion.js?v=20261022-issued-inventory"></script>
+<link rel="stylesheet" href="/css/repair-units.css?v=20261021-repair-color">
+<link rel="stylesheet" href="/css/repair-completion.css?v=20261022-issued-inventory">
+<link rel="stylesheet" href="/css/repair-workspace-theme.css?v=20261021-repair-color">
+<script src="/js/repair-units.js?v=20261021-repair-color"></script>
+<script src="/js/repair-visit-payment.js?v=20261022-phase-two-payment"></script>
+<link rel="stylesheet" href="/css/mixed-service-details.css?v=20261022-reference-layout">
+<script src="/js/mixed-service-details.js?v=20261022-reference-layout"></script>
+<script src="/js/mixed-service-workspace.js?v=20261022-wide-details"></script>
+<script src="/js/repair-visit.js?v=20261022-discovery-time"></script>
 <script>window.addEventListener('repair-units:updated', () => { window.__loadProjectWork?.(); if(window._currentDetailId) window.refreshOpenAssignmentDetail?.(); });</script>

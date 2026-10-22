@@ -24,6 +24,8 @@ function fixture(t, { quantity = 1, method = "gcash", failPayment = false } = {}
   }
   t.mock.method(Booking, "findOne", () => query(null));
   const customRequire = name => {
+    if (name === '../utils/repairInspectionPricing') return { resolveRepairInspectionFees: async rows => rows.map(() => ({ fee: 850, unitType: 'split', unitLabel: 'Split Type', categorySlug: 'aircon' })) };
+    if (name === '../utils/bookingPolicy') return { getInspectionDurationMinutes: async () => 90 };
     if (name === "../models/Assignment") return Assignment;
     if (name === "../models/Project") return Project;
     if (name === "../models/Technician") return { findOne: () => query({ _id: techId, user: customerId, name: "Demo Technician" }) };
@@ -71,6 +73,8 @@ test("service walk-in saves the actual received method, partial amount and pendi
   assert.equal(booking.paymentMethod, "gcash"); assert.equal(booking.paymentStatus, "partial");
   assert.equal(booking.amountPaid, 100); assert.equal(booking.balanceAmount, 500);
   assert.equal(booking.status, "assigned"); assert.equal(f.res.body.assignment.status, "pending_acceptance");
+  assert.equal(booking.technicianTeam[0].status, 'pending');
+  assert.equal(String(booking.technicianTeam[0].assignmentId), String(f.res.body.assignment._id));
   assert.ok(f.events.indexOf("notify") > f.events.indexOf("Payment"));
 });
 test("large service walk-in creates all unit records and preserves preferred dates without confirming a work plan", async t => {
@@ -90,4 +94,64 @@ test("a service payment write failure leaves no booking, assignment, or technici
 test("service counter rejects electronic payments without references before creating an account or booking", async t => {
   const f = fixture(t); f.req.body.paymentReference = ""; await f.run();
   assert.equal(f.res.code, 400); assert.equal(f.records.size, 0); assert.ok(!f.events.includes("account"));
+});
+
+test('catalog repairs without legacy service IDs use the inspection fee and appliance workflow', async t => {
+  const f = fixture(t);
+  f.req.body.services = [{ type: 'repair', serviceId: null, unitCategory: 'aircon', unitType: 'split',
+    brand: 'Carrier', hp: 1, quantity: 1, model: '', problemDescription: 'Aircon runs but does not cool.', unitPrice: 1, totalPrice: 1 }];
+  await f.run();
+  assert.equal(f.res.code, 201, JSON.stringify(f.res.body));
+  const booking = f.res.body.appointment;
+  assert.equal(booking.serviceType, 'repair');
+  assert.equal(booking.repairUnitTracking, true);
+  assert.equal(booking.serviceDurationMinutes, 90);
+  assert.equal(booking.services[0].unitPrice, 850);
+  assert.equal(booking.services[0].units[0].status, 'pending');
+  assert.equal(booking.services[0].units[0].problemDescription, 'Aircon runs but does not cool.');
+  assert.equal(booking.status, 'inspection_scheduled');
+  assert.equal(booking.services[0].schedule.kind, 'inspection');
+  assert.equal(booking.amountPaid, 100);
+  assert.equal(booking.balanceAmount, 850);
+  assert.equal(booking.technicianTeam[0].status, 'pending');
+});
+
+test('mixed walk-ins preserve core and repair phases under one booking and one counter payment', async t => {
+  const f = fixture(t);
+  f.req.body.services.push({ type: 'repair', unitCategory: 'aircon', unitType: 'split', brand: 'Carrier', hp: 1,
+    quantity: 1, problemDescription: 'The indoor unit is leaking water.' });
+  await f.run();
+  assert.equal(f.res.code, 201, JSON.stringify(f.res.body));
+  const booking = f.res.body.appointment;
+  assert.equal(booking.serviceType, 'mixed'); assert.equal(booking.quantity, 2);
+  assert.equal(booking.serviceDurationMinutes, 150);
+  assert.deepEqual(booking.services.map(item => item.status), ['assigned', 'inspection_scheduled']);
+  assert.equal(f.events.filter(name => name === 'Payment').length, 1);
+  assert.equal(f.res.body.assignment.status, 'pending_acceptance');
+});
+
+test('walk-in repairs require separate appliances and verified brand and HP before checkout', async t => {
+  for (const overrides of [{ quantity: 2 }, { hp: null }, { brand: 'Unknown' }]) {
+    const f = fixture(t);
+    f.req.body.services = [{ type: 'repair', unitCategory: 'aircon', unitType: 'split', brand: 'Carrier', hp: 1,
+      quantity: 1, problemDescription: 'The indoor unit is leaking water.', ...overrides }];
+    await f.run();
+    assert.equal(f.res.code, 400, JSON.stringify(f.res.body)); assert.equal(f.records.size, 0);
+    assert.ok(!f.events.includes('account'));
+  }
+});
+
+test('large repair walk-ins retain appliance tracking and configured inspection work in project planning', async t => {
+  const f = fixture(t, { quantity: 10 });
+  f.req.body.services = Array.from({ length: 10 }, (_, index) => ({ type: 'repair', unitCategory: 'aircon',
+    unitType: 'split', brand: 'Carrier', hp: 1, quantity: 1, problemDescription: `Aircon ${index + 1} is leaking water.` }));
+  await f.run();
+  assert.equal(f.res.code, 201, JSON.stringify(f.res.body));
+  const project = [...f.records.values()].find(row => row.unitGroups);
+  assert.equal(project.estimatedTotalHours, 15);
+  assert.equal(project.repairUnitTracking, true);
+  assert.equal(project.unitGroups.length, 10);
+  assert.equal(project.unitGroups[0].duration, 90);
+  assert.equal(project.unitGroups[0].units[0].status, 'pending');
+  assert.equal(f.res.body.assignment, null);
 });

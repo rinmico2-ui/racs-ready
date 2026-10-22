@@ -157,11 +157,17 @@ router.post('/mine/:id/decision', customer, async (req, res) => {
 });
 
 router.get('/staff', staff, async (req, res) => {
-  const requests = await UnitAssistanceRequest.find({ status: { $in: ['pending', 'quoted', 'accepted'] } })
-    .populate('customerId', 'firstName lastName email phone mobile')
-    .populate('serviceId', 'name isAirconService basePrice durationMinutes durationRange airconTypes hpPricing applianceProfiles active')
-    .sort({ createdAt: -1 }).limit(100).lean();
-  return res.json({ requests });
+  const [requests, services] = await Promise.all([
+    UnitAssistanceRequest.find({ status: { $in: ['pending', 'quoted', 'accepted'] } })
+      .populate('customerId', 'firstName lastName email phone mobile')
+      .populate('serviceId', 'name brands isAirconService basePrice durationMinutes durationRange airconTypes hpPricing applianceProfiles active')
+      .sort({ createdAt: -1 }).limit(100).lean(),
+    CoreService.find({ active: true }).select('brands').lean(),
+  ]);
+  const brands = [...new Map(services.flatMap(service => Array.isArray(service.brands) ? service.brands : [])
+    .filter(brand => typeof brand === 'string' && brand.trim().length <= 80 && !repairIdentification.unknownBrand(brand.trim()))
+    .map(brand => [brand.trim().toLocaleLowerCase(), brand.trim()])).values()].sort((a, b) => a.localeCompare(b));
+  return res.json({ requests, brands });
 });
 
 router.post('/staff/:id/quote', staff, async (req, res) => {
@@ -179,7 +185,7 @@ router.post('/staff/:id/quote', staff, async (req, res) => {
     if (request.status !== 'pending' && (!request.quote?.quotedAt || String(req.body.expectedQuotedAt || '') !== request.quote.quotedAt.toISOString())) {
       return res.status(409).json({ error: 'This quote changed while you were editing. Refresh the queue before updating it.' });
     }
-    const modelResult = require('../utils/repairModelPolicy').validateRepairModel(Object.hasOwn(req.body, 'model') ? req.body.model : request.model, { required: request.requestType !== 'repair' });
+    const modelResult = require('../utils/repairModelPolicy').validateRepairModel(Object.hasOwn(req.body, 'model') ? req.body.model : request.model);
     if (!modelResult.valid) return res.status(400).json({ error: modelResult.error });
     const isRepair = request.requestType === 'repair';
     const catalog = isRepair ? null : await CoreService.findOne({ _id: request.serviceId, active: true }).lean();
@@ -217,7 +223,7 @@ router.post('/staff/:id/quote', staff, async (req, res) => {
     createNotification({ type: 'system', userId: updated.customerId,
       title: isRepair ? 'Your verified repair unit and inspection fee are ready' : 'Your appliance service quote is ready',
       message: `Review the identified unit and price for ${updated.serviceName}.`,
-      link: '/unit-assistance', priority: 'high', io: req.app.get('io') }).catch(() => {});
+      link: `/unit-assistance?requestId=${encodeURIComponent(String(updated._id))}`, priority: 'high', io: req.app.get('io') }).catch(() => {});
     return res.json({ request: updated });
   } catch (error) {
     if (error.message && !error.name?.includes('Mongo')) return res.status(400).json({ error: error.message });

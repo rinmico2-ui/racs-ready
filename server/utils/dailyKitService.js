@@ -1318,7 +1318,7 @@ async function recordOrderConsumableUsage({ technicianId, userId, orderId, date,
  * assignment id makes retries idempotent instead of decrementing the same kit
  * twice after an interrupted response.
  */
-async function recordBookingConsumableUsage({ technicianId, userId, assignmentId, bookingId, date, usages = [], session }) {
+async function recordBookingConsumableUsage({ technicianId, userId, assignmentId, bookingId, date, usages = [], session, completionStage = 'final' }) {
   if (!mongoose.isValidObjectId(assignmentId) || !mongoose.isValidObjectId(bookingId)) {
     throw Object.assign(new Error("Invalid assignment or booking id"), { status: 400 });
   }
@@ -1327,20 +1327,22 @@ async function recordBookingConsumableUsage({ technicianId, userId, assignmentId
   for (const row of usages || []) {
     const name = String(row?.itemName || row?.name || "").trim();
     const quantity = Number(row?.quantityUsed ?? row?.quantity ?? 0);
-    if (!name || !Number.isFinite(quantity) || quantity <= 0) {
-      throw Object.assign(new Error("Consumable usage must contain a valid item name and positive quantity."), { status: 400 });
+    if (!name || !Number.isFinite(quantity) || quantity < 0) {
+      throw Object.assign(new Error("Consumable usage must contain a valid item name and a quantity of zero or more."), { status: 400 });
     }
     const key = name.toLowerCase();
     const existing = normalized.get(key);
     normalized.set(key, { name, quantity: quantity + Number(existing?.quantity || 0) });
   }
-  const existingQuery = ServiceToolUsage.find({ assignmentId, lifecycleStatus: { $ne: "voided" } }).lean();
+  if (!['repair', 'final'].includes(completionStage)) throw Object.assign(new Error('Invalid completion stage.'), { status: 400 });
+  const existingQuery = ServiceToolUsage.find({ assignmentId, itemType: "consumable", completionStage: completionStage === 'repair' ? 'repair' : { $ne: 'repair' }, lifecycleStatus: { $ne: "voided" } }).lean();
   if (session) existingQuery.session(session);
   const existingRows = await existingQuery;
   if (existingRows.length) {
     const recorded = new Map(existingRows.map(row => [String(row.itemName).trim().toLowerCase(), Number(row.quantityUsed || 0)]));
-    const sameUsage = recorded.size === normalized.size
-      && [...normalized].every(([key, row]) => recorded.get(key) === row.quantity);
+    const positive = [...normalized].filter(([, row]) => row.quantity > 0);
+    const sameUsage = recorded.size === positive.length
+      && positive.every(([key, row]) => recorded.get(key) === row.quantity);
     if (!sameUsage) {
       throw Object.assign(new Error("Consumable usage was already recorded for this completion. Refresh the assignment before retrying."), { status: 409 });
     }
@@ -1356,9 +1358,9 @@ async function recordBookingConsumableUsage({ technicianId, userId, assignmentId
 
   const covered = (kit.items || []).filter(item =>
     item.category === "consumable"
-    && (item.bookingIds || []).some(id => String(id) === String(bookingId))
+    && [...(item.bookingIds || []), ...(item.issuedBookingIds || [])].some(id => String(id) === String(bookingId))
   );
-  const missing = covered.filter(item => !normalized.has(item.name.toLowerCase()));
+  const missing = covered.filter(item => require('./kitMaterialBalance').available(item) > 0 && !normalized.has(item.name.toLowerCase()));
   if (missing.length) {
     throw Object.assign(new Error(`Record consumable usage for: ${missing.map(item => item.name).join(", ")}.`), { status: 400 });
   }
@@ -1367,6 +1369,7 @@ async function recordBookingConsumableUsage({ technicianId, userId, assignmentId
   for (const usage of normalized.values()) {
     const item = covered.find(candidate => candidate.name.toLowerCase() === usage.name.toLowerCase());
     if (!item) throw Object.assign(new Error(`${usage.name} is not assigned to this booking's Daily Kit.`), { status: 403 });
+    if (!usage.quantity) continue;
     const remaining = require('./kitMaterialBalance').available(item);
     if (usage.quantity > remaining) {
       throw Object.assign(new Error(`${usage.name} usage exceeds the ${remaining} ${item.unit || "pcs"} still available.`), { status: 409 });
@@ -1383,6 +1386,7 @@ async function recordBookingConsumableUsage({ technicianId, userId, assignmentId
       inventoryItemId: item.toolId || undefined,
       itemName: item.name,
       itemType: "consumable",
+      completionStage,
       unit: item.unit || "pcs",
       quantityUsed: usage.quantity,
       unitPrice: Number(tool?.costPrice || 0),
@@ -1393,7 +1397,7 @@ async function recordBookingConsumableUsage({ technicianId, userId, assignmentId
   }
 
   await kit.save({ session });
-  await ServiceToolUsage.insertMany(usageRows, { session });
+  if (usageRows.length) await ServiceToolUsage.insertMany(usageRows, { session });
   return { kit, recorded: [...normalized.values()] };
 }
 

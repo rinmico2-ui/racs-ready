@@ -139,6 +139,7 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
     if (!parsedServices || !Array.isArray(parsedServices) || parsedServices.length === 0) {
       return res.status(400).json({ error: 'At least one service is required' });
     }
+    if (parsedServices.some(item => item?.discoveredDuringService || item?.coreRepairHold)) return res.status(400).json({ error: 'On-site findings must be recorded by the assigned technician.' });
     if (parsedServices.length > 320) return res.status(400).json({ error: 'Choose up to 320 service items across a maximum of 40 appliances.' });
     try { require('../public/js/appliance-services').assertServiceTypes(parsedServices); }
     catch (error) { return res.status(400).json({ error:error.message, code:error.code }); }
@@ -1154,6 +1155,7 @@ function ownsBooking(booking, user) {
 }
 
 async function validatedServiceItems(inputItems, booking) {
+  if (Array.isArray(inputItems) && inputItems.some(item => item?.discoveredDuringService || item?.coreRepairHold)) throw Object.assign(Error('On-site repair findings are managed by the assigned technician and Operations.'), { status: 400 });
   if (!Array.isArray(inputItems) || inputItems.length < 1 || inputItems.length > 320) {
     const error = new Error("A booking must contain between 1 and 320 service items.");
     error.status = 400;

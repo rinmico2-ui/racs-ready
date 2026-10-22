@@ -125,11 +125,11 @@
           const row = { ...(prior || {}), ...rows[0], id: prior ? identity(prior) : rows[0].id, units: prior?.units || [] };
           options.commit(row, editingId);
         },
-        assistance: (payload, photos) => {
+        assistance: typeof options.assistance === 'function' ? (payload, photos) => {
           const unit = selectedUnit(payload.applianceKind);
           return options.assistance({ requestType: 'repair', repairUnitType: unit.value, repairUnitCategory: unit.category,
             quantity: payload.quantity, problemDescription: payload.notes, clientRequestId: payload.clientRequestId }, photos);
-        },
+        } : undefined,
       });
       options.host.addEventListener('click', event => {
         const category = event.target.closest('[data-repair-category]');

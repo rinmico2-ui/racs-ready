@@ -109,7 +109,7 @@ async function buildOrderAssignmentPlan(orders, options = {}) {
     Order.find({
       ...require('./standardJobTeam').scope({ $in: technicianIds }), archivedAt: null, 'delivery.preferredDate': { $gte: minDate, $lte: maxDate },
       status: { $in: ACTIVE_ORDER_STATUSES },
-    }).select('_id technicianId technicianTeam continuation delivery.preferredDate timeSlot fulfillmentType items routeDurationMin').lean(),
+    }).select('_id technicianId technicianTeam continuation assignmentCapacity delivery.preferredDate timeSlot fulfillmentType items routeDurationMin').lean(),
     Assignment.find({ technicianId: { $in: technicianIds }, status: { $in: ['pending_acceptance', 'accepted', 'en_route', 'on_site', 'in_progress'] } })
       .select('technicianId').lean(),
     projectAllocations(technicianIds, minDate, maxDate),
@@ -131,6 +131,12 @@ async function buildOrderAssignmentPlan(orders, options = {}) {
     const date = manilaDateTime(scheduledDate, 720);
     const day = date?.getUTCDay();
     const target = orderWindow(order);
+    const window = require('./orderAttention').orderAssignmentWindow(order);
+    if (window.allowed && window.withinGrace) {
+      target.end = Math.max(target.end, window.capacityStartMinutes + target.duration);
+      target.start = window.capacityStartMinutes;
+      target.duration = target.end - target.start;
+    }
     const targetCoordinates = coordinates(order);
     const candidates = [];
     const declined = new Set((order.technicianTeam || []).filter(member => ['declined', 'expired'].includes(member.status)).map(member => String(member.technicianId)));

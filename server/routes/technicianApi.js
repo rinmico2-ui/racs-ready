@@ -39,7 +39,7 @@ const { manilaDateTime } = require('../utils/bookingDateTime');
 const visitSchedule = require('../public/js/technician-visit-schedule');
 const { hasValidStoredImageSignature, imageExtensionFor, isAllowedImage } = require('../utils/uploadSecurity');
 const { escapeRegex } = require('../utils/stringSecurity');
-const { buildBookingWarrantyCoverage } = require('../utils/aftercarePolicy');
+const { getAftercarePolicy, buildBookingWarrantyCoverage } = require('../utils/aftercarePolicy');
 const { assertTechnicianSubmission, normalizeLocation } = require('../utils/remittancePolicy');
 const trustedDevices = require('../utils/trustedDevices');
 const { deleteCompletionProof, storeCompletionProof } = require('../utils/completionProofStorage');
@@ -205,6 +205,7 @@ router.use((req, res, next) => {
 router.use('/assignments/:id', require('../utils/standardTeamMiddleware'));
 router.use(['/appointments/:id', '/bookings/:id', '/repairs/:id'], require('../utils/standardTeamMiddleware').booking);
 router.use('/appointments/:id/repair-workflow', require('./standardRepairWorkflowRoutes'));
+router.use('/appointments/:id/repair-findings', require('./coreRepairDiscoveryRoutes'));
 
 router.get('/relocation-work-order/:bookingId', async (req, res, next) => {
   try {
@@ -477,6 +478,7 @@ router.patch("/appointments/:id/core-items/batch", async (req, res, next) => {
     let updatedCount = 0;
     for (const item of booking.services) {
       if (item.type !== "core") continue;
+      if (item.coreRepairHold?.state === 'on_hold') continue;
       if (String(item.status) === targetStatus) continue;
       if (!eligibleStatuses.includes(String(item.status))) continue;
       if (String(item.technicianId || booking.technicianId || "") !== String(technician._id)) continue;
@@ -512,6 +514,10 @@ router.patch("/appointments/:id/core-items/batch", async (req, res, next) => {
     );
     const hasDeclinedRepair = isMixedBooking
       && booking.services.some(row => row.type === 'repair' && ['repair_declined', 'cancelled'].includes(row.status));
+
+    if (isMixedBooking && !allServicesCompleted && ['confirmed', 'scheduled', 'on-the-way', 'arrived'].includes(booking.status)) {
+      booking.status = 'in-progress';
+    }
 
     if (allServicesCompleted) {
       const previousBookingStatus = booking.status;
@@ -588,6 +594,7 @@ router.patch("/appointments/:id/service-items/:itemId/status", async (req, res, 
       || (booking.services.some(row => row.type === "core") && booking.services.some(row => row.type === "repair"));
     const nextStatus = String(req.body.status || "");
     const allowed = new Set([
+      // Held core items are reviewed through the discovery workflow.
       "accepted", "en_route", "arrived", "in_progress", "completed", "on_hold",
       "inspection_scheduled", "inspection_in_progress", "inspection_completed",
       "diagnosis_completed", "parts_check", "awaiting_quotation",
@@ -595,6 +602,7 @@ router.patch("/appointments/:id/service-items/:itemId/status", async (req, res, 
       "repair_in_progress", "payment_pending"
     ]);
     if (!allowed.has(nextStatus)) return res.status(400).json({ error: "Invalid service-item status transition." });
+    if (item.type === 'core' && item.coreRepairHold?.state === 'on_hold') return res.status(409).json({ error: 'Operations must review the repair finding before affected core work can resume or complete.', code: 'CORE_REPAIR_REVIEW_REQUIRED' });
     if (item.type !== "repair" && nextStatus.startsWith("inspection_")) return res.status(400).json({ error: "Inspection lifecycle is only valid for repair items." });
     let transitionAllowed = canTransitionServiceItem(item, nextStatus);
     if (!transitionAllowed && isMixedBooking) {
@@ -638,6 +646,11 @@ router.patch("/appointments/:id/service-items/:itemId/status", async (req, res, 
     );
     const hasDeclinedRepair = isMixedBooking
       && booking.services.some(row => row.type === 'repair' && ['repair_declined', 'cancelled'].includes(row.status));
+
+    if (isMixedBooking && !allServicesCompleted && ['in_progress', 'completed'].includes(nextStatus)
+      && ['confirmed', 'scheduled', 'on-the-way', 'arrived'].includes(booking.status)) {
+      booking.status = 'in-progress';
+    }
     if (allServicesCompleted) {
       const previousBookingStatus = booking.status;
       const aggregateStatus = booking.serviceType === "repair" ? "repair_completed" : "completed";
@@ -1161,12 +1174,19 @@ router.get("/appointments/:id", async (req, res, next) => {
 
     const booking = await BookingService.findById(id)
       .select("paymentNotes status quotation quotationReview repairUnitTracking inspection diagnosis serviceType services workOrderNumber bookingReference bookingDate startTime endTime customer.name customer.phone customer.address location technicianId unitInfo technicianAssistant partsRequest preventiveMaintenance previousRepairs warranty repairCompletion paymentMethod paymentChannel paymentStatus amountPaid balanceAmount balanceCollected downpaymentAmount totalPrice totalInitialCost estimatedFee initialCost servicePrice travelFare inspectionFeeCollected inspectionFeeAmount inspectionFeeDistanceFare inspectionFeeTotalCollected downpaymentAppliedToInspection coreServicePaymentCollected coreServicePaymentAmount coreServicePaymentCashCollected coreServicePaymentMethod coreServicePaymentCollectedAt repairPaymentCollected repairPaymentAmount repairPaymentMethod customerRating customerRatingComment service serviceId address completedAt")
+      .select('approval discount loyaltyDiscount assignmentId repairExecution')
       .lean();
     if (!booking) return res.status(404).json({ error: "Appointment not found" });
     if (!technicianIds.includes(String(booking.technicianId || ""))) {
       return res.status(403).json({ error: "You are not assigned to this appointment" });
     }
 
+    if (require('../public/js/repair-visit-payment').summary(booking).isMixedBooking) {
+      const payments = await require('../models/Payment').find({ bookingId: booking._id }).select('amount status refundAmount').lean();
+      if (payments.length) booking.amountPaid = require('../utils/paymentSummary').summarizeBookingPayments(booking, payments).amountPaid;
+      const bill = require('../public/js/repair-visit-payment').balance(booking);
+      booking.balanceAmount = bill.amountDue; booking.balanceCollected = bill.paidInFull;
+    }
     return res.json({ booking: presentTechnicianBooking(booking) });
   } catch (err) {
     next(err);
@@ -3243,6 +3263,7 @@ router.post("/assignments/:id/accept", async (req, res, next) => {
  * Once work starts, Core and Repair continue through their own lifecycles.
  */
 async function syncMixedVisitItems(bookingId, visitStatus, technician) {
+  if (visitStatus === 'in_progress') return;
   const BookingService = require("../models/BookingService");
   const booking = await BookingService.findById(bookingId);
   if (!booking || booking.serviceType !== "mixed" || !Array.isArray(booking.services)) return;
@@ -4707,7 +4728,7 @@ router.post("/assignments/:id/collect-payment", async (req, res, next) => {
     const BookingService = require("../models/BookingService");
     const Payment = require("../models/Payment");
     const { id } = req.params;
-    const { amount, method = "cash", reference, proofUrl, customerSignature, customerPhotoUrl, notes, location } = req.body || {};
+    const { amount, method = "cash", reference, cashReceivedConfirmed, notes, location } = req.body || {};
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid id" });
     const tech = await Technician.findOne({ user: req.user._id });
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
@@ -4718,6 +4739,10 @@ router.post("/assignments/:id/collect-payment", async (req, res, next) => {
     }
     let booking = await BookingService.findById(assignment.bookingId);
     if (!booking) return res.status(404).json({ error: "Booking not found" });
+    if (require('../public/js/repair-visit-payment').summary(booking).isMixedBooking) {
+      const collected = await require('../utils/mixedBookingCollection').createService()(booking._id, tech, req.user._id, req.body, assignment._id);
+      return res.status(collected.alreadyCollected ? 200 : 201).json(collected);
+    }
     if (booking.paymentMethod === 'cash_after_service' || booking.maintenance?.isMaintenance && booking.maintenance?.paymentOnSite) {
       maintenancePaymentSession = await mongoose.startSession();
       maintenancePaymentSession.startTransaction();
@@ -4749,13 +4774,16 @@ router.post("/assignments/:id/collect-payment", async (req, res, next) => {
       });
     }
     const paymentMethod = String(method).toLowerCase();
+    const collectionEligibility = require('../public/js/repair-visit-payment').collection(booking);
+    if (!collectionEligibility.allowed) return res.status(409).json({ error: collectionEligibility.reason, code: collectionEligibility.code });
     if (!["cash", "gcash", "bank"].includes(paymentMethod)) return res.status(400).json({ error: "Invalid payment method." });
-    if (paymentMethod === "cash" && !customerSignature && !proofUrl && !customerPhotoUrl) {
-      return res.status(400).json({ error: "Cash collection requires a customer signature, receipt photo, or customer confirmation photo." });
+    if (paymentMethod === "cash" && cashReceivedConfirmed !== true) {
+      return res.status(400).json({ error: "Confirm that you received the cash before recording this collection." });
     }
-    if (["gcash", "bank"].includes(paymentMethod) && (!String(reference || "").trim() || !proofUrl)) {
-      return res.status(400).json({ error: "Reference number and receipt screenshot are required." });
+    if (["gcash", "bank"].includes(paymentMethod) && (typeof reference !== "string" || !reference.trim())) {
+      return res.status(400).json({ error: "Enter the GCash or bank transfer reference number." });
     }
+    const paymentReference = paymentMethod === "cash" ? undefined : reference.trim();
     // Traceable payments determine the balance; legacy bookings fall back to
     // the saved amount paid, rather than a potentially stale collection flag.
     const due = currentDue;
@@ -4773,12 +4801,13 @@ router.post("/assignments/:id/collect-payment", async (req, res, next) => {
     const paymentData = {
       bookingId: booking._id, amount: value, method: paymentMethod, type: due > value ? "downpayment" : "final",
       gateway: paymentMethod === "cash" ? "cod" : paymentMethod, status: "waiting_for_remittance",
-      reference: String(reference || "").trim() || undefined, proofUrl: proofUrl || undefined,
-      customerSignature: customerSignature || undefined, customerPhotoUrl: customerPhotoUrl || undefined,
+      reference: paymentReference,
       collectedBy: tech._id, collectedByName: tech.name, collectedAt: now,
       collectionLocation: location || undefined, notes,
       events: [
-        { status: "payment_collected", actor: req.user._id, actorName: tech.name, actorRole: "technician", at: now, metadata: { method: paymentMethod, reference: reference || null } },
+        { status: "payment_collected", actor: req.user._id, actorName: tech.name, actorRole: "technician", at: now,
+          note: paymentMethod === "cash" ? "Technician confirmed cash received from the customer." : undefined,
+          metadata: { method: paymentMethod, reference: paymentReference || null, ...(paymentMethod === "cash" ? { cashReceivedConfirmed: true, amount: value } : {}) } },
         { status: "waiting_for_remittance", actor: req.user._id, actorName: tech.name, actorRole: "technician", at: now }
       ]
     };
@@ -4803,7 +4832,6 @@ router.post("/assignments/:id/collect-payment", async (req, res, next) => {
         booking.repairPaymentMethod = paymentMethod;
         booking.repairPaymentCollectedAt = now;
         booking.repairPaymentCollectedBy = tech._id;
-        if (proofUrl) booking.repairPaymentProof = proofUrl;
       }
     }
     booking.paymentStatus = "waiting_for_remittance";
@@ -4852,6 +4880,11 @@ router.post("/assignments/:id/collect-payment-legacy", async (req, res, next) =>
     if (!booking) return res.status(404).json({ error: "Booking not found" });
 
     // Only COD bookings with remaining balance can collect payment
+    const collectionEligibility = require('../public/js/repair-visit-payment').collection(booking);
+    if (!collectionEligibility.allowed) return res.status(409).json({ error: collectionEligibility.reason, code: collectionEligibility.code });
+    if (require('../public/js/repair-visit-payment').summary(booking).isMixedBooking) {
+      return res.json(await require('../utils/mixedBookingCollection').createService()(booking._id, tech, req.user._id, req.body, assignment._id));
+    }
     if (!["cod", "cash", "cash_onsite", "gcash_downpayment"].includes(booking.paymentMethod)) {
       return res.status(400).json({ error: "Payment collection is only available for Cash, Cash on Delivery, or Downpayment bookings." });
     }
@@ -5591,6 +5624,9 @@ router.get("/equipment-usage", async (req, res, next) => {
     const { tech, technicianIds } = await loadTechnicianContext(req.user._id);
     if (!tech) return res.status(404).json({ error: "Technician profile not found." });
     const filter = { technicianId: { $in: technicianIds } };
+    if (req.query.kind === 'extra') filter.recordKind = 'extra';
+    else if (req.query.kind === 'notes') filter.recordKind = { $ne: 'extra' };
+    else if (req.query.kind) return res.status(400).json({ error: 'Choose a valid equipment record view.' });
     if (req.query.from || req.query.to) {
       filter.date = {};
       for (const [key, operator] of [["from", "$gte"], ["to", "$lte"]]) {
@@ -5604,11 +5640,43 @@ router.get("/equipment-usage", async (req, res, next) => {
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
     const { start, end } = require("../utils/technicianToolsService").usageDay(today);
     const [items, todayCount] = await Promise.all([
-      EquipmentUsageLog.find(filter).populate("equipmentId", "itemName assetCode").sort({ date: -1, createdAt: -1 }).limit(200).lean(),
+      EquipmentUsageLog.find(filter).select('-clientSubmissionId -submissionDigest').populate("equipmentId", "itemName assetCode").sort({ date: -1, createdAt: -1 }).limit(200).lean(),
       EquipmentUsageLog.countDocuments({ ...filter, date: { $gte: start, $lt: end } }),
     ]);
     return res.json({ items, count: items.length, todayCount });
   } catch (err) { next(err); }
+});
+
+router.get('/equipment-usage/extra-options', async (req, res, next) => {
+  try {
+    const { tech, technicianIds } = await loadTechnicianContext(req.user._id);
+    if (!tech) return res.status(404).json({ error: 'Technician profile not found.' });
+    const data = await require('../utils/extraEquipmentUsage').createService().options({ technicianIds, date: req.query.date });
+    res.set('Cache-Control', 'private, no-store');
+    return res.json(data);
+  } catch (error) { if (error.status) return res.status(error.status).json({ error: error.message }); next(error); }
+});
+
+router.post('/equipment-usage/extra', async (req, res, next) => {
+  try {
+    const { tech, technicianIds } = await loadTechnicianContext(req.user._id);
+    if (!tech) return res.status(404).json({ error: 'Technician profile not found.' });
+    const result = await require('../utils/extraEquipmentUsage').createService().record({ technicianId: tech._id, technicianIds, userId: req.user._id, input: req.body || {} });
+    return res.status(result.duplicate ? 200 : 201).json({ success: true, ...result });
+  } catch (error) { if (error.status) return res.status(error.status).json({ error: error.message }); next(error); }
+});
+
+router.get("/tools/material-history", async (req, res, next) => {
+  try {
+    const { tech, technicianIds } = await loadTechnicianContext(req.user._id);
+    if (!tech) return res.status(404).json({ error: "Technician profile not found." });
+    const history = await require('../utils/technicianMaterialHistory').materialHistory(technicianIds, req.query);
+    res.set('Cache-Control', 'private, no-store');
+    return res.json(history);
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    next(error);
+  }
 });
 
 router.get("/tools/usage-options", async (req, res, next) => {
@@ -5640,7 +5708,7 @@ router.delete("/equipment-usage/:id", async (req, res, next) => {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Choose a valid usage record." });
     const { tech, technicianIds } = await loadTechnicianContext(req.user._id);
     if (!tech) return res.status(404).json({ error: "Technician profile not found." });
-    const log = await EquipmentUsageLog.findOneAndDelete({ _id: req.params.id, technicianId: { $in: technicianIds } });
+    const log = await EquipmentUsageLog.findOneAndDelete({ _id: req.params.id, technicianId: { $in: technicianIds }, recordKind: { $ne: 'extra' } });
     if (!log) return res.status(404).json({ error: "Usage record not found." });
     return res.json({ message: "Usage record deleted." });
   } catch (err) { next(err); }
@@ -5820,259 +5888,296 @@ router.post("/assignments/:id/proof-of-completion", auth.authenticate, async (re
     }
 
     proofUpload(req, res, async (err) => {
-      if (err) {
-        const msg = err.code === "LIMIT_FILE_SIZE" ? "File too large. Max 5MB." : err.message || "Upload failed";
-        return res.status(400).json({ error: msg });
-      }
-      if (!req.file) {
-        return res.status(400).json({ error: "Please select a photo to upload" });
-      }
-
-      const { id } = req.params;
-      const Assignment = require("../models/Assignment");
-      const BookingService = require("../models/BookingService");
-      const Technician = require("../models/Technician");
-      const User = require("../models/User");
-
-      const assignment = await Assignment.findById(id).lean();
-      if (!assignment) return res.status(404).json({ error: "Assignment not found" });
-
-      const tech = await Technician.findOne({ user: req.user._id }).lean();
-      if (!tech || String(assignment.technicianId) !== String(tech._id)) {
-        return res.status(403).json({ error: "Not your assignment" });
-      }
-
-      if (assignment.status !== "in_progress" && assignment.status !== "completed") {
-        return res.status(400).json({ error: "Can only submit proof from In Progress or Completed status" });
-      }
-
-      const booking = await BookingService.findById(assignment.bookingId);
-      if (!booking) return res.status(404).json({ error: "Booking not found" });
-      const { isRelocationService, assignedRelocationItems } = require('../utils/relocationWorkOrder');
-      const relocationItems = (booking.services || []).filter(isRelocationService);
-      if (!booking.services?.length) relocationItems.push(...assignedRelocationItems(booking, [assignment], tech._id).map(row => row.item));
-      if (relocationItems.length) {
-        const { allTasksComplete } = require('../utils/relocationChecklist');
-        if (relocationItems.some(item => !allTasksComplete({ relocation: item.relocation,
-          airconType: item.airconType || item.applianceType || booking.applianceType }))) {
-          return res.status(409).json({ error: 'Finish the Removal, Transport, Installation, and Testing checklist before submitting completion proof.' });
+      try {
+        if (err) {
+          const msg = err.code === "LIMIT_FILE_SIZE" ? "File too large. Max 5MB." : err.message || "Upload failed";
+          return res.status(400).json({ error: msg });
         }
-      }
-      const receivedPayments = await require('../models/Payment').find({ bookingId: booking._id }).lean();
-      const amountDue = require('../utils/paymentSummary').outstandingBookingBalance(booking, receivedPayments);
-      if (amountDue > 0.01) {
-        return res.status(409).json({ error: "Collect the remaining balance before completing this job.", code: "BOOKING_BALANCE_REQUIRED", balanceAmount: amountDue });
-      }
+        if (!req.file) {
+          return res.status(400).json({ error: "Please select a photo to upload" });
+        }
 
-      // A mixed booking shares one visit between independent Core and Repair
-      // workstreams. Final completion proof may only close the job when every
-      // Core item is completed and every Repair item is finished — repair
-      // work keeps its own completion path in the Repair Service tab.
-      const isMixedBooking = booking.serviceType === "mixed"
-        || ((booking.services || []).some(item => item.type === "core")
-          && (booking.services || []).some(item => item.type === "repair"));
-      if (isMixedBooking) {
-        const openItems = (booking.services || []).filter(row =>
-          row.type === "core"
-            ? row.status !== "completed"
-            : !["completed", "repair_declined", "cancelled"].includes(row.status)
-        );
-        if (openItems.length) {
-          return res.status(409).json({
-            error: `Finish the remaining service work (${openItems.map(row => row.name || (row.type === "core" ? "Core service" : "Repair service")).join(", ")}) before submitting final completion proof. Complete Repair from the Repair Service tab.`,
-            code: "MIXED_WORK_OPEN",
-            openItems: openItems.map(row => ({ itemId: row._id, name: row.name || null, type: row.type, status: row.status })),
+        const { id } = req.params;
+        const Assignment = require("../models/Assignment");
+        const BookingService = require("../models/BookingService");
+        const Technician = require("../models/Technician");
+        const assignment = await Assignment.findById(id).lean();
+        if (!assignment) return res.status(404).json({ error: "Assignment not found" });
+
+        const tech = await Technician.findOne({ user: req.user._id }).lean();
+        if (!tech || String(assignment.technicianId) !== String(tech._id)) {
+          return res.status(403).json({ error: "Not your assignment" });
+        }
+
+        if (assignment.status !== "in_progress" && assignment.status !== "completed") {
+          return res.status(400).json({ error: "Can only submit proof from In Progress or Completed status" });
+        }
+        if (assignment.status === "completed" && assignment.proofPhoto) {
+          return res.json({ message: "This job is already completed.", proofPhoto: assignment.proofPhoto, alreadyCompleted: true });
+        }
+
+        const booking = await BookingService.findById(assignment.bookingId);
+        if (!booking) return res.status(404).json({ error: "Booking not found" });
+        const { isRelocationService, assignedRelocationItems } = require('../utils/relocationWorkOrder');
+        const relocationItems = (booking.services || []).filter(isRelocationService);
+        if (!booking.services?.length) relocationItems.push(...assignedRelocationItems(booking, [assignment], tech._id).map(row => row.item));
+        if (relocationItems.length) {
+          const { allTasksComplete } = require('../utils/relocationChecklist');
+          if (relocationItems.some(item => !allTasksComplete({ relocation: item.relocation,
+            airconType: item.airconType || item.applianceType || booking.applianceType }))) {
+            return res.status(409).json({ error: 'Finish the Removal, Transport, Installation, and Testing checklist before submitting completion proof.' });
+          }
+        }
+        const receivedPayments = await require('../models/Payment').find({ bookingId: booking._id }).lean();
+        const amountDue = require('../utils/paymentSummary').outstandingBookingBalance(booking, receivedPayments);
+        if (amountDue > 0.01) {
+          return res.status(409).json({ error: "Collect the remaining balance before completing this job.", code: "BOOKING_BALANCE_REQUIRED", balanceAmount: amountDue });
+        }
+
+        // A mixed booking shares one visit between independent Core and Repair
+        // workstreams. Final completion proof may only close the job when every
+        // Core item is completed and every Repair item is finished — repair
+        // work keeps its own completion path in the Repair Service tab.
+        const isMixedBooking = booking.serviceType === "mixed"
+          || ((booking.services || []).some(item => item.type === "core")
+            && (booking.services || []).some(item => item.type === "repair"));
+        if (isMixedBooking) {
+          const openItems = (booking.services || []).filter(row =>
+            row.type === "core"
+              ? row.status !== "completed"
+              : !["completed", "repair_declined", "cancelled"].includes(row.status)
+          );
+          if (openItems.length) {
+            return res.status(409).json({
+              error: `Finish the remaining service work (${openItems.map(row => row.name || (row.type === "core" ? "Core service" : "Repair service")).join(", ")}) before submitting final completion proof. Complete Repair from the Repair Service tab.`,
+              code: "MIXED_WORK_OPEN",
+              openItems: openItems.map(row => ({ itemId: row._id, name: row.name || null, type: row.type, status: row.status })),
+            });
+          }
+        }
+
+        let consumableUsage = [];
+        try {
+          consumableUsage = req.body.consumables ? JSON.parse(req.body.consumables) : [];
+        } catch (_) {
+          return res.status(400).json({ error: "Consumable usage is not valid JSON." });
+        }
+        if (!Array.isArray(consumableUsage)) {
+          return res.status(400).json({ error: "Consumable usage must be a list." });
+        }
+
+        const completedAt = new Date();
+        const configuredWarranty = await configuredBookingWarranty(booking || { serviceType: assignment.serviceType }, completedAt);
+        const warrantyCoverage = configuredWarranty.coverage;
+        const isRepair = booking.serviceType === "repair";
+        let storedProof;
+        try {
+          storedProof = await storeCompletionProof(req.file, {
+            assignmentId: assignment._id,
+            bookingId: assignment.bookingId,
+            uploadedBy: req.user._id,
+          });
+        } catch (storageError) {
+          console.error("Completion proof storage error:", storageError);
+          return res.status(Number(storageError && storageError.status) || 500).json({
+            error: storageError && storageError.status
+              ? storageError.message
+              : "Could not store the completion photo. Please try again.",
           });
         }
-      }
 
-      let consumableUsage = [];
-      try {
-        consumableUsage = req.body.consumables ? JSON.parse(req.body.consumables) : [];
-      } catch (_) {
-        return res.status(400).json({ error: "Consumable usage is not valid JSON." });
-      }
-      if (!Array.isArray(consumableUsage)) {
-        return res.status(400).json({ error: "Consumable usage must be a list." });
-      }
-
-      let storedProof;
-      try {
-        storedProof = await storeCompletionProof(req.file, {
-          assignmentId: assignment._id,
-          bookingId: assignment.bookingId,
-          uploadedBy: req.user._id,
-        });
-      } catch (storageError) {
-        console.error("Completion proof storage error:", storageError);
-        return res.status(Number(storageError && storageError.status) || 500).json({
-          error: storageError && storageError.status
-            ? storageError.message
-            : "Could not store the completion photo. Please try again.",
-        });
-      }
-
-      const proofUrl = `/api/appointments/${assignment.bookingId}/completion-photo`;
-      const completedAt = new Date();
-      const configuredWarranty = await configuredBookingWarranty(booking || { serviceType: assignment.serviceType }, completedAt);
-      const warrantyCoverage = configuredWarranty.coverage;
-      const isRepair = booking.serviceType === "repair";
-      const completionSession = await mongoose.startSession();
-
-      let updatedAssignment;
-      try {
-        completionSession.startTransaction();
-        const currentAssignment = await Assignment.findOne({
-          _id: id,
-          technicianId: tech._id,
-          status: { $in: ["in_progress", "completed"] },
-        }).session(completionSession).lean();
-        if (!currentAssignment) {
-          throw Object.assign(new Error("Assignment changed before completion. Refresh and try again."), { status: 409 });
-        }
-        const currentBooking = await BookingService.findById(assignment.bookingId).session(completionSession).lean();
-        require('../utils/workContinuation').assertVisitActive(currentBooking);
-        const currentPayments = await require('../models/Payment').find({ bookingId: assignment.bookingId }).session(completionSession).lean();
-        if (require('../utils/paymentSummary').outstandingBookingBalance(currentBooking, currentPayments) > 0.01) {
-          throw Object.assign(new Error('Collect the remaining balance before completing this job.'), { status: 409 });
-        }
-        await recordBookingConsumableUsage({
-          technicianId: tech._id,
-          userId: req.user._id,
-          assignmentId: assignment._id,
-          bookingId: assignment.bookingId,
-          date: assignment.bookingDate || completedAt,
-          usages: consumableUsage,
-          session: completionSession,
-        });
-
-        updatedAssignment = await Assignment.findByIdAndUpdate(id, {
-          $set: {
-            status: "completed",
-            completedAt,
-            proofPhoto: proofUrl,
-            completionProofFileId: storedProof.fileId,
-          },
-          $push: {
-            notes: {
-              text: `Proof of completion uploaded. Service marked as completed.`,
-              by: req.user._id,
-              byName: tech.name || req.user.name || "Technician",
-              createdAt: completedAt,
-            },
-          },
-        }, { returnDocument: "after", session: completionSession }).lean();
-
-      // Update booking — only for non-repair services (repair status is managed by complete-repair)
-      if (!isRepair) {
-        const bookingCompletion = {
-          status: "completed",
-          completedAt,
-          proofPhoto: proofUrl,
-          completionProofFileId: storedProof.fileId,
-        };
-        if (warrantyCoverage) bookingCompletion.warranty = warrantyCoverage;
-        await BookingService.findByIdAndUpdate(assignment.bookingId, {
-          $set: bookingCompletion,
-        }, { session: completionSession });
-      } else {
-        // For repair services, just attach the proof photo without overwriting status
-        await BookingService.findByIdAndUpdate(assignment.bookingId, {
-          $set: {
-            proofPhoto: proofUrl,
-            completionProofFileId: storedProof.fileId,
-          },
-        }, { session: completionSession });
-      }
-        await completionSession.commitTransaction();
-      } catch (completionError) {
-        await completionSession.abortTransaction().catch(() => {});
-        await deleteCompletionProof(storedProof.fileId).catch(() => {});
-        return res.status(Number(completionError.status) || 500).json({
-          error: completionError.message || "Could not complete the job.",
-          code: "COMPLETION_COMMIT_FAILED",
-        });
-      } finally {
-        await completionSession.endSession();
-      }
-
-      if (!isRepair) {
+        const proofUrl = `/api/appointments/${assignment.bookingId}/completion-photo`;
+        let completionSession;
+        let existingCompletion;
         try {
-          const completedBooking = await BookingService.findById(assignment.bookingId);
-          if (completedBooking) {
-            completedBooking.maintenance = completedBooking.maintenance || {};
-            const requestedInterval = String(req.body.nextMaintenanceDays || "").trim()
-              ? Math.min(730, Math.max(30, Number(req.body.nextMaintenanceDays)))
-              : null;
-            if (Number.isFinite(requestedInterval)) completedBooking.maintenance.nextRecommendedDays = requestedInterval;
-            completedBooking.maintenance.nextRecommendationNotes = String(
-              req.body.nextMaintenanceNotes || "",
-            ).slice(0, 1000);
-            await completedBooking.save();
-            const { syncMaintenanceFromBooking } = require("../utils/maintenanceLifecycle");
-            await syncMaintenanceFromBooking(completedBooking, {
-              intervalDays: requestedInterval || undefined,
-              notes: completedBooking.maintenance.nextRecommendationNotes,
-              recommendedBy: tech._id,
-              recommendedByName: tech.name || "Technician",
-            });
-          }
-        } catch (maintenanceError) {
-          console.error("Failed to create booking maintenance schedules:", maintenanceError.message);
-        }
-      }
-
-      // Update technician availability
-      const { resolveAvailabilityStatus } = require("../utils/availability");
-      await resolveAvailabilityStatus(tech, null, null, { syncDb: true });
-      // Availability status synced via syncDb: true above
-
-      // Emit socket event
-      const io = req.app.get("io");
-      if (io) {
-        const booking = await BookingService.findById(assignment.bookingId).lean();
-        if (booking) {
-          const customerId = booking.customerId?._id || booking.customerId;
-          if (customerId) {
-            io.to("customer:" + customerId).emit("booking:status-change", {
+          completionSession = await mongoose.startSession();
+          // Re-read every mutable record on each retry. The photo is stored
+          // once outside the transaction; kit usage and completion commit together.
+          await completionSession.withTransaction(async () => {
+            const currentAssignment = await Assignment.findOne({
+              _id: id,
+              technicianId: tech._id,
+              status: { $in: ["in_progress", "completed"] },
+            }).session(completionSession).lean();
+            if (!currentAssignment) {
+              throw Object.assign(new Error("Assignment changed before completion. Refresh and try again."), { status: 409 });
+            }
+            if (currentAssignment.status === "completed" && currentAssignment.proofPhoto) {
+              existingCompletion = currentAssignment.proofPhoto;
+              return;
+            }
+            const currentBooking = await BookingService.findById(assignment.bookingId).session(completionSession).lean();
+            if (!currentBooking || currentBooking.archivedAt || ['cancelled', 'repair_declined', 'pending_reassignment'].includes(currentBooking.status)
+              || currentBooking.assignmentId && String(currentBooking.assignmentId) !== String(assignment._id)
+              || currentBooking.technicianId && String(currentBooking.technicianId) !== String(tech._id)) {
+              throw Object.assign(new Error('This booking changed before completion. Refresh and try again.'), { status: 409 });
+            }
+            const currentServices = currentBooking.services || [];
+            const currentMixed = currentBooking.serviceType === 'mixed'
+              || currentServices.some(item => item.type === 'core') && currentServices.some(item => item.type === 'repair');
+            if (currentMixed && currentServices.some(item => item.type === 'core' ? item.status !== 'completed'
+              : !['completed', 'repair_declined', 'cancelled'].includes(item.status))) {
+              throw Object.assign(new Error('Finish all Core and Repair work before submitting final completion proof.'), { status: 409 });
+            }
+            require('../utils/workContinuation').assertVisitActive(currentBooking);
+            const currentPayments = await require('../models/Payment').find({ bookingId: assignment.bookingId }).session(completionSession).lean();
+            if (require('../utils/paymentSummary').outstandingBookingBalance(currentBooking, currentPayments) > 0.01) {
+              throw Object.assign(new Error('Collect the remaining balance before completing this job.'), { status: 409 });
+            }
+            await recordBookingConsumableUsage({
+              technicianId: tech._id,
+              userId: req.user._id,
+              assignmentId: assignment._id,
               bookingId: assignment.bookingId,
-              status: "completed",
-              technicianName: tech.name,
-              proofPhoto: proofUrl,
-              timestamp: Date.now(),
+              date: assignment.bookingDate || completedAt,
+              usages: consumableUsage,
+              session: completionSession,
             });
+
+            await Assignment.findByIdAndUpdate(id, {
+              $set: {
+                status: "completed",
+                completedAt,
+                proofPhoto: proofUrl,
+                completionProofFileId: storedProof.fileId,
+              },
+              $push: {
+                notes: {
+                  text: `Proof of completion uploaded. Service marked as completed.`,
+                  by: req.user._id,
+                  byName: tech.name || req.user.name || "Technician",
+                  createdAt: completedAt,
+                },
+              },
+            }, { returnDocument: "after", session: completionSession }).lean();
+
+            // Update booking — only for non-repair services (repair status is managed by complete-repair)
+            if (!isRepair) {
+              const bookingCompletion = {
+                status: "completed",
+                completedAt,
+                proofPhoto: proofUrl,
+                completionProofFileId: storedProof.fileId,
+              };
+              if (warrantyCoverage) bookingCompletion.warranty = warrantyCoverage;
+              await BookingService.findByIdAndUpdate(assignment.bookingId, {
+                $set: bookingCompletion,
+              }, { session: completionSession });
+            } else {
+              // For repair services, just attach the proof photo without overwriting status
+              await BookingService.findByIdAndUpdate(assignment.bookingId, {
+                $set: {
+                  proofPhoto: proofUrl,
+                  completionProofFileId: storedProof.fileId,
+                },
+              }, { session: completionSession });
+            }
+          }, { timeoutMS: 15000 });
+        } catch (completionError) {
+          const uncertainCommit = completionError.hasErrorLabel?.('UnknownTransactionCommitResult');
+          if (!uncertainCommit) await deleteCompletionProof(storedProof.fileId).catch(() => {});
+          const retryable = completionError.code === 112 || completionError.hasErrorLabel?.('TransientTransactionError')
+            || completionError.name === 'MongoOperationTimeoutError';
+          console.error("Completion transaction error:", completionError);
+          return res.status(uncertainCommit ? 503 : retryable ? 409 : Number(completionError.status) || 500).json({
+            error: uncertainCommit ? "Completion confirmation was delayed. Refresh the assignment to check its status before submitting again."
+              : retryable ? "Another update overlapped with completion. Your payment is still recorded. Please submit the completion photo again."
+                : completionError.status ? completionError.message : "Could not complete the job. Please try again.",
+            code: uncertainCommit ? "COMPLETION_STATUS_UNCONFIRMED" : retryable ? "COMPLETION_RETRY_REQUIRED" : "COMPLETION_COMMIT_FAILED",
+          });
+        } finally {
+          await completionSession?.endSession();
+        }
+        if (existingCompletion) {
+          await deleteCompletionProof(storedProof.fileId).catch(() => {});
+          return res.json({ message: "This job is already completed.", proofPhoto: existingCompletion, alreadyCompleted: true });
+        }
+
+        if (!isRepair) {
+          try {
+            const completedBooking = await BookingService.findById(assignment.bookingId);
+            if (completedBooking) {
+              completedBooking.maintenance = completedBooking.maintenance || {};
+              const requestedInterval = String(req.body.nextMaintenanceDays || "").trim()
+                ? Math.min(730, Math.max(30, Number(req.body.nextMaintenanceDays)))
+                : null;
+              if (Number.isFinite(requestedInterval)) completedBooking.maintenance.nextRecommendedDays = requestedInterval;
+              completedBooking.maintenance.nextRecommendationNotes = String(
+                req.body.nextMaintenanceNotes || "",
+              ).slice(0, 1000);
+              await completedBooking.save();
+              const { syncMaintenanceFromBooking } = require("../utils/maintenanceLifecycle");
+              await syncMaintenanceFromBooking(completedBooking, {
+                intervalDays: requestedInterval || undefined,
+                notes: completedBooking.maintenance.nextRecommendationNotes,
+                recommendedBy: tech._id,
+                recommendedByName: tech.name || "Technician",
+              });
+            }
+          } catch (maintenanceError) {
+            console.error("Failed to create booking maintenance schedules:", maintenanceError.message);
           }
         }
-      }
 
-      // Send completion email
-      try {
-        const { sendBookingCompletedEmail } = require("../utils/mailer");
-        const booking = await BookingService.findById(assignment.bookingId).populate("customerId", "name email").lean();
-        if (booking) {
-          const customerEmail = booking.customerId?.email;
-          const customerName = booking.customerId?.name || "Customer";
-          if (customerEmail) {
-            const dateLabel = new Date().toLocaleDateString("en-PH", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-            const techFullName = ((tech.firstName || "") + " " + (tech.lastName || "")).trim() || tech.name || "Your technician";
-            sendBookingCompletedEmail({
-              to: customerEmail,
-              customerName,
-              bookingReference: booking.bookingReference || `#${String(booking._id).slice(-6).toUpperCase()}`,
-              serviceName: booking.serviceName || "Service",
-              technicianName: techFullName,
-              dateLabel,
-            }).catch(err => console.error("[MAILER] Failed to send completion email:", err.message));
+        // Update technician availability
+        const { resolveAvailabilityStatus } = require("../utils/availability");
+        try { await resolveAvailabilityStatus(tech, null, null, { syncDb: true }); }
+        catch (availabilityError) { console.error("Completed job availability refresh failed:", availabilityError); }
+        // Availability status synced via syncDb: true above
+
+        // Emit socket event
+        const io = req.app.get("io");
+        if (io) {
+          const booking = await BookingService.findById(assignment.bookingId).lean();
+          if (booking) {
+            const customerId = booking.customerId?._id || booking.customerId;
+            if (customerId) {
+              io.to("customer:" + customerId).emit("booking:status-change", {
+                bookingId: assignment.bookingId,
+                status: "completed",
+                technicianName: tech.name,
+                proofPhoto: proofUrl,
+                timestamp: Date.now(),
+              });
+            }
           }
         }
-      } catch (emailErr) {
-        console.error("[MAILER] Completion email error:", emailErr.message);
-      }
 
-      return res.json({
-        message: "Proof submitted and job completed",
-        proofPhoto: proofUrl,
-      });
+        // Send completion email
+        try {
+          const { sendBookingCompletedEmail } = require("../utils/mailer");
+          const booking = await BookingService.findById(assignment.bookingId).populate("customerId", "name email").lean();
+          if (booking) {
+            const customerEmail = booking.customerId?.email;
+            const customerName = booking.customerId?.name || "Customer";
+            if (customerEmail) {
+              const dateLabel = new Date().toLocaleDateString("en-PH", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+              const techFullName = ((tech.firstName || "") + " " + (tech.lastName || "")).trim() || tech.name || "Your technician";
+              sendBookingCompletedEmail({
+                to: customerEmail,
+                customerName,
+                bookingReference: booking.bookingReference || `#${String(booking._id).slice(-6).toUpperCase()}`,
+                serviceName: booking.serviceName || "Service",
+                technicianName: techFullName,
+                dateLabel,
+              }).catch(err => console.error("[MAILER] Failed to send completion email:", err.message));
+            }
+          }
+        } catch (emailErr) {
+          console.error("[MAILER] Completion email error:", emailErr.message);
+        }
+
+        return res.json({
+          message: "Proof submitted and job completed",
+          proofPhoto: proofUrl,
+        });
+      } catch (completionError) {
+        console.error("Proof of completion error:", completionError);
+        return res.status(Number(completionError.status) || 500).json({
+          error: completionError.status ? completionError.message : "Could not complete the job. Please try again.",
+          code: "COMPLETION_FAILED",
+        });
+      }
     });
   } catch (err) {
     console.error("Proof of completion error:", err);
@@ -8486,7 +8591,7 @@ router.post("/appointments/:id/save-materials", async (req, res, next) => {
 
 // POST /appointments/:id/collect-repair-payment
 // Technician collects the full quotation payment for a completed repair
-// Body: { amount, method, proofUrl? }
+// Body: { amount, method }
 router.post("/appointments/:id/collect-repair-payment", async (req, res, next) => {
   try {
     const BookingService = require("../models/BookingService");
@@ -8499,7 +8604,10 @@ router.post("/appointments/:id/collect-repair-payment", async (req, res, next) =
     if (booking.technicianId?.toString() !== tech._id.toString()) {
       return res.status(403).json({ error: "Not assigned to this booking" });
     }
-    if (!["repair_in_progress", "arrived", "in-progress"].includes(booking.status)) {
+    if (require('../public/js/repair-visit-payment').summary(booking).isMixedBooking) {
+      return res.json(await require('../utils/mixedBookingCollection').createService()(booking._id, tech, req.user._id, req.body));
+    }
+    if (["cancelled", "rejected", "repair_declined", "closed"].includes(booking.status)) {
       return res.status(400).json({ error: "Can only collect payment when repair is in progress." });
     }
     const currentBalance = require('../public/js/repair-visit-payment').balance(booking);
@@ -8517,10 +8625,9 @@ router.post("/appointments/:id/collect-repair-payment", async (req, res, next) =
       });
     }
 
-    const { amount, method, proofUrl } = req.body;
-    if (!proofUrl || typeof proofUrl !== "string") {
-      return res.status(400).json({ error: "Proof of payment is required before the repair payment can be recorded." });
-    }
+    const collectionEligibility = require('../public/js/repair-visit-payment').collection(booking);
+    if (!collectionEligibility.allowed) return res.status(409).json({ error: collectionEligibility.reason, code: collectionEligibility.code });
+    const { amount, method } = req.body;
     const quotationTotal = Math.max(0, Number(booking.quotation?.totalCost) || 0);
     const isMixedBooking = booking.serviceType === 'mixed'
       || ((booking.services || []).some(item => item.type === 'core')
@@ -8555,7 +8662,6 @@ router.post("/appointments/:id/collect-repair-payment", async (req, res, next) =
     booking.repairPaymentMethod = method || "cash";
     booking.repairPaymentCollectedAt = new Date();
     booking.repairPaymentCollectedBy = tech._id;
-    booking.repairPaymentProof = proofUrl;
 
     // Update booking payment totals
     booking.amountPaid = (booking.amountPaid || 0) + collected;
@@ -8588,7 +8694,6 @@ router.post("/appointments/:id/collect-repair-payment", async (req, res, next) =
       gateway: mappedMethod,
       status: "waiting_for_remittance",
       reference: `Repair payment collected by ${tech.name}`,
-      proofUrl: proofUrl || "",
       collectedBy: tech._id,
       collectedByName: tech.name,
       collectedAt: booking.repairPaymentCollectedAt,
@@ -8634,13 +8739,14 @@ router.post("/appointments/:id/collect-repair-payment", async (req, res, next) =
       },
     });
   } catch (err) {
+    if (err.status && err.status < 500) return res.status(err.status).json({ error: err.message, code: err.code });
     console.error("Collect repair payment error:", err);
-    return res.status(500).json({ error: err.message || "Server error" });
+    return res.status(err.status || 500).json({ error: err.message || "Server error" });
   }
 });
 
 // POST /appointments/:id/upload-proof
-// Multer-based proof of payment upload for repair payment
+// Completion photo upload for the repair workflow
 const repairProofUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => cb(null, path.join(__dirname, '../public/uploads/proofs')),
@@ -8666,150 +8772,123 @@ router.post("/appointments/:id/upload-proof", (req, res, next) => {
   });
 });
 
-// POST /appointments/:id/complete-repair
-// Technician completes repair → booking status: repair_completed + warranty + invoice
-router.post("/appointments/:id/complete-repair", async (req, res, next) => {
+// Read the exact approved parts and issued consumables for repair completion.
+router.get("/appointments/:id/completion-summary", async (req, res, next) => {
+  res.set('Cache-Control', 'private, no-store');
   try {
-    const BookingService = require("../models/BookingService");
-    const tech = await Technician.findOne({ user: req.user._id }).populate("user", "firstName lastName name email");
-    if (!tech) return res.status(404).json({ error: "Technician profile not found" });
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid booking.' });
+    const tech = await Technician.findOne({ user: req.user._id }).lean();
+    const booking = await require('../models/BookingService').findById(req.params.id).lean();
+    if (!booking) return res.status(404).json({ error: 'Booking not found.' });
+    if (!tech || String(booking.technicianId) !== String(tech._id)) return res.status(403).json({ error: 'Only the assigned primary technician can complete this repair.' });
+    const assignment = await require('../models/Assignment').findOne({ bookingId: booking._id, technicianId: tech._id,
+      ...(booking.assignmentId ? { _id: booking.assignmentId } : {}), status: { $in: ['in_progress', 'completed'] } }).lean();
+    if (!assignment) return res.status(409).json({ error: 'Start your current assignment before completing the repair.' });
+    const data = await require('../utils/repairCompletionInventory').createService().plan({ booking, assignment, technicianId: tech._id });
+    return res.json({ bookingReference: booking.bookingReference, parts: data.parts, consumables: data.consumables,
+      equipmentCount: data.equipmentCount, workNotes: booking.repairCompletion?.completionNotes || '',
+      equipmentNote: 'Reusable equipment stays in your custody. Return it through My Tools after the visit.' });
+  } catch (error) { if (error.status) return res.status(error.status).json({ error: error.message }); next(error); }
+});
 
-    const booking = await BookingService.findById(req.params.id);
-    if (!booking) return res.status(404).json({ error: "Booking not found" });
-    if (booking.technicianId?.toString() !== tech._id.toString()) {
-      return res.status(403).json({ error: "Not assigned to this booking" });
-    }
-
-    const allowedFrom = ["ready_for_repair", "scheduled", "repair_approved", "repair_in_progress", "inspection_completed", "awaiting_approval", "repair_completed", "arrived", "in-progress"];
-    const alreadyCompleted = booking.status === "repair_completed";
-    if (!allowedFrom.includes(booking.status)) {
-      return res.status(400).json({ error: `Cannot complete repair from status: ${booking.status}` });
-    }
-
-    // Require payment collection before completing repair
-    const paymentRequired = Number(booking.quotation?.totalCost || 0);
-    const paymentSettled = require('../public/js/repair-visit-payment').balance(booking).paidInFull;
-    if (!paymentSettled) {
-      return res.status(400).json({ error: "Payment must be collected before completing the repair." });
-    }
-
-    // Backfill repair-specific payment metadata for older payments collected
-    // through the shared final-balance endpoint. This keeps later invoices,
-    // reports, and reloads on the same authoritative state.
-    if (paymentRequired > 0 && booking.balanceCollected && !booking.repairPaymentCollected) {
-      booking.repairPaymentCollected = true;
-      booking.repairPaymentAmount = paymentRequired;
-      booking.repairPaymentMethod = booking.repairPaymentMethod || booking.paymentMethod || "cash";
-      booking.repairPaymentCollectedAt = booking.repairPaymentCollectedAt || booking.balanceCollectedAt || new Date();
-      booking.repairPaymentCollectedBy = booking.repairPaymentCollectedBy || booking.balanceCollectedBy || tech._id;
-    }
-
-    const { completionNotes, actionsPerformed, partsInstalled, proofUrl } = req.body || {};
-    if (!String(proofUrl || "").startsWith("/uploads/proofs/")) {
-      return res.status(400).json({ error: "A valid proof-of-completion photo is required." });
-    }
-
-    // Auto-start repair if not already in progress
-    if (!alreadyCompleted && booking.status !== "repair_in_progress") {
-      await transitionRepairStatus(booking, 'repair_in_progress', tech, {
-        reason: 'Auto-started repair for completion',
-      });
-    }
-
-    // Save materials/parts used on the booking (safe — won't crash if field missing)
+// One photo submission commits repair completion and already-issued inventory usage together.
+router.post("/appointments/:id/complete-repair", (req, res, next) => {
+  proofUpload(req, res, error => error ? res.status(400).json({ error: error.code === 'LIMIT_FILE_SIZE' ? 'File too large. Max 5MB.' : 'Choose a JPG, PNG or WEBP completion photo.' }) : next());
+}, async (req, res, next) => {
+  let storedProof, committed = false, uncertainCommit = false;
+  try {
+    const BookingService = require('../models/BookingService'), Assignment = require('../models/Assignment');
+    const tech = await Technician.findOne({ user: req.user._id }).populate('user', 'firstName lastName name email');
+    if (!tech) return res.status(404).json({ error: 'Technician profile not found.' });
+    const initial = await BookingService.findById(req.params.id).lean();
+    if (!initial) return res.status(404).json({ error: 'Booking not found.' });
+    if (String(initial.technicianId) !== String(tech._id)) return res.status(403).json({ error: 'Not assigned to this booking.' });
+    const isDone = value => Boolean(value.repairCompletion?.completedAt && value.proofPhoto);
+    if (isDone(initial)) return res.json({ success: true, alreadyCompleted: true, status: initial.status,
+      assignmentCompleted: ['completed', 'repair_completed'].includes(initial.status) });
+    const initialAssignment = await Assignment.findOne({ bookingId: initial._id, technicianId: tech._id,
+      ...(initial.assignmentId ? { _id: initial.assignmentId } : {}), status: 'in_progress' }).lean();
+    if (!initialAssignment) return res.status(409).json({ error: 'Your assignment changed. Refresh before completing this repair.' });
+    if (!req.file) return res.status(400).json({ error: 'Choose a completion photo before finishing the repair.' });
+    let consumables;
+    try { consumables = typeof req.body.consumables === 'string' ? JSON.parse(req.body.consumables) : req.body.consumables || []; }
+    catch (_) { return res.status(400).json({ error: 'Consumable usage is not valid JSON.' }); }
+    if (!Array.isArray(consumables) || consumables.length > 100) return res.status(400).json({ error: 'Consumable usage must be a list of up to 100 issued items.' });
+    const completionNotes = typeof req.body.completionNotes === 'string' ? req.body.completionNotes.trim() : '';
+    if (completionNotes.length > 1000) return res.status(400).json({ error: 'Keep work notes within 1000 characters.' });
+    storedProof = await storeCompletionProof(req.file, { assignmentId: initialAssignment._id, bookingId: initial._id, uploadedBy: req.user._id });
+    const proofUrl = '/api/appointments/' + String(initial._id) + '/completion-photo';
+    let booking, assignmentCompleted, remainingCoreItems = [], repeated = false;
+    const completionSession = await mongoose.startSession();
     try {
-      booking.repairCompletion = {
-        partsInstalled: partsInstalled || [],
-        actionsPerformed: actionsPerformed || [],
-        completionNotes: completionNotes || "",
-        completedAt: new Date(),
-      };
-      booking.proofPhoto = proofUrl;
-    } catch (e) { console.error("repairCompletion set error:", e.message); }
-
-    // Snapshot the configured repair warranty for this completion.
-    const configuredWarranty = await configuredBookingWarranty(booking, new Date());
-    const warrantyDays = configuredWarranty.rule.enabled ? configuredWarranty.rule.days : 0;
-    try {
-      if (configuredWarranty.coverage) booking.warranty = configuredWarranty.coverage;
-    } catch (e) { console.error("warranty set error:", e.message); }
-
-    // Transition to repair_completed
-    if (!alreadyCompleted) {
-      await transitionRepairStatus(booking, 'repair_completed', tech, {
-        reason: 'Repair completed',
-        notes: completionNotes || '',
-        metadata: {
-          completionNotes,
-          actionsPerformed: actionsPerformed || [],
-          partsInstalled: partsInstalled || [],
-          warrantyDays,
-          warrantyEnd: booking.warranty?.endDate,
-          proofUrl,
+      await completionSession.withTransaction(async () => {
+        repeated = false;
+        booking = await BookingService.findById(req.params.id).session(completionSession);
+        const fail = (message, status = 409) => { throw Object.assign(new Error(message), { status }); };
+        if (!booking || booking.archivedAt || String(booking.technicianId) !== String(tech._id)
+          || booking.assignmentId && String(booking.assignmentId) !== String(initialAssignment._id)) fail('This booking changed. Refresh before completing it.');
+        if (isDone(booking)) { repeated = true; return; }
+        if (!['ready_for_repair', 'scheduled', 'repair_approved', 'repair_in_progress', 'inspection_completed', 'awaiting_approval', 'arrived', 'in-progress'].includes(booking.status)) fail('This booking is not ready for repair completion.');
+        const assignment = await Assignment.findOne({ _id: initialAssignment._id, bookingId: booking._id, technicianId: tech._id, status: 'in_progress' }).session(completionSession).lean();
+        if (!assignment) fail('Your assignment changed. Refresh before completing it.');
+        require('../utils/customerCancellationPolicy').assertNoHold(booking);
+        require('../utils/workContinuation').assertVisitActive(booking);
+        const repairUnits = require('../utils/repairUnitWorkflow').rows(booking);
+        if (booking.repairUnitTracking && (!repairUnits.length || repairUnits.some(row => !['completed', 'declined'].includes(row.unit.repairReview?.state)))) fail('Record the work and final tests for every approved appliance in Appliance repairs first.');
+        if (booking.approval?.status && booking.approval.status !== 'approved') fail('The customer must approve the repair before it can be completed.');
+        const payments = await require('../models/Payment').find({ bookingId: booking._id }).session(completionSession).lean();
+        if (require('../utils/paymentSummary').outstandingBookingBalance(booking, payments) > 0.01) fail('Collect the remaining balance before completing the repair.');
+        const partsInstalled = await require('../utils/repairCompletionInventory').createService().record({ booking, assignment, technicianId: tech._id, userId: req.user._id, session: completionSession });
+        await recordBookingConsumableUsage({ technicianId: tech._id, userId: req.user._id, assignmentId: assignment._id,
+          bookingId: booking._id, date: assignment.bookingDate || booking.bookingDate, usages: consumables, session: completionSession, completionStage: 'repair' });
+        const repairCompletedAt = new Date();
+        const actionsPerformed = repairUnits.filter(row => row.unit.repairReview?.state === 'completed')
+          .map(row => row.unit.repairVerification?.workPerformed).filter(Boolean);
+        if (!actionsPerformed.length && completionNotes) actionsPerformed.push(completionNotes);
+        booking.repairCompletion = { partsInstalled, actionsPerformed, completionNotes, completedAt: repairCompletedAt };
+        booking.proofPhoto = proofUrl; booking.completionProofFileId = storedProof.fileId;
+        const configuredWarranty = await configuredBookingWarranty(booking, repairCompletedAt);
+        if (configuredWarranty.coverage) booking.warranty = configuredWarranty.coverage;
+        if (Number(booking.quotation?.totalCost || 0) > 0 && !booking.repairPaymentCollected) {
+          booking.repairPaymentCollected = true; booking.repairPaymentAmount = Number(booking.quotation.totalCost);
+          booking.repairPaymentMethod = booking.repairPaymentMethod || booking.paymentMethod || 'cash';
+          booking.repairPaymentCollectedAt = booking.balanceCollectedAt || repairCompletedAt;
+          booking.repairPaymentCollectedBy = booking.balanceCollectedBy || tech._id;
         }
-      });
-    }
-
-    // A mixed booking is one shared visit with independent Core and Repair
-    // workstreams. Completing Repair must not close the assignment while any
-    // Core item is still unfinished.
-    const repairCompletedAt = new Date();
-    for (const serviceItem of booking.services || []) {
-      if (serviceItem.type !== 'repair' || ['completed', 'repair_declined', 'cancelled'].includes(serviceItem.status)) continue;
-      serviceItem.status = 'completed';
-      serviceItem.phase = 'repair_phase_2';
-      serviceItem.statusHistory = serviceItem.statusHistory || [];
-      serviceItem.statusHistory.push({
-        status: 'completed',
-        changedAt: repairCompletedAt,
-        changedBy: tech._id,
-        changedByName: tech.name || 'Technician',
-        reason: 'Repair completed with proof of completion',
-      });
-    }
-
-    const isMixedBooking = booking.serviceType === 'mixed'
-      || ((booking.services || []).some(item => item.type === 'core')
-        && (booking.services || []).some(item => item.type === 'repair'));
-    const remainingCoreItems = (booking.services || []).filter(
-      item => item.type === 'core' && item.status !== 'completed'
-    );
-    const allServiceItemsCompleted = (booking.services || []).length > 0
-      && booking.services.every(item => ['completed', 'repair_declined', 'cancelled'].includes(item.status));
-
-    if (isMixedBooking) {
-      const aggregateStatus = allServiceItemsCompleted ? 'completed' : 'in-progress';
-      if (booking.status !== aggregateStatus) {
+        for (const item of booking.services || []) if (item.type === 'repair' && !['completed', 'repair_declined', 'cancelled'].includes(item.status)) {
+          item.status = 'completed'; item.phase = 'repair_phase_2'; item.statusHistory = item.statusHistory || [];
+          item.statusHistory.push({ status: 'completed', changedAt: repairCompletedAt, changedBy: tech._id, changedByName: tech.name || 'Technician', reason: 'Repair completed with completion photo' });
+        }
+        const isMixedBooking = booking.serviceType === 'mixed' || (booking.services || []).some(item => item.type === 'core') && (booking.services || []).some(item => item.type === 'repair');
+        remainingCoreItems = (booking.services || []).filter(item => item.type === 'core' && !['completed', 'cancelled', 'repair_declined'].includes(item.status));
+        assignmentCompleted = !isMixedBooking || (booking.services || []).every(item => ['completed', 'cancelled', 'repair_declined'].includes(item.status));
+        const previous = booking.status;
+        booking.status = isMixedBooking ? assignmentCompleted ? 'completed' : 'in-progress' : 'repair_completed';
+        if (assignmentCompleted) booking.completedAt = booking.completedAt || repairCompletedAt;
         booking.statusHistory = booking.statusHistory || [];
-        booking.statusHistory.push({
-          fromStatus: booking.status,
-          toStatus: aggregateStatus,
-          changedBy: tech._id,
-          changedByModel: 'Technician',
-          changedByName: tech.name || 'Technician',
-          reason: allServiceItemsCompleted
-            ? 'All Core and Repair service items completed'
-            : 'Repair completed; Core service work remains active',
-          timestamp: repairCompletedAt,
-          metadata: { remainingCoreItems: remainingCoreItems.length },
-        });
-      }
-      booking.status = aggregateStatus;
-      if (allServiceItemsCompleted) booking.completedAt = booking.completedAt || repairCompletedAt;
-    }
-
-    // Set SLA resolution tracking (safe)
-    try {
-      if (booking.slaTracking && typeof booking.slaTracking === 'object') {
-        booking.slaTracking.resolutionAt = new Date();
-        if (booking.slaTracking.resolutionTarget && new Date() > booking.slaTracking.resolutionTarget) {
-          booking.slaTracking.resolutionBreached = true;
+        booking.statusHistory.push({ fromStatus: previous, toStatus: booking.status, changedBy: tech._id, changedByModel: 'Technician', changedByName: tech.name || 'Technician',
+          reason: assignmentCompleted ? 'Repair completed with issued inventory and completion photo' : 'Repair completed; Core work remains active', timestamp: repairCompletedAt,
+          metadata: { partsInstalled, remainingCoreItems: remainingCoreItems.length } });
+        if (booking.slaTracking) {
+          booking.slaTracking.resolutionAt = repairCompletedAt;
+          if (booking.slaTracking.resolutionTarget && repairCompletedAt > booking.slaTracking.resolutionTarget) booking.slaTracking.resolutionBreached = true;
         }
-      }
-    } catch (e) { /* non-critical */ }
-
-    await booking.save();
-
+        // Save the primary proof before the booking hook closes team assignments.
+        // Both writes remain in this transaction and roll back together.
+        const updated = await Assignment.findOneAndUpdate({ _id: assignment._id, bookingId: booking._id, technicianId: tech._id, status: 'in_progress' }, {
+          $set: { status: assignmentCompleted ? 'completed' : 'in_progress', completedAt: assignmentCompleted ? repairCompletedAt : null, proofPhoto: proofUrl, completionProofFileId: storedProof.fileId },
+          $push: { notes: { text: '[Repair Complete] ' + (completionNotes || 'Completion photo submitted.'), by: req.user._id, byName: tech.name, createdAt: repairCompletedAt } },
+        }, { returnDocument: 'after', session: completionSession });
+        if (!updated) fail('Your assignment changed during completion.');
+        await booking.save({ session: completionSession });
+      }, { timeoutMS: 20000 });
+    } finally { await completionSession.endSession(); }
+    if (repeated) {
+      await deleteCompletionProof(storedProof.fileId).catch(() => {}); storedProof = null;
+      return res.json({ success: true, alreadyCompleted: true, status: booking.status, assignmentCompleted: ['completed', 'repair_completed'].includes(booking.status) });
+    }
+    committed = true;
+    if (typeof booking.$session === 'function') booking.$session(null);
     try {
       booking.maintenance = booking.maintenance || {};
       const requestedInterval = String(req.body?.nextMaintenanceDays || "").trim()
@@ -8829,40 +8908,6 @@ router.post("/appointments/:id/complete-repair", async (req, res, next) => {
       });
     } catch (maintenanceError) {
       console.error("Failed to create repair maintenance schedules:", maintenanceError.message);
-    }
-
-    // Fulfill stock reservations (convert to ServiceToolUsage records)
-    try {
-      const StockReservation = require("../models/StockReservation");
-      await StockReservation.fulfillForBooking({
-        bookingId: booking._id,
-        technicianId: tech._id,
-        recordedBy: req.user._id,
-      });
-    } catch (e) { console.error('[STOCK] Fulfillment error:', e.message); }
-
-    // Set assignment to completed (atomic update — always runs)
-    const Assignment = require("../models/Assignment");
-    const assignmentCompleted = !isMixedBooking || allServiceItemsCompleted;
-    const assignmentUpdate = assignmentCompleted
-      ? { status: "completed", completedAt: repairCompletedAt, proofPhoto: proofUrl }
-      : { status: "in_progress", completedAt: null, proofPhoto: proofUrl };
-    const assignmentPush = {};
-    if (completionNotes) {
-      assignmentPush.notes = {
-        text: "[Repair Complete] " + completionNotes,
-        by: req.user._id,
-        byName: tech.name,
-        createdAt: new Date(),
-      };
-    }
-    const updatedAssignment = await Assignment.findOneAndUpdate(
-      { bookingId: booking._id, technicianId: tech._id },
-      { $set: assignmentUpdate, ...(Object.keys(assignmentPush).length ? { $push: assignmentPush } : {}) },
-      { returnDocument: "after" }
-    );
-    if (!updatedAssignment) {
-      console.error(`Assignment not found for booking ${booking._id} tech ${tech._id}`);
     }
 
     // Socket notifications (safe)
@@ -9007,8 +9052,13 @@ router.post("/appointments/:id/complete-repair", async (req, res, next) => {
       statusHistory: booking.statusHistory?.slice(-3)
     });
   } catch (err) {
-    console.error("Complete repair error:", err.message, err.stack);
-    return res.status(500).json({ error: "Server error: " + err.message });
+    uncertainCommit = err.hasErrorLabel?.('UnknownTransactionCommitResult');
+    console.error('Complete repair error:', err.message);
+    return res.status(uncertainCommit ? 503 : Number(err.status) || 500).json({ error: uncertainCommit
+      ? 'Completion confirmation was delayed. Refresh the assignment before submitting again.'
+      : err.status ? err.message : 'Could not complete the repair. Your inventory changes were rolled back; please try again.' });
+  } finally {
+    if (storedProof && !committed && !uncertainCommit) await deleteCompletionProof(storedProof.fileId).catch(() => {});
   }
 });
 
@@ -10123,7 +10173,7 @@ router.post("/repairs/:bookingId/status", async (req, res, next) => {
       on_site: "arrived",
       // Mixed Start Work opens the shared visit. Repair starts explicitly
       // from its own tab, including return visits after inspection.
-      in_progress: isMixedBooking || isPhase1 ? null : "repair_in_progress",
+      in_progress: isMixedBooking ? "in-progress" : isPhase1 ? null : "repair_in_progress",
       completed: "repair_completed",
       cancelled: "pending_reassignment",
     };
@@ -10241,6 +10291,7 @@ router.get("/equipment", async (req, res, next) => {
     if (!tech) return res.status(404).json({ error: "Technician record not found." });
     const populate = query => query
       .populate({ path: "bookingId", select: "bookingReference workOrderNumber customerId service bookingDate status", populate: [{ path: "customerId", select: "name" }, { path: "service", select: "name" }] })
+      .populate('bookingIds', 'bookingReference workOrderNumber status')
       .populate("orderIds", "orderReference orderNumber status")
       .populate({ path: "projectId", select: "bookingId service.name customer.name", populate: { path: "bookingId", select: "bookingReference workOrderNumber" } })
       .populate("dailyKitId", "workDate")

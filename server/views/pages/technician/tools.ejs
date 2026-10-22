@@ -1,14 +1,16 @@
-<link rel="stylesheet" href="/css/technician/technician-tools.css?v=20261020-categorized-kit">
+<link rel="stylesheet" href="/css/technician/technician-tools.css?v=20261023-company-stock">
 <section class="technician-page tt-page" id="technicianToolsPage">
   <div class="tt-shell">
     <header class="tt-header">
-      <div><span class="tt-eyebrow">TECHNICIAN WORKSPACE</span><h1>My tools</h1><p>Choose a category to find what is with you, check quantities, and manage returns.</p></div>
-      <div class="tt-header-actions"><button class="tt-button tt-button-secondary" id="ttRefresh" type="button"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i>Refresh</button><button class="tt-button tt-button-primary" id="ttLogUsage" type="button"><i class="bi bi-plus-lg" aria-hidden="true"></i>Log equipment use</button></div>
+      <div><span class="tt-eyebrow">TECHNICIAN WORKSPACE</span><h1>My tools &amp; materials</h1><p>Track issued equipment, check remaining materials, and review what you used for each job.</p></div>
+      <div class="tt-header-actions"><button class="tt-button tt-button-secondary" id="ttRefresh" type="button"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i>Refresh</button></div>
     </header>
+    <details class="tt-guide"><summary><i class="bi bi-info-circle" aria-hidden="true"></i>How tracking works</summary><div class="tt-guide-grid"><p><strong>Equipment is reusable</strong>Daily Preparation records what is issued. Report its return and condition after work.</p><p><strong>Repair parts are installed</strong>Approved parts are recorded with repair completion. Return unused parts.</p><p><strong>Consumables are used up</strong>Enter actual quantities during completion. Review them in Materials used.</p></div><p class="tt-guide-note">Kit equipment does not need a separate daily log. If you used additional company, personal, or borrowed equipment, choose Record extra equipment and link it to the job. Previous daily notes remain under Past notes.</p></details>
     <nav class="tt-categories" role="tablist" aria-label="Items and returns">
       <button type="button" class="tt-category is-active" id="ttCategoryEquipment" role="tab" aria-selected="true" aria-controls="ttEquipmentPanel" data-category="equipment"><i class="bi bi-tools" aria-hidden="true"></i><span><strong>Equipment</strong><small>Reusable tools</small></span><b id="ttEquipmentBadge">&mdash;</b></button>
       <button type="button" class="tt-category" id="ttCategoryParts" role="tab" aria-selected="false" tabindex="-1" aria-controls="krMaterialsSection" data-category="repair_part"><i class="bi bi-gear" aria-hidden="true"></i><span><strong>Repair parts</strong><small>Parts still with you</small></span><b id="ttPartsBadge">&mdash;</b></button>
       <button type="button" class="tt-category" id="ttCategoryConsumables" role="tab" aria-selected="false" tabindex="-1" aria-controls="krMaterialsSection" data-category="consumable"><i class="bi bi-droplet" aria-hidden="true"></i><span><strong>Consumables</strong><small>Supplies still with you</small></span><b id="ttConsumablesBadge">&mdash;</b></button>
+      <button type="button" class="tt-category" id="ttCategoryUsed" role="tab" aria-selected="false" tabindex="-1" aria-controls="ttMaterialsUsedPanel" data-category="used"><i class="bi bi-clock-history" aria-hidden="true"></i><span><strong>Materials used</strong><small>Booking &amp; order history</small></span></button>
       <button type="button" class="tt-category" id="ttCategoryReturns" role="tab" aria-selected="false" tabindex="-1" aria-controls="krReportsSection" data-category="returns"><i class="bi bi-arrow-return-left" aria-hidden="true"></i><span><strong>Returns</strong><small>Reports and feedback</small></span></button>
     </nav>
       <div class="tt-toolbar tt-category-toolbar" id="ttCategoryToolbar"><label class="tt-search"><i class="bi bi-search" aria-hidden="true"></i><span class="visually-hidden">Search items</span><input id="ttSearch" type="search" maxlength="100" placeholder="Search by item name" autocomplete="off"></label><label class="tt-filter"><span class="visually-hidden">Equipment status</span><select id="ttStatus"><option value="all">All equipment</option><option value="active">In your care</option><option value="reserved">Reserved</option></select></label></div>
@@ -16,14 +18,15 @@
     <div class="tt-summary tt-summary-compact" aria-label="Your equipment summary">
       <div class="tt-stat"><span class="tt-stat-icon tt-blue"><i class="bi bi-tools" aria-hidden="true"></i></span><div><span class="tt-stat-label">In your care</span><strong id="ttActiveCount">&mdash;</strong><small>Equipment units issued</small></div></div>
       <div class="tt-stat"><span class="tt-stat-icon tt-amber"><i class="bi bi-box-seam" aria-hidden="true"></i></span><div><span class="tt-stat-label">Reserved</span><strong id="ttReservedCount">&mdash;</strong><small>Waiting to be issued</small></div></div>
-      <div class="tt-stat"><span class="tt-stat-icon tt-green"><i class="bi bi-calendar-check" aria-hidden="true"></i></span><div><span class="tt-stat-label">Used today</span><strong id="ttUsageCount">&mdash;</strong><small>Equipment use records</small></div></div>
+      <div class="tt-stat"><span class="tt-stat-icon tt-green"><i class="bi bi-arrow-return-left" aria-hidden="true"></i></span><div><span class="tt-stat-label">Awaiting receipt</span><strong id="ttPendingCount">&mdash;</strong><small>Returns for admin review</small></div></div>
     </div>
 
-      <div class="tt-section-heading"><span class="tt-section-icon"><i class="bi bi-tools" aria-hidden="true"></i></span><div><h2>Equipment</h2><p>See what is issued to you and track its use.</p></div></div>
+      <div class="tt-section-heading tt-equipment-heading"><span class="tt-section-icon"><i class="bi bi-tools" aria-hidden="true"></i></span><div><h2>Equipment</h2><p>Reusable equipment stays in your care until admin confirms its return.</p></div><button type="button" class="tt-button tt-button-primary" id="ttRecordExtra"><i class="bi bi-plus-lg" aria-hidden="true"></i>Record extra equipment</button></div>
       <div class="tt-tabs" role="tablist" aria-label="Tool records">
         <button type="button" class="tt-tab is-active" id="ttTabEquipment" role="tab" aria-selected="true" aria-controls="ttRecords" data-tab="equipment">Current items</button>
-        <button type="button" class="tt-tab" id="ttTabUsage" role="tab" aria-selected="false" tabindex="-1" aria-controls="ttRecords" data-tab="usage">Usage log</button>
-        <button type="button" class="tt-tab" id="ttTabHistory" role="tab" aria-selected="false" tabindex="-1" aria-controls="ttRecords" data-tab="history">History</button>
+        <button type="button" class="tt-tab" id="ttTabExtra" role="tab" aria-selected="false" tabindex="-1" aria-controls="ttRecords" data-tab="extra">Extra used</button>
+        <button type="button" class="tt-tab" id="ttTabHistory" role="tab" aria-selected="false" tabindex="-1" aria-controls="ttRecords" data-tab="history">Returns</button>
+        <button type="button" class="tt-tab" id="ttTabUsage" role="tab" aria-selected="false" tabindex="-1" aria-controls="ttRecords" data-tab="usage">Past notes</button>
       </div>
 
       <div class="tt-context"><p id="ttResultContext" aria-live="polite">Loading your equipment...</p><span><i class="bi bi-info-circle" aria-hidden="true"></i><span id="ttContextHelp">Return reusable equipment after the linked work is finished.</span></span></div>
@@ -32,18 +35,23 @@
       <nav class="tt-pagination" id="ttPagination" aria-label="Equipment records pagination"></nav>
       <footer class="tt-workspace-footer"><i class="bi bi-shield-check" aria-hidden="true"></i>Admin confirms receipt before returned items become available again.</footer>
     </section>
+    <section class="tt-workspace" id="ttMaterialsUsedPanel" role="tabpanel" aria-labelledby="ttCategoryUsed" hidden>
+      <div class="tt-section-heading"><span class="tt-section-icon"><i class="bi bi-clock-history" aria-hidden="true"></i></span><div><h2>Materials used</h2><p>Recorded repair parts and consumables, grouped by booking or order. Quantities come from saved work records.</p></div></div>
+      <form class="tt-history-filters" id="ttHistoryFilters" aria-label="Filter materials used">
+        <label for="ttHistorySource">Work type<select class="form-select" id="ttHistorySource"><option value="all">All work</option><option value="booking">Bookings</option><option value="order">Orders</option><option value="project">Projects</option><option value="unlinked">Without a work reference</option></select></label>
+        <label for="ttHistoryType">Material<select class="form-select" id="ttHistoryType"><option value="all">Parts &amp; consumables</option><option value="part">Repair parts</option><option value="consumable">Consumables</option></select></label>
+        <label for="ttHistoryFrom">From<input class="form-control" type="date" id="ttHistoryFrom"></label>
+        <label for="ttHistoryTo">To<input class="form-control" type="date" id="ttHistoryTo"></label>
+        <button type="button" class="tt-button tt-button-secondary" id="ttHistoryReset">Clear filters</button>
+      </form>
+      <p class="tt-history-context" id="ttHistoryContext" role="status" aria-live="polite">Select this category to load usage history.</p>
+      <div id="ttHistoryRecords" class="tt-history-records" aria-busy="false"></div>
+      <nav class="tt-pagination" id="ttHistoryPagination" aria-label="Materials used history pagination"></nav>
+      <footer class="tt-workspace-footer"><i class="bi bi-info-circle" aria-hidden="true"></i>Issued quantities show what you received. This history shows quantities recorded as used; it does not create another stock deduction.</footer>
+    </section>
     <%- include('../../partials/kit-return-panel', { kitReturnMode: 'technician', kitReturnTabbed: true }) %>
   </div>
 </section>
-<div class="modal fade tt-modal" id="ttUsageModal" tabindex="-1" aria-labelledby="ttUsageTitle" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
-    <form id="ttUsageForm">
-      <div class="modal-header"><div><span class="tt-eyebrow">EQUIPMENT RECORD</span><h2 id="ttUsageTitle">Log equipment use</h2><p>Record equipment issued to you for this date.</p></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
-      <div class="modal-body"><div class="tt-form-error" id="ttUsageError" role="alert" hidden></div><label for="ttUsageDate">Date <span aria-hidden="true">*</span></label><input type="date" class="form-control" id="ttUsageDate" required><label for="ttUsageEquipment">Equipment <span aria-hidden="true">*</span></label><select class="form-select" id="ttUsageEquipment" required><option value="">Choose equipment</option></select><p class="tt-field-hint" id="ttUsageHint" aria-live="polite">Only equipment issued to you is listed.</p><label for="ttUsageNotes">Notes <span class="tt-optional">Optional</span></label><textarea class="form-control" id="ttUsageNotes" rows="3" maxlength="500" placeholder="Add a short note about how it was used"></textarea></div>
-      <div class="modal-footer"><button class="tt-button tt-button-secondary" type="button" data-bs-dismiss="modal">Cancel</button><button class="tt-button tt-button-primary" id="ttUsageSave" type="submit">Save record</button></div>
-    </form>
-  </div></div>
-</div>
 <div class="modal fade tt-modal" id="ttReturnModal" tabindex="-1" aria-labelledby="ttReturnTitle" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content"><form id="ttReturnForm">
     <div class="modal-header"><div><span class="tt-eyebrow">EQUIPMENT RETURN</span><h2 id="ttReturnTitle">Report equipment return</h2><p>Record its use and condition for admin to review.</p></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
@@ -51,4 +59,25 @@
     <div class="modal-footer"><button class="tt-button tt-button-secondary" type="button" data-bs-dismiss="modal">Cancel</button><button class="tt-button tt-button-primary" id="ttReturnSave" type="submit">Send report</button></div>
   </form></div></div>
 </div>
-<script src="/js/technician-tools.js?v=20261020-categorized-kit" defer></script>
+<div class="modal fade tt-modal" id="ttExtraModal" tabindex="-1" aria-labelledby="ttExtraTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><form class="modal-content" id="ttExtraForm">
+    <div class="modal-header"><div><span class="tt-eyebrow">EXTRA EQUIPMENT</span><h2 id="ttExtraTitle">Record extra equipment</h2><p>Link equipment used outside the original kit to your booking or order.</p></div><button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+      <div class="tt-form-error" id="ttExtraError" role="alert" hidden></div>
+      <div class="tt-extra-grid"><div><label for="ttExtraDate">Work date</label><input class="form-control" type="date" id="ttExtraDate" required></div><div><label for="ttExtraSource">Equipment owner</label><select class="form-select" id="ttExtraSource"><option value="company">Company equipment</option><option value="personal">My personal equipment</option><option value="borrowed">Borrowed equipment</option></select></div></div>
+      <label for="ttExtraWork">Booking or order</label><select class="form-select" id="ttExtraWork" required><option value="">Choose work</option></select><p class="tt-field-hint" id="ttExtraWorkHint">Choose a started or completed job on this work date.</p>
+      <div id="ttExtraCompany"><label for="ttExtraEquipment">Company equipment</label><select class="form-select" id="ttExtraEquipment"><option value="">Choose equipment</option></select><p class="tt-field-hint" id="ttExtraEquipmentHint">Choose equipment already with you or available in company stock. Available quantities exclude reservations and equipment out of service.</p><button type="button" class="tt-row-action" id="ttExtraReload"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i>Refresh choices</button></div>
+
+      <div id="ttExtraManual" hidden><label for="ttExtraName">Equipment name</label><input class="form-control" id="ttExtraName" maxlength="160" minlength="2" placeholder="e.g. Personal vacuum pump"></div>
+      <div id="ttExtraOwnerWrap" hidden><label for="ttExtraOwner">Borrowed from</label><input class="form-control" id="ttExtraOwner" maxlength="160" minlength="2" placeholder="Person or business that owns the equipment"></div>
+      <label for="ttExtraQuantity" id="ttExtraQuantityLabel">Quantity used</label><input class="form-control" type="number" id="ttExtraQuantity" value="1" min="1" max="10000" step="1" required>
+      <div id="ttExtraReceiptWrap" class="tt-extra-receipt" hidden><label class="form-check"><input class="form-check-input" id="ttExtraReceipt" type="checkbox"><span class="form-check-label" id="ttExtraReceiptLabel">I physically received this equipment from company stock.</span></label><p class="tt-field-hint">Check out only the quantity you have received. It will appear in your equipment returns.</p></div>
+      <label for="ttExtraNotes">Why was extra equipment needed?</label><textarea class="form-control" id="ttExtraNotes" rows="3" minlength="3" maxlength="500" required placeholder="e.g. Used my own vacuum pump for this installation."></textarea>
+      <p class="tt-field-hint" id="ttExtraStockHint">This records equipment use. Company equipment still follows the normal return process.</p>
+    </div>
+    <div class="modal-footer"><button class="tt-button tt-button-secondary" type="button" data-bs-dismiss="modal">Cancel</button><button class="tt-button tt-button-primary" type="submit" id="ttExtraSave">Save record</button></div>
+  </form></div>
+</div>
+<script src="/js/technician-extra-equipment.js?v=20261023-company-stock" defer></script>
+<script src="/js/technician-material-history.js?v=20261023-company-stock" defer></script>
+<script src="/js/technician-tools.js?v=20261023-company-stock" defer></script>

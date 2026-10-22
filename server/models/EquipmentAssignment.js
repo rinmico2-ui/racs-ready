@@ -6,7 +6,7 @@ const equipmentAssignmentSchema = new mongoose.Schema({
   projectId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Project",
-    required: function () { return !this.bookingId && !this.dailyKitId; },
+    required: function () { return !this.bookingId && !this.dailyKitId && !this.orderIds?.length; },
     index: true,
   },
   bookingId: {
@@ -14,6 +14,9 @@ const equipmentAssignmentSchema = new mongoose.Schema({
     ref: "BookingService",
     index: true,
   },
+  // Extra company equipment can be used by another job while remaining in
+  // the same technician's custody. Keep every job protected until it ends.
+  bookingIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'BookingService', index: true }],
   // A consolidated Daily Kit checkout can cover several project/work-order
   // sources at once. Keep projectId/workOrderId for legacy consumers and the
   // arrays as the complete source-of-truth links.

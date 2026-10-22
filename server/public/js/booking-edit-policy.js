@@ -16,8 +16,9 @@
   }
   function state(booking = {}) {
     const verified = paymentVerified(booking);
-    return { canEdit: editableStatuses.has(booking.status || 'pending') && !verified,
-      paymentVerified: verified, reason: verified ? paymentLockReason : '' };
+    const cancellationPending = ['pending', 'under_review'].includes(booking.customerCancellation?.status || booking.cancellation?.request?.status);
+    return { canEdit: editableStatuses.has(booking.status || 'pending') && !verified && !cancellationPending,
+      paymentVerified: verified, reason: cancellationPending ? 'Your cancellation request is under review. Wait for the decision before changing this booking.' : verified ? paymentLockReason : '' };
   }
   return { state, paymentVerified, paymentLockReason, verifiedStatuses: [...verifiedStatuses] };
 });

@@ -15,11 +15,11 @@ function completion(booking,ok=true){
   return {calls,run:()=>context.completeRepair(bookingId)};
 }
 test('repair completion opens materials and proof without payment when the verified total is paid',async()=>{
-  const f=completion({serviceType:'repair',initialCost:500,travelFare:50,totalInitialCost:550,quotation:{totalCost:900},amountPaid:1450,repairPaymentCollected:false,balanceCollected:false});
+  const f=completion({serviceType:'repair',status:'repair_in_progress',initialCost:500,travelFare:50,totalInitialCost:550,quotation:{totalCost:900},amountPaid:1450,repairPaymentCollected:false,balanceCollected:false});
   await f.run();assert.deepEqual(f.calls,[{type:'open',modal:'materialsModal'},{type:'materials',id:bookingId}]);
 });
 test('a fully paid core visit still requires the later quoted repair balance',async()=>{
-  const f=completion({serviceType:'mixed',totalInitialCost:1750,quotation:{totalCost:900},amountPaid:1750,balanceCollected:true});
+  const f=completion({serviceType:'mixed',status:'repair_in_progress',approval:{status:'approved'},services:[{type:'core',status:'completed',totalPrice:1750},{type:'repair',status:'repair_in_progress'}],totalInitialCost:1750,quotation:{totalCost:900},amountPaid:1750,balanceCollected:true});
   await f.run();assert.equal(f.calls.length,1);assert.equal(f.calls[0].type,'message');
   assert.match(f.calls[0].args[0].html,/900/);assert.doesNotMatch(f.calls[0].args[0].html,/1,750/);
 });

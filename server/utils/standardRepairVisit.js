@@ -113,23 +113,26 @@ function createService(overrides = {}) {
     const toolsReady = readiness.ready && tools.every(tool => tool.ready);
     const minute = Math.ceil((now.getTime() - manilaDateTime(date, 0).getTime()) / 60000);
     const ids = team.ids(booking).length ? team.ids(booking) : [team.ref(technicianId)];
+    const remainingCoreMinutes = (booking.services || []).some(item => item.discoveredDuringService)
+      ? (booking.services || []).filter(item => item.type === 'core' && !['completed','cancelled'].includes(item.status))
+        .reduce((sum, item) => sum + Math.max(1, Number(item.duration || item.schedule?.durationMinutes) || 60) * Math.max(1, Number(item.quantity) || 1), 0) : 0;
     async function windowFor(extraMinutes) {
       if (!checkTime) return { available: false, reason: 'Check the team schedule when choosing Repair now.' };
       if (reasons.length) return { available: false, reason: reasons[0] };
-      let end = minute + repairMinutes + extraMinutes;
+      let end = minute + repairMinutes + remainingCoreMinutes + extraMinutes;
       for (const id of ids) {
-        const result = await deps.slots({ date, technicianId: id, duration: String(repairMinutes + extraMinutes), quantity: '1', travelTime: '30' },
+        const result = await deps.slots({ date, technicianId: id, duration: String(repairMinutes + remainingCoreMinutes + extraMinutes), quantity: '1', travelTime: '30' },
           { excludeBookingId: booking._id, existingAppointment: true, ongoingStartMinutes: minute });
         if (result.statusCode >= 400) throw fail('The team schedule could not be checked. Try again before proceeding.', 503);
         const slot = result.payload?.timeSlots?.find(row => row.available === true && parseAppointmentTime(row.startTime) === minute);
         if (!slot) return { available: false, reason: result.payload?.message || 'The repair and travel buffer do not fit everyone\'s remaining shift or conflict with another booking, order or project.' };
-        end = Math.max(end, minute + Number(result.payload.capacityPerSlot || repairMinutes + extraMinutes + 30));
+        end = Math.max(end, minute + Number(result.payload.capacityPerSlot || repairMinutes + remainingCoreMinutes + extraMinutes + 30));
       }
       return { available: true, endTime: formatTime(end) };
     }
     const direct = await windowFor(0), local = parts.some(part => part.missing > 0) ? await windowFor(purchaseMinutes) : direct;
     return { ...state, version: booking.__v || 0, reference: booking.bookingReference || booking.workOrderNumber || team.ref(booking._id).slice(-6),
-      date, visitDate, reasons, visitReasons, firstVisitPayment: visitPayment.summary(booking), payment: visitPayment.balance(booking), repairMinutes, purchaseMinutes, parts, direct, local,
+      date, visitDate, reasons, visitReasons, firstVisitPayment: visitPayment.summary(booking), payment: visitPayment.balance(booking), repairMinutes, remainingCoreMinutes, purchaseMinutes, parts, direct, local,
       canStart: checkTime && !reasons.length && direct.available && toolsReady && parts.every(part => part.missing === 0) && booking.repairExecution?.status !== 'in_progress',
       requiresOnSiteConsent, confirmedQuotationTotal, tools, toolsReady, toolReason: toolsReady ? '' : readiness.error || 'Some required tools are not issued or are no longer at the site.',
       approvalReady: approvalReady(booking), execution: booking.repairExecution || null,
@@ -157,7 +160,7 @@ function createService(overrides = {}) {
         if (action === 'cancel-repair' || plan.requiresOnSiteConsent && ['start', 'defer', 'plan-purchase'].includes(action)) {
           if (action === 'cancel-repair' && (typeof input.reason !== 'string' || input.reason.trim().length < 5 || input.reason.length > 1000)) throw fail('Record the customer\'s reason for cancelling the repair (5 to 1,000 characters).', 400);
           units.recordOnSiteDecision(booking, input, { technicianId: technician._id, actorId, now, cancel: action === 'cancel-repair' });
-          for (const key of ['services', 'quotation', 'quotationReview', 'approval', 'balanceAmount', 'status']) set[key] = booking[key];
+          for (const key of ['services', 'quotation', 'quotationReview', 'approval', 'balanceAmount', 'balanceCollected', 'status']) set[key] = booking[key];
         }
         if (action === 'tool-decision') {
           if (booking.repairExecution?.status === 'in_progress') throw fail('Tool requirements cannot change after repair work has started.');
@@ -236,6 +239,7 @@ function createService(overrides = {}) {
           notification = 'Approved repair started on site';
         } else {
           const reason = typeof input.reason === 'string' ? input.reason.trim() : '';
+          if (require('./coreRepairDiscovery').needsReview(booking)) throw fail('Operations must review paused core work and any required refund before this visit can be deferred.');
           if (reason.length < 5 || reason.length > 1000) throw fail('Explain why another visit is needed (5 to 1,000 characters).', 400);
           if ((booking.services || []).some(item => item.type === 'core' && !['completed', 'cancelled'].includes(item.status))) throw fail('Finish the booked core services before closing this mixed visit.');
           if (!plan.firstVisitPayment.settled) throw fail(`Record the remaining first-visit payment of ₱${plan.firstVisitPayment.amountDue.toLocaleString('en-PH')} before requesting the next visit. This covers inspection, travel and completed core services; the repair quotation is separate.`, 409, 'PHASE_ONE_PAYMENT_REQUIRED');
@@ -265,6 +269,6 @@ function createService(overrides = {}) {
 }
 function present(plan) {
   const { version, reference, date, visitDate, reasons, visitReasons, firstVisitPayment, payment, repairMinutes, purchaseMinutes, parts, direct, local, canStart, approvalReady, execution, purchases, requiresOnSiteConsent, confirmedQuotationTotal, tools, toolsReady, toolReason } = plan;
-  return { version, reference, date, visitDate, reasons, visitReasons, firstVisitPayment, payment, repairMinutes, purchaseMinutes, parts, direct, local, canStart, approvalReady, execution, purchases, requiresOnSiteConsent, confirmedQuotationTotal, tools, toolsReady, toolReason };
+  return { version, reference, date, visitDate, reasons, visitReasons, firstVisitPayment, payment, repairMinutes, remainingCoreMinutes: plan.remainingCoreMinutes, purchaseMinutes, parts, direct, local, canStart, approvalReady, execution, purchases, requiresOnSiteConsent, confirmedQuotationTotal, tools, toolsReady, toolReason };
 }
 module.exports = { createService, present, partCoverage, approvedParts, approvalReady, duration, purchaseReceived };

@@ -182,6 +182,23 @@ body:has(#serviceSelection:not(.d-none) #repair-tab.active):has(#repairAppliance
 }
 .cab-problem-suggestions{margin:18px 0}.cab-problem-suggestions .cab-note{margin-bottom:10px}.cab-problem-suggestions [role="group"]{display:flex;flex-wrap:wrap;gap:8px}.cab-problem-suggestions button{min-height:44px;padding:9px 13px;border:1px solid #d2ded6;border-radius:22px;background:#fff;color:#385244;font-size:.78rem;line-height:1.4;text-align:left}.cab-problem-suggestions button[aria-pressed="true"]{background:#edf7f0;border-color:var(--cab-green);color:var(--cab-green);box-shadow:inset 0 0 0 1px var(--cab-green)}.cab-problem-suggestions button:focus-visible{outline:3px solid #b6dcca;outline-offset:2px}
 .cab-repair-type > span > strong{display:block;font-size:.83rem;font-weight:600;line-height:1.5}
+.cab-service-name { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 9px; }
+.cab-service-state { flex-shrink: 0; font-size: .62rem; line-height: 1.4; font-weight: 600; color: #77877c; }
+.cab-service-state [data-service-selected] { display: none; }
+:is(.cab-service,.cab-batch-service):has(input:checked) .cab-service-state { color: #216542; background: #e3f2e8; border-radius: 20px; padding: 3px 7px; }
+:is(.cab-service,.cab-batch-service):has(input:checked) [data-service-unselected] { display: none; }
+:is(.cab-service,.cab-batch-service):has(input:checked) [data-service-selected] { display: inline-flex; align-items: center; gap: 4px; }
+.cab-more-services { margin: 16px 0 0; border: 1px solid #e0e8e2; border-radius: 11px; background: #fff; }
+.cab-more-services > summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 58px; padding: 13px 15px; list-style: none; color: #375742; font-size: .81rem; font-weight: 600; line-height: 1.5; cursor: pointer; }
+.cab-more-services > summary::-webkit-details-marker { display: none; }
+.cab-more-services > summary small { display: block; margin: 3px 0 0; color: #78877d; font-size: .71rem; font-weight: 400; }
+.cab-more-count { display: flex; align-items: center; gap: 9px; color: #718777; font-size: .72rem; }
+.cab-more-count i { font-size: .67rem; transition: transform .15s; }
+.cab-more-services[open] > summary .cab-more-count i { transform: rotate(180deg); }
+.cab-more-services > div { padding: 0 12px 12px; }
+.cab-more-services > div > :first-child { margin-top: 0; }
+.cab-unavailable-services { background: #f8faf9; }
+.cab-form .cab-more-services > summary:focus-visible { outline: 3px solid #a4d2b7; outline-offset: 2px; border-radius: 10px; }
 .cab-repair-type-fee{display:flex;flex-wrap:wrap;gap:4px 8px;margin-top:5px;font-size:.72rem;color:var(--cab-muted)}
 .cab-repair-type-fee b{font-weight:700;color:var(--cab-green)}
 .cab-inspection-price{display:flex;align-items:center;gap:20px;padding:16px 18px;margin:0 0 22px;border:1px solid #cfe2d6;border-radius:10px;background:#f1f8f4}

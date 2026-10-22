@@ -53,6 +53,8 @@ function presentTechnicianBooking(value) {
   delete booking.internalNotes;
   delete booking.payments;
   delete booking.visitRecoveryHistory;
+  booking.customerCancellationPending = require('./customerCancellationPolicy').open(booking);
+  delete booking.customerCancellation;
 
   if (booking.customer) booking.customer = technicianCustomer(booking.customer);
   return booking;

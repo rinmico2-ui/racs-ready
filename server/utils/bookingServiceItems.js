@@ -37,6 +37,7 @@ function bookingServices(booking) {
 }
 
 function mutationPolicy(booking) {
+  if (require('./customerCancellationPolicy').open(booking)) return { mode: 'locked', direct: false, reason: 'Your cancellation request is under review. Wait for the decision before changing this booking.' };
   const paymentPolicy = require('../public/js/booking-edit-policy');
   if (paymentPolicy.paymentVerified(booking)) return { mode: 'locked', direct: false, reason: paymentPolicy.paymentLockReason };
   const parentStatus = String(booking?.status || "pending");
@@ -132,6 +133,7 @@ const REPAIR_TRANSITIONS = {
 };
 
 function canTransitionServiceItem(item, nextStatus) {
+  if (item?.type === 'core' && item.coreRepairHold?.state === 'on_hold') return false;
   const current = String(item?.status || (item?.type === "repair" ? "inspection_pending" : "pending"));
   if (current === nextStatus) return true;
   const graph = item?.type === "repair" ? REPAIR_TRANSITIONS : CORE_TRANSITIONS;

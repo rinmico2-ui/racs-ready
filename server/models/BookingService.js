@@ -93,6 +93,25 @@ const bookingSchema = new mongoose.Schema({
     applianceGroupId: { type: String, maxlength: 80 },
     applianceKind: { type: String, enum: ["aircon", "refrigerator", "freezer"] },
     assistanceRequestId: { type: mongoose.Schema.Types.ObjectId, ref: 'UnitAssistanceRequest', default: null },
+    discoveredDuringService: { type: new mongoose.Schema({
+      sourceServiceItemId: { type: mongoose.Schema.Types.ObjectId, required: true },
+      unitIndex: { type: Number, required: true, min: 1, max: 40 },
+      requestId: { type: String, required: true, maxlength: 80 },
+      findings: { type: String, required: true, maxlength: 2000 },
+      recommendedAction: { type: String, required: true, maxlength: 1000 },
+      severity: { type: String, enum: ['standard', 'urgent', 'unsafe'], required: true },
+      reportedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Technician', required: true }, reportedAt: Date,
+      coreDisposition: { type: String, enum: ['continuing', 'on_hold', 'resumed', 'not_performed'], required: true },
+      affectedCoreItems: [{ _id: false, serviceItemId: mongoose.Schema.Types.ObjectId, previousStatus: String }],
+      originalBookingTotal: { type: Number, min: 0 },
+      decidedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, decidedAt: Date,
+      decisionNotes: { type: String, maxlength: 1000 }, refundReviewAmount: { type: Number, min: 0, default: 0 },
+      refundQueuedAt: Date, refundPaymentIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Payment' }],
+    }, { _id: false }), default: undefined },
+    coreRepairHold: { type: new mongoose.Schema({
+      findingId: { type: mongoose.Schema.Types.ObjectId, required: true },
+      state: { type: String, enum: ['on_hold', 'resumed', 'not_performed'], required: true },
+    }, { _id: false }), default: undefined },
     name: String,
     // `type` is a reserved schema-definition key in Mongoose. It must be
     // wrapped or Mongoose interprets the entire services array as [String].
@@ -1185,6 +1204,7 @@ bookingSchema.methods.calculateTotalCosts = function () {
   let hasUndiagnosedRepairs = false;
 
   this.services.forEach(service => {
+    if (service.type === 'core' && service.coreRepairHold?.state === 'not_performed') return;
     const quantity = Math.max(1, Number(service.quantity) || 1);
     const initialUnit = Number(service.initialCost ?? service.unitPrice ?? 0);
     const initialLine = initialUnit * quantity;
@@ -1232,6 +1252,9 @@ bookingSchema.methods.updateServiceCost = function (serviceIndex, newCost, techn
   }
 
   const service = this.services[serviceIndex];
+  if (service.type === 'core' || this.repairUnitTracking) {
+    throw Object.assign(new Error('Use the repair quotation and customer approval workflow. The booked core service price cannot be replaced.'), { status: 409, code: 'REPAIR_QUOTATION_REQUIRED' });
+  }
   const previousCost = service.finalCost || service.initialCost;
 
   // Add to price history
@@ -1531,5 +1554,8 @@ bookingSchema.index({ customerRating: 1, updatedAt: -1 }); // For service-rating
 bookingSchema.index({ technicianId: 1, customerRating: 1, updatedAt: -1 }); // For technician quality reporting
 
 bookingSchema.add(require('../utils/demonstrationData').demonstrationFields(mongoose));
+bookingSchema.add(require('../utils/customerCancellationPolicy').fields(mongoose));
+bookingSchema.index({ 'customerCancellation.status': 1, 'customerCancellation.requestedAt': 1 });
+require('../utils/customerCancellationPolicy').installHoldGuards(bookingSchema);
 require('../utils/standardJobTeam').installHooks(bookingSchema, 'booking');
 module.exports = mongoose.model("BookingService", bookingSchema);

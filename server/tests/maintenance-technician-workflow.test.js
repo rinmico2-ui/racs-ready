@@ -46,7 +46,7 @@ function fixture(options = {}) {
   vm.runInNewContext(source.slice(start, source.indexOf('router.post("/assignments/:id/collect-payment-legacy",', start)), context);
   return { events, filters, booking, get payment() { return payment; }, get committed() { return committed; }, async invoke(body = {}) {
     const res = response(); let error;
-    await handler({ params: { id }, user: { _id: id }, body: { amount: 1450, method: "cash", customerSignature: "Customer confirms", ...body } },
+    await handler({ params: { id }, user: { _id: id }, body: { amount: 1450, method: "cash", cashReceivedConfirmed: true, ...body } },
       res, e => { error = e; });
     return { ...res, error };
   } };
@@ -57,6 +57,10 @@ test('cash after service collects the entire bill once and keeps cash awaiting r
   assert.equal(res.error,undefined);assert.equal(res.statusCode,201);
   assert.equal(f.committed,true);assert.equal(f.payment.amount,1450);
   assert.equal(f.payment.method,'cash');assert.equal(f.payment.status,'waiting_for_remittance');
+  assert.equal(f.payment.proofUrl,undefined);assert.equal(f.payment.customerSignature,undefined);assert.equal(f.payment.customerPhotoUrl,undefined);
+  assert.equal(f.payment.collectedBy,techId);assert.ok(Number.isFinite(Number(f.payment.collectedAt)));
+  assert.equal(f.payment.events[0].metadata.cashReceivedConfirmed,true);assert.equal(f.payment.events[0].metadata.amount,1450);
+  assert.equal(f.payment.events[0].actor,id);assert.equal(f.payment.events[0].at,f.payment.collectedAt);
   assert.equal(f.booking.amountPaid,1450);assert.equal(f.booking.balanceAmount,0);
   assert.equal(f.booking.downpaymentAmount,0);
 });
@@ -84,10 +88,42 @@ test("another technician, an unstarted assignment, or a cancelled visit cannot c
   }
 });
 
-test("maintenance payment requires the complete balance and customer payment evidence", async () => {
-  for (const body of [{ amount: 1200 }, { amount: 100 }, { customerSignature: "" }, { method: "gcash", reference: "REF123" },
+test("maintenance payment requires the complete balance, cash confirmation or transfer reference", async () => {
+  for (const body of [{ amount: 1200 }, { amount: 100 }, { cashReceivedConfirmed: false }, { method: "gcash", reference: "" },
     { method: "bank", proofUrl: "/receipt" }, { method: "unsupported" }]) {
     const f = fixture(); assert.equal((await f.invoke(body)).statusCode, 400); assert.equal(f.payment, undefined); assert.equal(f.committed, false);
+  }
+});
+
+test('cash requires explicit technician confirmation even if optional legacy evidence is supplied',async()=>{
+  for(const cashReceivedConfirmed of [undefined,false,'true',1]){
+    const f=fixture({cashAfterService:true});
+    const res=await f.invoke({cashReceivedConfirmed,customerSignature:'Name',proofUrl:'/optional-receipt.jpg'});
+    assert.equal(res.statusCode,400);assert.match(res.body.error,/Confirm that you received/);
+    assert.equal(f.payment,undefined);assert.equal(f.committed,false);
+  }
+});
+
+test('new cash collections ignore legacy photo and signature fields',async()=>{
+  const f=fixture({cashAfterService:true}),res=await f.invoke({proofUrl:'/optional-receipt.jpg',customerSignature:'Customer',customerPhotoUrl:'/customer.jpg',reference:'OLD-TRANSFER'});
+  assert.equal(res.statusCode,201);assert.equal(f.payment.proofUrl,undefined);
+  assert.equal(f.payment.customerSignature,undefined);assert.equal(f.payment.customerPhotoUrl,undefined);assert.equal(f.payment.reference,undefined);
+  assert.equal(f.payment.status,'waiting_for_remittance');
+});
+
+test('GCash and bank collection require a reference without photos or cash confirmation',async()=>{
+  for(const method of ['gcash','bank']){
+    for(const body of [{reference:''},{reference:'   '},{reference:{}},{reference:123},{reference:undefined}]){
+      const f=fixture({cashAfterService:true});
+      const res=await f.invoke({method,cashReceivedConfirmed:false,...body});
+      assert.equal(res.statusCode,400);assert.equal(f.payment,undefined);
+    }
+    const f=fixture({cashAfterService:true});
+    const res=await f.invoke({method,cashReceivedConfirmed:false,reference:' REF123 '});
+    assert.equal(res.statusCode,201);assert.equal(f.payment.method,method);
+    assert.equal(f.payment.events[0].metadata.cashReceivedConfirmed,undefined);
+    assert.equal(f.payment.reference,'REF123');assert.equal(f.payment.status,'waiting_for_remittance');
+    assert.equal(f.payment.proofUrl,undefined);assert.equal(f.payment.customerSignature,undefined);assert.equal(f.payment.customerPhotoUrl,undefined);
   }
 });
 

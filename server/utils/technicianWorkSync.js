@@ -14,17 +14,23 @@ function assignmentWorkDecision(assignment, booking, { includeProjects = false }
   if (UNAVAILABLE_BOOKING_STATUSES.has(booking.status)) return { current: false, reason: "Staff changed this booking. Refresh your jobs to see the current schedule." };
   const teamMember = require('./standardJobTeam').member(booking, assignment.technicianId);
   const teamAssignment = teamMember && ref(teamMember.assignmentId) === ref(assignment._id);
-  const item = (booking.services || []).find(item =>
+  const matchingItems = (booking.services || []).filter(item =>
     (!assignment.serviceItemId || ref(item._id) === ref(assignment.serviceItemId))
     && ref(item.assignmentId) === ref(assignment._id) && ref(item.technicianId) === ref(assignment.technicianId));
+  const itemClosed = item => ["cancelled", "repair_declined", "completed", "repair_completed"].includes(item.status);
+  const item = matchingItems.find(item => !itemClosed(item)) || matchingItems[0];
+  // A visit assignment owns all its service items. Finishing the first Core
+  // item must not revoke access to the Repair work or the final handover.
+  const sharedVisit = !assignment.serviceItemId && (teamAssignment
+    || ref(booking.assignmentId) === ref(assignment._id) && ref(booking.technicianId) === ref(assignment.technicianId));
   if (assignment.serviceItemId && !item) return { current: false, reason: "This service item was reassigned." };
-  if (item && ["cancelled", "repair_declined", "completed", "repair_completed"].includes(item.status)) return { current: false, reason: "This service item is no longer active." };
+  if (item && itemClosed(item) && !sharedVisit) return { current: false, reason: "This service item is no longer active." };
   if (!item && !teamAssignment && ((booking.assignmentId !== undefined && ref(booking.assignmentId) !== ref(assignment._id))
     || (booking.technicianId !== undefined && ref(booking.technicianId) !== ref(assignment.technicianId)))) {
     return { current: false, reason: "This booking is no longer assigned to you." };
   }
   // Mixed service items and repair follow-up visits can have their own date.
-  const schedule = item?.schedule?.date ? item.schedule : assignment.serviceType === "repair" && booking.repairSchedule?.date ? booking.repairSchedule : null;
+  const schedule = !sharedVisit && item?.schedule?.date ? item.schedule : assignment.serviceType === "repair" && booking.repairSchedule?.date ? booking.repairSchedule : null;
   const date = schedule?.date || booking.bookingDate;
   const time = schedule?.startTime || schedule?.time || booking.startTime;
   const assignmentDate = assignment.bookingDate && manilaDateKey(assignment.bookingDate);

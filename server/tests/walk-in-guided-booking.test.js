@@ -8,6 +8,8 @@ const { validateBookingUnitLimit } = require("../utils/bookingUnitLimit");
 const { capacityMinutes } = require("../utils/bookingServiceItems");
 const { buildUnitGroups } = require("../utils/repairUnitWorkflow");
 const { projectUnits } = require("../utils/projectWorkOrderPlanning");
+const { resolveWalkInRepairSelection } = require('../utils/walkInRepairSelection');
+const { resolveCatalogInspectionFee } = require('../utils/repairInspectionPricing');
 
 const catalog = {
   _id: "cleaning", active: true, name: "Cleaning", isAirconService: true,
@@ -27,6 +29,19 @@ test("walk-in pricing uses the same saved appliance prices and work time as serv
   assert.equal(fridge.unitPrice, 900);
   assert.equal(fridge.duration, 75);
   assert.equal(fridge.applianceKind, "refrigerator");
+});
+
+test('non-aircon walk-in repairs use the catalog inspection fee without requiring HP or a model', () => {
+  const requested = { type: 'repair', unitCategory: 'laundry', unitType: 'washer', brand: 'LG', quantity: 1,
+    problemDescription: 'The washing machine does not drain.', model: '', unitPrice: 1,
+    photos: ['/uploads/repairs/walkin-fixture.jpg', 'https://invalid.example/photo.jpg'] };
+  const pricing = resolveCatalogInspectionFee(requested, [{ active: true, slug: 'laundry',
+    unitTypes: [{ value: 'washer', label: 'Washing Machine', inspectionFee: 450 }] }], 650);
+  const item = resolveWalkInRepairSelection(requested, pricing, 105);
+  assert.equal(item.unitPrice, 450); assert.equal(item.initialCost, 450);
+  assert.equal(item.duration, 105); assert.equal(item.hp, null); assert.equal(item.model, '');
+  assert.equal(item.isAirconService, false); assert.equal(item.units.length, 1);
+  assert.deepEqual(item.photos, ['/uploads/repairs/walkin-fixture.jpg']);
 });
 
 test("several services on one appliance group count the appliances once", () => {
@@ -102,12 +117,16 @@ test("the walk-in options endpoint returns appliance pricing profiles for the sh
   t.mock.method(RepairService, "find", () => query([]));
   t.mock.method(ServiceCategory, "find", () => query([]));
   t.mock.method(Technician, "find", () => query([{ _id: "tech", name: "Fixture", user: { role: "technician", active: true } }]));
+  t.mock.method(require('../utils/repairInspectionPricing'), 'getDefaultRepairInspectionFee', async () => 650);
+  t.mock.method(require('../utils/bookingPolicy'), 'getInspectionDurationMinutes', async () => 105);
   const handler = routes.stack.find(layer => layer.route?.path === "/walk-in-options").route.stack.at(-1).handle;
   const res = { status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; } };
   await handler({}, res);
   assert.deepEqual(res.body.coreServices[0].applianceProfiles, catalog.applianceProfiles);
   assert.equal(res.body.coreServices[0].active, true);
   assert.equal(res.body.technicians.length, 1);
+  assert.equal(res.body.defaultInspectionFee, 650);
+  assert.equal(res.body.inspectionDuration, 105);
 });
 
 test("both staff layouts load the address picker for the walk-in customer fields", async () => {

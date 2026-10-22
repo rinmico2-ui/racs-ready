@@ -249,6 +249,13 @@ const orderSchema = new mongoose.Schema(
     },
 
     timeSlot: { type: String, default: null }, // e.g., "09:00", "13:00"
+    // Preserve the full dispatch reservation when staff assign during grace.
+    // A later schedule change invalidates it through scheduleKey.
+    assignmentCapacity: {
+      scheduleKey: { type: String },
+      startMinutes: { type: Number, min: 0 },
+      endMinutes: { type: Number, min: 0 },
+    },
 
     statusHistory: { type: [statusHistorySchema], default: [] },
 

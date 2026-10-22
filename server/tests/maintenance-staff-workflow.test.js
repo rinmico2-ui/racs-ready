@@ -253,6 +253,7 @@ for (const [role, failReminder] of [["admin", false], ["secretary", false], ["se
     Assignment: { async updateMany(filter, update, opts) { assert.equal(filter.bookingId, id); assert.equal(update.$set.status, "cancelled"); assert.equal(opts.session, session); staged.push("assignment"); } },
     async releaseReservedEquipment(opts) { assert.equal(opts.filter.bookingId, id); assert.equal(committed.length, 3); equipmentReleased = true; },
     require(name) {
+      if (name.endsWith("/customerCancellationPolicy")) return require("../utils/customerCancellationPolicy");
       if (name.endsWith("/bookingLifecycle")) return { cancelBookingRecord };
       if (name.endsWith("/maintenanceLifecycle")) return { async reopenScheduleAfterBookingCancellation(value, opts) {
         assert.equal(value.status, "cancelled"); assert.equal(opts.session, session); staged.push("reminder");

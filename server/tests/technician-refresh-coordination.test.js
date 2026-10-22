@@ -43,10 +43,30 @@ test('project phase, team and reconnect events coalesce with a local mobilizatio
   finish(); await f.tick(); assert.equal(f.calls(), 1);
 });
 
-test('finishing an update preserves an open action dialog and refreshes when it closes', async () => {
+test('a successful status update refreshes behind an open route or success dialog without waiting for a socket', async () => {
   const f = fixture(), finish = f.window.TechnicianWorkUpdates.beginMutation();
-  f.dialog(true); finish(); await f.tick(); assert.equal(f.calls(), 0);
+  f.dialog(true); finish(); await f.tick(); assert.equal(f.calls(), 1);
+  await f.tick(); assert.equal(f.calls(), 1);
+});
+
+test('external events defer refresh while an action form is open, then refresh once it closes', async () => {
+  const f = fixture(); f.dialog(true); f.event('assignment:updated');
+  await f.tick(); assert.equal(f.calls(), 0);
   f.dialog(false); await f.tick(); assert.equal(f.calls(), 1);
+});
+
+test('a failed mutation does not bypass the open-dialog protection for unrelated socket events', async () => {
+  const f = fixture(); f.dialog(true);
+  const finish = f.window.TechnicianWorkUpdates.beginMutation(); f.event('assignment:updated'); finish(false);
+  await f.tick(); assert.equal(f.calls(), 0);
+  f.dialog(false); await f.tick(); assert.equal(f.calls(), 1);
+});
+
+test('returning online and returning to a visible tab fetch the latest work', async () => {
+  const f = fixture(); f.document.hidden = true;
+  f.window.TechnicianWorkUpdates.beginMutation()(); await f.tick(); assert.equal(f.calls(), 0);
+  f.document.hidden = false; f.listeners.get('visibilitychange')(); await f.tick(); assert.equal(f.calls(), 1);
+  f.listeners.get('online')(); await f.tick(); assert.equal(f.calls(), 2);
 });
 
 test('a rejected project action keeps its error visible while retaining unrelated live updates', async () => {
@@ -74,4 +94,39 @@ test('loading the update script twice does not install duplicate refresh handler
   assert.equal(f.window.TechnicianWorkUpdates, coordinator);
   assert.equal(f.events.get('assignment:updated').length, 1);
   f.event('assignment:updated'); await f.tick(); assert.equal(f.calls(), 1);
+});
+
+test('finishing a saved status waits for the list and open details to finish refreshing', async () => {
+  const f = fixture(); let release, settled = false;
+  f.refreshing(() => new Promise(resolve => { release = resolve; }));
+  const finish = f.window.TechnicianWorkUpdates.beginMutation(), completion = finish();
+  assert.equal(typeof completion?.then, 'function');
+  assert.equal(finish(), completion, 'repeated finish calls share the same completion');
+  completion.then(() => { settled = true; });
+  await Promise.resolve(); assert.equal(settled, false);
+  const running = f.tick(); await Promise.resolve();
+  assert.equal(f.calls(), 1); assert.equal(settled, false);
+  release(); await running;
+  assert.equal(await completion, true); assert.equal(settled, true);
+});
+
+test('a status saved during an older refresh waits for a fresh response instead of the older snapshot', async () => {
+  const f = fixture(); let release, settled = false;
+  f.refreshing(() => new Promise(resolve => { release = resolve; }));
+  const first = f.window.TechnicianWorkUpdates.beginMutation()();
+  const running = f.tick(); await Promise.resolve();
+  const second = f.window.TechnicianWorkUpdates.beginMutation()();
+  second.then(() => { settled = true; });
+  release(); await running; await Promise.resolve();
+  assert.equal(settled, false);
+  f.refreshing(null); await f.tick();
+  assert.equal(await first, true); assert.equal(await second, true); assert.equal(f.calls(), 2);
+});
+
+test('a refresh failure settles saved-status callers without throwing or replaying the status write', async () => {
+  const f = fixture();
+  f.context.console = {warn(){}};
+  f.refreshing(async () => { throw Error('Temporarily offline'); });
+  const completion = f.window.TechnicianWorkUpdates.beginMutation()();
+  await f.tick(); assert.equal(await completion, false); assert.equal(f.calls(), 1);
 });

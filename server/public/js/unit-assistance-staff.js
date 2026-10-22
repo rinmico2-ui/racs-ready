@@ -11,7 +11,7 @@
   const noticeBox = document.getElementById('unitStaffNotice');
   const refreshButton = document.getElementById('unitStaffRefresh');
   const appointmentsUrl = document.querySelector('.ua-page')?.dataset.appointmentsUrl || '/admin/appointments';
-  const state = { requests: [], selectedId: null, editingQuote: false, loading: false };
+  const state = { requests: [], brands: [], selectedId: null, editingQuote: false, loading: false };
   const A = window.ApplianceServices;
   const pesos = amount => `₱${Number(amount || 0).toLocaleString('en-PH')}`;
   const dateLabel = value => value && !Number.isNaN(new Date(value).getTime())
@@ -162,7 +162,7 @@
       data('Email', customer.email, customer.email ? `mailto:${customer.email}` : null),
       data('Phone', phone, phone && /^[+\d\s()-]+$/.test(phone) ? `tel:${phone.replace(/[^+\d]/g, '')}` : null),
       data('Service quantity', `${request.quantity} ${request.quantity === 1 ? 'unit' : 'units'}`),
-      data('Appliance', request.requestType === 'repair' ? request.repair?.unitType : A.labels[request.applianceKind || 'aircon']), data('Model', request.model),
+      data('Appliance', request.requestType === 'repair' ? request.repair?.unitType : A.labels[request.applianceKind || 'aircon']),
       data('Customer reported brand', request.brand || 'Not sure'),
       data('Customer reported type / HP', `${request.airconType || 'Not sure'} / ${request.hp ? `${request.hp} HP` : 'Not sure'}`));
     if (request.relocation?.scope === 'same_property') {
@@ -192,7 +192,7 @@
         : 'The customer has been notified. Wait for them to accept or decline the quote; no appointment is reserved yet.', expired(request)));
       if (request.requestType === 'repair' || (request.serviceId?.active !== false && request.serviceId)) {
         const revise = button(expired(request) ? 'Renew quote' : 'Revise quote');
-        revise.addEventListener('click', () => { state.editingQuote = true; renderDetail(request); detail.querySelector('.ua-form input')?.focus(); });
+        revise.addEventListener('click', () => { state.editingQuote = true; renderDetail(request); detail.querySelector('.ua-form select')?.focus(); });
         body.append(revise);
       }
     } else if (request.status === 'accepted' && request.existingBookingId) {
@@ -200,7 +200,7 @@
     } else if (canRenewAccepted(request)) {
       body.append(guidance('The customer accepted this quote, but it expired before they booked. Verify the details and send a renewed quote for approval.', true));
       const renew = button('Renew expired quote');
-      renew.addEventListener('click', () => { state.editingQuote = true; renderDetail(request); detail.querySelector('.ua-form input')?.focus(); });
+      renew.addEventListener('click', () => { state.editingQuote = true; renderDetail(request); detail.querySelector('.ua-form select')?.focus(); });
       body.append(renew);
     } else if (request.status === 'accepted') {
       body.append(guidance('The customer accepted this price. They must continue booking on the Services page to choose a schedule and complete payment. This request will close when that booking is submitted.'));
@@ -214,7 +214,7 @@
     grid.append(data('Identified unit', [quote.brand || 'Brand unknown', quote.airconTypeName || quote.airconType || A.labels[request.applianceKind || 'aircon'], quote.hp ? `${A.formatHp(quote.hp)} HP` : ''].filter(Boolean).join(' · ')),
       data(request.requestType === 'repair' ? 'Inspection fee' : 'Catalog price', `${pesos(quote.unitPrice)} per unit`),
       data(request.requestType === 'repair' ? 'Inspection total' : 'Service total', `${pesos(Number(quote.unitPrice) * Number(request.quantity))} before travel fare`),
-      data('Verified by', ({ customer_contact:'Customer contact', model_label:'Model label', site_visit:'Site visit' })[quote.verificationMethod] || 'Not recorded'),
+      data('Verified by', ({ customer_contact:'Customer contact', model_label:'Appliance label', site_visit:'Site visit' })[quote.verificationMethod] || 'Not recorded'),
       data('Sent', dateLabel(quote.quotedAt)), data('Valid until', dateLabel(quote.expiresAt)));
     block.append(grid);
     if (quote.notes) block.append(text('p', 'ua-customer-note', quote.notes));
@@ -231,17 +231,32 @@
       block.append(guidance('This service is no longer active in the catalog. A price cannot be sent until the service is available again.', true));
       return block;
     }
-    block.append(guidance('Confirm the details with the customer, model label, or a site visit. The price below comes from the active service catalog.'));
+    block.append(guidance('Confirm the details with the customer, appliance label, or a site visit. The price below comes from the active service catalog.'));
     const form = text('form', 'ua-form');
     const grid = text('div', 'ua-form-grid');
-    const brand = text('input'); brand.type = 'text'; brand.maxLength = 80; brand.required = true;
-    brand.value = request.quote?.brand || (request.brand?.toLowerCase() === "i don't know" ? "I don't know" : request.brand || '');
-    brand.placeholder = 'Verified brand shown on the label';
-    if (/^(i don.t know|unknown|__unknown__|__other__)$/i.test(brand.value.trim())) brand.value = '';
-    const model = text('input'); model.type = 'text'; model.required = !isRepair; model.maxLength = 50; model.value = request.model || '';
-    model.placeholder = 'Model number shown on the unit label';
-    const validateModel = () => model.setCustomValidity(isRepair && !model.value.trim() || model.value.trim().length <= 50 && /^[A-Za-z0-9][A-Za-z0-9 ._/#()+-]*$/.test(model.value.trim()) ? '' : 'Enter a valid model number, up to 50 characters.');
-    model.addEventListener('input', validateModel);
+    const validBrand = value => typeof value === 'string' && Boolean(value.trim()) && value.trim().length <= 80 && !/^(i don.t know|unknown|__unknown__|__other__)$/i.test(value.trim());
+    const savedBrand = request.quote?.brand || request.brand || '';
+    const choices = new Map();
+    for (const value of [...(catalog.brands || []), ...(state.brands || []), savedBrand]) {
+      if (validBrand(value) && !choices.has(value.trim().toLocaleLowerCase())) choices.set(value.trim().toLocaleLowerCase(), value.trim());
+    }
+    const brand = text('select'); brand.name = 'brand'; brand.required = true;
+    brand.append(option('', 'Choose a brand'));
+    for (const value of [...choices.values()].sort((a, b) => a.localeCompare(b))) brand.append(option(value, value));
+    brand.append(option('__other__', 'Other brand (not listed)'));
+    brand.value = validBrand(savedBrand) ? choices.get(savedBrand.trim().toLocaleLowerCase()) : '';
+    const customBrand = text('input'); customBrand.type = 'text'; customBrand.name = 'brandCustom'; customBrand.maxLength = 80;
+    customBrand.placeholder = 'Brand shown on the unit label';
+    const customBrandField = field('Other brand *', customBrand, 'Enter the exact brand confirmed with the customer or unit label.');
+    const selectedBrand = () => (brand.value === '__other__' ? customBrand.value : brand.value).trim();
+    const syncBrand = () => {
+      const other = brand.value === '__other__';
+      customBrandField.hidden = !other;
+      customBrand.disabled = !other;
+      customBrand.required = other;
+      customBrand.setCustomValidity(other && !validBrand(customBrand.value) ? 'Enter the verified appliance brand.' : '');
+    };
+    syncBrand();
     const type = text('select');
     type.required = !isRepair && kind === 'aircon' && Boolean(catalog.airconTypes?.length);
     type.append(option('', 'Choose aircon type'));
@@ -249,10 +264,9 @@
     type.value = request.quote?.airconType || request.airconType || '';
     const hp = text('select'); hp.required = needsHp;
     const verification = text('select'); verification.required = true;
-    verification.append(option('', 'Choose how you verified'), option('customer_contact', 'Confirmed with customer'), option('model_label', 'Checked model label'), option('site_visit', 'Checked during site visit'));
+    verification.append(option('', 'Choose how you verified'), option('customer_contact', 'Confirmed with customer'), option('model_label', 'Checked appliance label'), option('site_visit', 'Checked during site visit'));
     verification.value = request.quote?.verificationMethod || '';
-    grid.append(field('Brand *', brand, 'Confirm the brand with the customer or unit label.'));
-    grid.append(field(isRepair ? 'Model number (optional)' : 'Model number *', model, isRepair ? 'Add the model if it can be read from the unit label.' : 'Confirm the model before sending a quote. It is required for booking.'));
+    grid.append(append(text('div', 'ua-brand-fields'), field('Brand *', brand, 'Choose the brand confirmed with the customer or unit label.'), customBrandField));
     if (type.required) grid.append(field('Aircon type *', type));
     if (needsHp) grid.append(field(isRepair || kind === 'aircon' ? 'Aircon capacity (HP) *' : 'Compressor HP *', hp));
     const repairType = text('input'); repairType.type = 'text'; repairType.maxLength = 80; repairType.required = isRepair;
@@ -289,10 +303,10 @@
     };
     const updatePreview = () => {
       let pricing;
-      try { pricing = isRepair ? { unitPrice: request.quote?.unitPrice ?? request.repair?.inspectionFee } : A.price(catalog, { applianceKind: kind, brand: brand.value.trim() || 'Price preview', airconType: type.value, hp: hp.value || null }); } catch (_) {}
+      try { pricing = isRepair ? { unitPrice: request.quote?.unitPrice ?? request.repair?.inspectionFee } : A.price(catalog, { applianceKind: kind, brand: selectedBrand() || 'Price preview', airconType: type.value, hp: hp.value || null }); } catch (_) {}
       price.textContent = pricing ? `${pesos(pricing.unitPrice * Number(request.quantity))} total · ${pesos(pricing.unitPrice)} per unit` : 'Choose the verified type and HP';
-      validateModel();
-      submit.disabled = !brand.value.trim() || /^(i don.t know|unknown|__unknown__|__other__)$/i.test(brand.value.trim()) || (model.required && !model.value.trim()) || Boolean(model.validationMessage) || !verification.value || !pricing || (type.required && !type.value) || (needsHp && !hp.value) || (isRepair && !repairType.value.trim());
+      syncBrand();
+      submit.disabled = !validBrand(selectedBrand()) || !verification.value || !pricing || (type.required && !type.value) || (needsHp && !hp.value) || (isRepair && !repairType.value.trim());
     };
     const updateTiers = preferredHp => {
       hp.replaceChildren(option('', 'Choose HP'));
@@ -302,14 +316,14 @@
     };
     type.addEventListener('change', () => updateTiers(''));
     hp.addEventListener('change', updatePreview);
-    brand.addEventListener('input', updatePreview);
-    model.addEventListener('input', updatePreview);
+    brand.addEventListener('change', () => { updatePreview(); if (brand.value === '__other__') customBrand.focus(); });
+    customBrand.addEventListener('input', updatePreview);
     verification.addEventListener('change', updatePreview);
     repairType.addEventListener('input', updatePreview);
     updateTiers(request.quote?.hp || request.hp || '');
     form.addEventListener('submit', async event => {
       event.preventDefault();
-      validateModel();
+      syncBrand();
       if (!form.reportValidity() || submit.disabled) return;
       submit.disabled = true;
       feedback(errorBox, '');
@@ -317,7 +331,7 @@
       try {
         const result = await fetchJson(`/api/unit-assistance/staff/${encodeURIComponent(request._id)}/quote`, {
           method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ brand: brand.value.trim(), model: model.value.trim(), unitType: isRepair ? repairType.value.trim() : undefined, airconType: type.value, hp: hp.value, notes: notes.value.trim(), verificationMethod: verification.value,
+          body: JSON.stringify({ brand: selectedBrand(), unitType: isRepair ? repairType.value.trim() : undefined, airconType: type.value, hp: hp.value, notes: notes.value.trim(), verificationMethod: verification.value,
             expectedQuotedAt: request.quote?.quotedAt || null }),
         });
         state.selectedId = String(result.request._id);
@@ -377,6 +391,7 @@
     try {
       const payload = await fetchJson('/api/unit-assistance/staff');
       state.requests = Array.isArray(payload.requests) ? payload.requests : [];
+      state.brands = Array.isArray(payload.brands) ? payload.brands : [];
       feedback(errorBox, '');
       renderList();
     } catch (error) {

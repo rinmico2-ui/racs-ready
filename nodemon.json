@@ -1,0 +1,28 @@
+{
+  "watch": [
+    "server/index.js",
+    "server/config",
+    "server/controllers",
+    "server/data",
+    "server/middleware",
+    "server/models",
+    "server/routes",
+    "server/scripts",
+    "server/utils",
+    "server/public/js",
+    ".env",
+    "package.json"
+  ],
+  "ext": "js,cjs,mjs,json,env",
+  "ignore": [
+    "server/tests/**",
+    "server/logs/**",
+    "server/public/uploads/**",
+    "server/private/**",
+    "temp/**",
+    "logs/**",
+    "coverage/**",
+    "dist/**"
+  ],
+  "delay": 750
+}

@@ -7,11 +7,13 @@ module.exports = async function repairUnitLegacyGuard(req, res, next) {
     if (assignmentMatch && (assignmentMatch[2] === 'proof-of-completion' || req.body.status === 'completed')) {
       const assignment = await require('../models/Assignment').findById(assignmentMatch[1]).select('bookingId');
       const parent = assignment?.bookingId ? await Booking.findById(assignment.bookingId) : null;
+      if (require('./coreRepairDiscovery').needsReview(parent)) return res.status(409).json({ error: 'Operations must resolve paused core work and any required refund review before this booking can close.', code: 'CORE_REPAIR_REVIEW_REQUIRED' });
       if (parent?.repairUnitTracking && !parent.isProject && rows(parent).some(row => !['completed', 'declined'].includes(row.unit.repairReview?.state))) return res.status(409).json({ error: 'Complete each approved appliance repair before closing this job.' });
     }
     const match = req.path.match(/^\/(?:appointments\/)?([a-f\d]{24})\/(complete-inspection|submit-diagnosis|submit-quotation|approve-quotation|decline-quotation|onsite-approve|technician-schedule-later|schedule-later|repair-today-choice|start-repair|complete-repair|local-purchase-repair|local-purchase-receipt|local-purchase\/customer-verify|service-items\/[^/]+\/(?:quotation|status))$/i);
     if (!match) return next();
     const booking = await Booking.findById(match[1]);
+    if (match[2] === 'complete-repair' && require('./coreRepairDiscovery').needsReview(booking)) return res.status(409).json({ error: 'Operations must review the affected core service before this booking can close.', code: 'CORE_REPAIR_REVIEW_REQUIRED' });
     if (!booking?.repairUnitTracking || booking.isProject) return next();
     const units = rows(booking), action = match[2];
     if (action.endsWith('/status') && booking.services.id(action.split('/')[1])?.type !== 'repair') return next();

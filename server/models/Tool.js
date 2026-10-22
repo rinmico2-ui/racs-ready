@@ -293,6 +293,18 @@ toolSchema.statics.merchandiseFilter = function () {
   };
 };
 
+// Quoted replacements are parts, not the equipment or consumables in a daily kit.
+// Keep unavailable stock quoteable: its supply is checked separately before repair.
+toolSchema.statics.repairPartFilter = function () {
+  return {
+    $and: [this.merchandiseFilter(), {
+      $or: [{ type: 'part' }, { type: { $exists: false }, itemType: 'part' }],
+    }],
+    active: { $ne: false },
+    status: { $ne: 'discontinued' },
+  };
+};
+
 toolSchema.statics.operationalAssetFilter = function () {
   return {
     $or: [

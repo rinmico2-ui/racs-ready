@@ -440,7 +440,8 @@
       const inst = bootstrap.Modal.getInstance(detailModal);
       if (inst && detailModal.classList.contains('show')) {
         detailModal.addEventListener('hidden.bs.modal', callback, { once: true });
-        inst.hide();
+        if (inst._isTransitioning) detailModal.addEventListener('shown.bs.modal', () => inst.hide(), { once: true });
+        else inst.hide();
         return;
       }
     }
@@ -1054,7 +1055,7 @@
       const needsScheduleReview = ['re-scheduled', 'awaiting_assignment'].includes(status)
         && b.proposedReschedule?.status === 'pending';
       const hasPendingReschedule = b.rescheduleRequest?.status === 'pending';
-      const canRequestReschedule = CUSTOMER_RESCHEDULE_STATUSES.has(status) && !needsScheduleReview;
+      const canRequestReschedule = CUSTOMER_RESCHEDULE_STATUSES.has(status) && !needsScheduleReview && !b.cancellation?.hold;
       const showEditServices = ['pending', 'payment_verified', 'confirmed', 'awaiting_assignment'].includes(status);
       const editPolicy = b.bookingEditPolicy || window.BookingEditPolicy.state(b);
       const actions = [];
@@ -1074,7 +1075,9 @@
         'amber',
         hasPendingReschedule,
       ));
-      if (b.customerCanCancelMaintenance === true || (status === 'pending' && b.customerCanCancelMaintenance !== false)) actions.push(actionButton('cancel', 'bi-x-circle', 'Cancel Booking', 'Cancel this request and provide a reason.', 'red'));
+      if (b.cancellation?.hold) actions.push(actionButton('cancel-request', 'bi-hourglass-split', b.cancellation.request?.status === 'under_review' ? 'Cancellation Under Review' : 'Cancellation Request Sent', 'Technician assignment is paused while staff reviews your request.', 'amber', true));
+      else if (b.cancellation?.canRequest) actions.push(actionButton('cancel-request', 'bi-x-circle', b.cancellation.canAppeal ? 'Ask for Review' : b.cancellation.mode === 'cancel' ? 'Cancel Booking' : 'Request Cancellation', b.cancellation.canAppeal ? 'Ask staff to reconsider the decision.' : 'Explain why you need to cancel. Your payment record is kept.', 'red'));
+      else if (b.customerCanCancelMaintenance === true) actions.push(actionButton('cancel', 'bi-x-circle', 'Cancel Booking', 'Cancel this maintenance request and provide a reason.', 'red'));
       if (status === 'repair_approved') actions.push(actionButton('schedule-repair', 'bi-calendar-plus', 'Schedule Repair', 'Choose preferred repair dates.', 'purple'));
       if (b.maintenanceSummary || b.maintenance?.isMaintenance) {
         actions.push(`<a class="bh-modal-action bh-modal-action--green" href="/maintenance"><span class="bh-modal-action-icon"><i class="bi bi-calendar2-check"></i></span><span class="bh-modal-action-copy"><strong>View Maintenance</strong><small>Open your maintenance schedule.</small></span><i class="bi bi-chevron-right bh-modal-action-arrow"></i></a>`);
@@ -1088,6 +1091,10 @@
     let html = '';
     html += heroHtml;
     html += bookingActionsHtml;
+    if (b.cancellation?.request && window.CustomerCancellation) {
+      html += section('Cancellation Request', 'bi-chat-square-text', '', window.CustomerCancellation.history(b.cancellation.request)
+        + (b.cancellation.refund?.status !== 'none' && Number(b.cancellation.refund?.amount) > 0 ? `<p class="mt-3">Refund ${escapeHtml(b.cancellation.refund.status)}: <strong>${fmtCurrency(b.cancellation.refund.amount)}</strong></p>` : ''), 'amber');
+    }
   
     html += section('Schedule', 'bi-clock-history', `
       ${kv('Date', escapeHtml(dateText))}
@@ -1116,6 +1123,14 @@
   
     if (serviceItemsHtml) {
       html += serviceItemsHtml;
+    }
+    const onSiteFindings = (b.services || []).filter(item => item.discoveredDuringService);
+    if (onSiteFindings.length) {
+      html += section('Repair found during your service', 'bi-clipboard-plus', onSiteFindings.map(item => {
+        const finding = item.discoveredDuringService;
+        const disposition = { continuing: 'Your original service can continue.', on_hold: 'Affected core work is paused for an Operations decision.', resumed: 'Operations cleared the original work to continue.', not_performed: 'Operations recorded that the affected core work will not be performed.' }[finding.coreDisposition] || '';
+        return `<div class="bh-service-card"><strong>${escapeHtml(item.name)}</strong><p>${escapeHtml(finding.findings)}</p><p>${escapeHtml(disposition)}</p><small>No added inspection or travel fee. Review the repair quotation before deciding.</small>${Number(finding.refundReviewAmount) > 0 ? `<p>Overpayment under refund review: ${fmtCurrency(finding.refundReviewAmount)}</p>` : ''}</div>`;
+      }).join(''), '', 'green');
     }
     if (b.serviceType === 'repair' || b.serviceType === 'mixed' || (b.services || []).some(item => item.type === 'repair')) {
       html += `<div class="bh-actions-bar"><button class="bh-btn bh-btn--success" onclick="openRepairUnits('booking','${escapeHtml(b._id)}')">Appliance repairs and prices</button></div>`;
@@ -1168,6 +1183,8 @@
             requestBookingEditor(b._id, 'services', button);
           } else if (action === 'reschedule') {
             window.bhRequestNewSchedule(b._id);
+          } else if (action === 'cancel-request') {
+            runAfterClosingDetails(() => window.CustomerCancellation.open(b._id));
           } else if (action === 'cancel') {
             void requestDirectBookingCancellation(b);
           } else if (action === 'schedule-repair') {
@@ -1207,6 +1224,7 @@
   }
 
   window.addEventListener('repair-units:updated', () => fetchBookings());
+  window.addEventListener('booking:cancellation-updated', () => fetchBookings());
   function applyFilters() {
     page = 0;
     void fetchBookings();
@@ -1852,7 +1870,7 @@
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || data.message || 'Could not cancel this booking. Please try again.');
-      alert('Booking cancelled successfully');
+      alert(data.message || 'Booking cancelled successfully');
       fetchBookings();
     } catch (err) {
       alert('Failed to cancel booking: ' + (err.message || 'Please try again.'));

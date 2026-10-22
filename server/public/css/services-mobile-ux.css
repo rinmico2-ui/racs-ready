@@ -669,9 +669,10 @@
 .booking-cart-eyebrow { display: block; margin-bottom: .2rem; color: #64748b; font-size: .63rem; font-weight: 850; letter-spacing: .09em; text-transform: uppercase; }
 .booking-cart-header h6 { margin: 0; color: #172033; font-size: 1.08rem; font-weight: 850; }
 .booking-cart-header h6 i { margin-right: .3rem; color: #2563eb; }
-.booking-cart-count { display: grid; flex: 0 0 34px; width: 34px; height: 34px; place-items: center; border-radius: 50%; background: #eff6ff; color: #1d4ed8; font-size: .8rem; font-weight: 850; }
+.booking-cart-count { display: inline-flex; flex: 0 0 auto; min-height: 30px; align-items: center; padding: 5px 9px; border-radius: 20px; background: #edf7f0; color: #24653e; font-size: .73rem; font-weight: 700; white-space: nowrap; }
 .booking-cart-count-copy { margin: 0; padding: 0 1.15rem .8rem; border-bottom: 1px solid #eef2f7; color: #64748b; font-size: .69rem; font-weight: 650; line-height: 1.45; }
-.booking-cart-items { display: grid; flex: 1 1 auto; gap: .55rem; min-height: 92px; max-height: none; padding: .8rem 1rem; overflow-y: auto; overscroll-behavior: contain; }
+.booking-cart-items { display: grid; align-content: start; flex: 1 1 auto; gap: .55rem; min-height: 92px; max-height: none; padding: .8rem 1rem; overflow-y: auto; overscroll-behavior: contain; }
+body.booking-sheet-open .racs-ai-chatbot:not(.chat-open) .racbot-toggle { display: none; }
 .booking-cart-empty { display: grid; justify-items: center; gap: .35rem; padding: 1.15rem .75rem; border: 1px dashed #cbd5e1; border-radius: 13px; background: #f8fafc; text-align: center; }
 .booking-cart-empty i { display: grid; width: 40px; height: 40px; place-items: center; border-radius: 12px; background: #e2e8f0; color: #64748b; font-size: 1.05rem; }
 .booking-cart-empty strong { color: #334155; font-size: .82rem; }
@@ -688,6 +689,19 @@
 .selected-service-price strong { color: #0f3f94; font-size: .82rem; white-space: nowrap; }
 .selected-service-actions { display: flex; justify-content: flex-end; gap: .35rem; margin: .45rem 0 0 2.6rem; padding-top: .4rem; border-top: 1px solid #f1f5f9; }
 .selected-service-actions button { display: inline-flex; align-items: center; justify-content: center; gap: .3rem; min-height: 34px; padding: .35rem .55rem; border-radius: 8px; font-size: .65rem; font-weight: 800; }
+.selected-appliance-item { padding: 15px; }
+.selected-appliance-item .selected-service-name { font-size: .88rem; font-weight: 700; }
+.selected-appliance-item .selected-service-details { margin-top: 5px; font-size: .72rem; line-height: 1.6; }
+.selected-appliance-item .selected-service-price span { font-size: .59rem; font-weight: 600; text-transform: none; }
+.selected-appliance-item .selected-service-price strong { font-size: .88rem; color: #24653e; }
+.booking-appliance-services { list-style: none; padding: 12px 0 0; margin: 12px 0 0; border-top: 1px solid #eaf0ec; }
+.booking-appliance-services li { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: .76rem; line-height: 1.6; color: #42534a; }
+.booking-appliance-services li > span { min-width: 0; overflow-wrap: anywhere; }
+.booking-appliance-services li > strong { flex-shrink: 0; font-size: .75rem; color: #405348; font-weight: 600; white-space: nowrap; }
+.booking-appliance-services small { display: block; color: #748279; font-size: .67rem; }
+.booking-appliance-problem { margin: 10px 0 0; color: #68796e; font-size: .73rem; line-height: 1.6; overflow-wrap: anywhere; }
+.selected-appliance-item .selected-service-actions { margin: 12px 0 0; padding-top: 10px; gap: 8px; }
+.selected-appliance-item .selected-service-actions button { min-height: 44px; font-size: .73rem; font-weight: 600; padding: 8px 10px; }
 .selected-service-edit { border: 1px solid #dbeafe; background: #eff6ff !important; color: #1d4ed8; }
 .remove-service-btn { border: 1px solid transparent; background: transparent !important; color: #b91c1c; }
 .selected-service-edit:hover { background: #eff6ff; }

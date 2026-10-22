@@ -50,7 +50,7 @@ function fixture({date='2026-10-18',type='repair',status='accepted',ready=true,b
   return{assignment,booking,calls,call};
 }
 
-test('starting a mixed return visit preserves Core and Repair progress after inspection', async () => {
+test('starting a mixed return visit opens shared work and preserves Core and approved Repair progress', async () => {
   const f = fixture({ date:'2026-10-16', type:'mixed', status:'on_site', bookingStatus:'repair_approved' });
   f.booking.inspection = { completedAt: new Date('2026-10-15T02:00:00Z') };
   f.booking.services = [
@@ -62,7 +62,8 @@ test('starting a mixed return visit preserves Core and Repair progress after ins
   assert.equal(response.statusCode, 200);
   assert.equal(f.assignment.status, 'in_progress');
   assert.deepEqual(f.booking.services, before);
-  assert.equal(f.booking.status, 'repair_approved');
+  assert.equal(f.booking.status, 'in-progress');
+  assert.equal(f.booking.repairExecution?.startedAt, undefined);
 });
 
 test('starting a repair-only return visit still starts its approved repair', async () => {

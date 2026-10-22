@@ -344,3 +344,14 @@ test('a recorded inspection flag alone cannot close an unpaid visit and pending 
   f.store.booking.amountPaid=500;f.store.booking.services.push({type:'core',status:'in_progress',initialCost:1200,quantity:1});
   await assert.rejects(f.act('defer',{reason:'Needs another repair date.',preferredDates:['2026-10-20'],preferredTime:'any'}),/Finish.*core/);
 });
+
+test('a discovered repair reserves unfinished original core work as well as repair time for the whole crew', async () => {
+  const f = fixture();
+  f.store.booking.services[0].discoveredDuringService = { sourceServiceItemId: id(20), coreDisposition: 'continuing' };
+  f.store.booking.services.push({ _id:id(20), type:'core', status:'in_progress', duration:60, quantity:1 });
+  let plan = await f.read({repairMinutes:90}); assert.equal(plan.remainingCoreMinutes,60);
+  assert.ok(f.calls.filter(call=>call[0]==='slots').every(call=>call[1].duration==='150'));
+  f.store.booking.services[1].status='completed'; f.calls.length=0;
+  plan=await f.read({repairMinutes:90});assert.equal(plan.remainingCoreMinutes,0);
+  assert.ok(f.calls.filter(call=>call[0]==='slots').every(call=>call[1].duration==='90'));
+});

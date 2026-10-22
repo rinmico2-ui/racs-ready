@@ -1121,9 +1121,9 @@ router.post("/payments/:id/complete-refund", async (req, res, next) => {
 
     // Update booking refund status
     if (payment.bookingId) {
+      const relatedPayments = await Payment.find({ bookingId: payment.bookingId }).select('amount status refundAmount refundStatus').lean();
       await BookingService.findByIdAndUpdate(payment.bookingId, {
-        paymentStatus: "refunded",
-        refundStatus: "completed",
+        ...require('../utils/customerCancellationPolicy').refundProgress(relatedPayments),
         refundProofUrl: proofUrl || undefined,
       }).catch(() => {});
     }
@@ -4431,6 +4431,7 @@ router.post("/repair-queue/:id/assign-technician", async (req, res, next) => {
     const StockReservation = require("../models/StockReservation");
 
     const booking = await BookingService.findById(id);
+    require('../utils/customerCancellationPolicy').assertNoHold(booking);
     if (!booking) return res.status(404).json({ error: "Repair booking not found" });
 
     if (booking.status !== "awaiting_assignment") {
@@ -5271,15 +5272,19 @@ router.get("/repair-scheduling-queue", async (req, res, next) => {
         submittedAt: b.repairExecution?.startedAt || partsReq?.requestedAt || b.partsRequest?.requestedAt || b.preferredSchedule?.submittedAt,
         repairTiming: b.repairSchedule?.preference, decisionMethod: b.approval?.method, repairExecution: b.repairExecution,
         status: effectiveStatus,
-        scheduledDate: b.schedulingRequest?.scheduledDate || null,
+        isProject: Boolean(b.isProject),
+        scheduledDate: b.schedulingRequest?.scheduledDate || (effectiveStatus === 'repair_scheduled' ? b.bookingDate : null),
+        scheduledTime: b.schedulingRequest?.scheduledTime || b.startTime || '',
+        scheduleKey: require('../utils/standardJobTeam').scheduleKey('booking', b),
+        assignedTechnician: b.technicianId?.name || b.technician?.name || '',
         unitInfo: b.unitInfo,
         quotation: { ...b.quotation, parts: enrichedParts },
         diagnosis: b.diagnosis,
         technicianAssistant: {
-          estimatedDurationMinutes: Math.min(480, Math.max(30, Number(b.technicianAssistant?.estimatedDurationMinutes) || 90)),
+          estimatedDurationMinutes: require('../utils/repairScheduling').workload(b).minutes,
           repairComplexity: b.technicianAssistant?.repairComplexity || b.repairComplexity || 'standard',
         },
-        serviceDurationMinutes: Math.min(480, Math.max(30, Number(b.technicianAssistant?.estimatedDurationMinutes) || Number(b.serviceDurationMinutes) || 90)),
+        serviceDurationMinutes: require('../utils/repairScheduling').workload(b).minutes,
         travelDurationMinutes: Number.isFinite(Number(b.travelDurationMinutes)) ? Math.max(0, Number(b.travelDurationMinutes)) : undefined,
         travelTime: Number.isFinite(Number(b.travelTime)) ? Math.max(0, Number(b.travelTime)) : 30,
         repairComplexity: b.diagnosis?.laborCategory || b.repairComplexity || b.technicianAssistant?.repairComplexity || 'standard',
@@ -5826,6 +5831,18 @@ router.get("/repair-scheduling-queue/stats", async (req, res, next) => {
  * Checks if the original inspector is available for each preferred date.
  * If not available, returns list of other available technicians.
  */
+router.get("/repair-scheduling-queue/:id/schedule", async (req, res, next) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: 'Invalid booking id' });
+    const booking = await require('../models/BookingService').findById(req.params.id).lean();
+    if (!booking) return res.status(404).json({ error: 'Booking not found' });
+    require('../utils/customerCancellationPolicy').assertNoHold(booking);
+    const result = await require('../utils/repairScheduling').createService()(booking, req.query.technicianId, req.query.date);
+    res.set('Cache-Control', 'no-store');
+    return res.json(result);
+  } catch (error) { next(error); }
+});
+
 router.get("/repair-scheduling-queue/:id/availability", async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -5848,7 +5865,17 @@ router.get("/repair-scheduling-queue/:id/availability", async (req, res, next) =
     const hasNoDates = preferredDates.length === 0;
 
     const originalInspector = booking.inspection?.technicianId || booking.technicianId;
-    const estimatedDuration = booking.technicianAssistant?.estimatedDurationMinutes || 90;
+    const estimatedDuration = require('../utils/repairScheduling').workload(booking).minutes;
+    if (!booking.isProject) {
+      const roster = await require('../utils/technicianRoster').loadTechnicianRoster({ Technician });
+      const originalId = String(originalInspector?._id || originalInspector || '');
+      const original = roster.find(row => String(row._id) === originalId);
+      return res.json({ originalInspector: original ? { _id: original._id, name: original.name } : null,
+        originalAvailable: original?.assignmentEligible === true, hasNoDates: true,
+        availableTechnicians: roster.filter(row => row.assignmentEligible && String(row._id) !== originalId)
+          .map(row => ({ _id: row._id, name: row.name, availableDates: [] })), estimatedDuration,
+        message: 'Choose a technician to check dates for the whole repair team.' });
+    }
     const rawRepairTravelMinutes = booking.travelDurationMinutes ?? booking.travelTime;
     const repairTravelMinutes = Number.isFinite(Number(rawRepairTravelMinutes)) ? Math.max(0, Number(rawRepairTravelMinutes)) : 30;
     const repairBufferMinutes = require("../utils/bookingPolicy").getBufferMinutesSync();
@@ -6467,6 +6494,7 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
     const StockReservation = require("../models/StockReservation");
 
     const booking = await BookingService.findById(id);
+    require('../utils/customerCancellationPolicy').assertNoHold(booking);
     if (!booking) return res.status(404).json({ error: "Booking not found" });
 
     const allowedStatuses = ["repair_approved", "ready_for_repair", "repair_scheduled", "waiting_parts"];
@@ -6556,11 +6584,12 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
       }
     }
 
-    if (booking.repairUnitTracking && !booking.isProject) {
+    if (!booking.isProject) {
       const team = require('../utils/standardJobTeam');
-      const technicianIds = [...new Set([String(technicianId), ...team.ids(booking).filter(member => member !== team.ref(booking.technicianId))])];
+      const technicianIds = require('../utils/repairScheduling').crew(booking, technicianId);
       const result = await require('../utils/standardJobTeamService').createService().assign('booking', id,
-        { technicianId: String(technicianId), technicianIds, scheduledDate, timeSlot: scheduledTime || '09:00', notes: notes || '' }, req.user, { repairVisit: true });
+        { technicianId: String(technicianId), technicianIds, scheduledDate, timeSlot: scheduledTime || '09:00',
+          expectedSchedule: req.body.expectedSchedule, repairMinutes: require('../utils/repairScheduling').workload(booking).minutes, notes: notes || '' }, req.user, { repairVisit: true });
       await require('../utils/standardJobTeamService').publish(result, req).catch(() => {});
       await require('../utils/notify').createNotification({ type: 'system', userId: booking.customerId, title: 'Repair visit scheduled',
         message: `Your repair follow-up is scheduled for ${scheduledDate} at ${scheduledTime || '09:00'} (Philippine time).`,
@@ -7140,6 +7169,12 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
  * Linked delivery-installation bookings are suppressed when their order is
  * already the authoritative exception, preventing duplicate admin work.
  */
+router.get('/resolution-center/:id/cancellation-request', requirePermission('payments.view'), require('../controllers/customerCancellationController').read);
+router.post('/resolution-center/:id/cancellation-request', (req, res, next) => {
+  if (req.body.action === 'approve') return requirePermission('payments.manage')(req, res, next);
+  return next();
+}, require('../controllers/customerCancellationController').decide);
+
 router.get("/resolution-center", async (req, res, next) => {
   try {
     const BookingService = require("../models/BookingService");
@@ -7147,15 +7182,15 @@ router.get("/resolution-center", async (req, res, next) => {
     const ServiceReport = require("../models/ServiceReport");
     const { REVIEWABLE_ORDER_STATUSES } = require("../utils/orderAttention");
     const {
-      RECOVERY_BOOKING_STATUSES, bookingScheduleNeedsResolution, bookingResolutionCaseIsResolved, bookingIssueRequiresOutcome, parseResolutionFocus, focusedResolutionCases, resolutionPaymentNeedsReview, pendingResolutionProposal, pendingResolutionRequest,
+      RECOVERY_BOOKING_STATUSES, bookingScheduleNeedsResolution, bookingAcceptanceNeedsResolution, bookingResolutionCaseIsResolved, bookingIssueRequiresOutcome, parseResolutionFocus, focusedResolutionCases, resolutionPaymentNeedsReview, pendingResolutionProposal, pendingResolutionRequest,
       groupResolutionCases, filterResolutionCases,
       orderResolutionCase,
       paginateResolutionCases,
       sortResolutionCases,
       summarizeResolutionCases,
     } = require("../utils/resolutionCenter");
-    const bookingFields = "status paymentStatus paymentMethod bookingDate preferredDate startTime endTime selectedTimeLabel preferredTime serviceDurationMinutes isProject projectScheduling services.quantity services.duration services.schedule services.type service.duration travelTime resolutionCases.issueType resolutionCases.sourceStatus resolutionCases.state customerId customer.name customer.email customer.phone customer.mobile noShowReport.reviewStatus noShowReport.arrivedAt noShowReport.contactAttempts noShowReport.waitedMinutes noShowReport.arrivalProofUrl noShowReport.reportedAt noShowReport.reportedByName assignmentId technicianId technician.name technicianName bookingReference workOrderNumber service.name service.price serviceName serviceModel quantity proposedReschedule cancellationHistory.technicianName cancellationHistory.action cancellationHistory.reason cancellationReason rescheduleAccessExpiry noShowRescheduleExpiry quotation.totalAmount estimatedTotal payment.downpaymentAmount downpaymentAmount rescheduleRequest.status rescheduleRequest.requested rescheduleRequest.requestedDate rescheduleReason autoReschedulePending duration maintenance paymentNotes amountPaid staffingEmergencies updatedAt visitRecoveryHistory totalPrice estimatedFee cashPaymentConfirmation";
-    const orderFields = "bookingId orderReference status fulfillmentType pickupDate delivery.preferredDate delivery.contactNumber timeSlot statusHistory.status statusHistory.timestamp items.modelLine items.brand items.quantity isProject projectScheduling technicianId technician.name customer.name customer.email customer.phone paymentStatus paymentMethod total preparation routeDurationMin rescheduleInvitation updatedAt staffingEmergencies visitRecoveryHistory cashPaymentConfirmation amountPaid";
+    const bookingFields = "status paymentStatus paymentMethod bookingDate preferredDate startTime endTime selectedTimeLabel preferredTime serviceDurationMinutes isProject projectScheduling services.quantity services.duration services.schedule services.type services.discoveredDuringService service.duration travelTime resolutionCases.issueType resolutionCases.sourceStatus resolutionCases.state customerId customer.name customer.email customer.phone customer.mobile noShowReport.reviewStatus noShowReport.arrivedAt noShowReport.contactAttempts noShowReport.waitedMinutes noShowReport.arrivalProofUrl noShowReport.reportedAt noShowReport.reportedByName assignmentId technicianId technicianTeam.status technicianTeam.deadlineAt technician.name technicianName bookingReference workOrderNumber service.name service.price serviceName serviceModel quantity proposedReschedule cancellationHistory.technicianName cancellationHistory.action cancellationHistory.reason cancellationReason rescheduleAccessExpiry noShowRescheduleExpiry quotation.totalAmount estimatedTotal payment.downpaymentAmount downpaymentAmount rescheduleRequest.status rescheduleRequest.requested rescheduleRequest.requestedDate rescheduleReason autoReschedulePending duration maintenance paymentNotes amountPaid staffingEmergencies updatedAt visitRecoveryHistory totalPrice estimatedFee cashPaymentConfirmation customerCancellation";
+    const orderFields = "bookingId orderReference status fulfillmentType pickupDate delivery.preferredDate delivery.contactNumber timeSlot statusHistory.status statusHistory.timestamp technicianAcceptance.status technicianAcceptance.respondedAt technicianTeam.status technicianTeam.respondedAt items.modelLine items.brand items.quantity isProject projectScheduling technicianId technician.name customer.name customer.email customer.phone paymentStatus paymentMethod total preparation routeDurationMin rescheduleInvitation updatedAt staffingEmergencies visitRecoveryHistory cashPaymentConfirmation amountPaid";
     const focus = parseResolutionFocus(req.query.focus);
     if (req.query.focus && !focus) return res.status(400).json({ error: "Invalid booking or order link." });
     const now = new Date();
@@ -7243,6 +7278,16 @@ router.get("/resolution-center", async (req, res, next) => {
       .populate("assignmentId", "technicianId customerName serviceName arrivalProofUrl")
       .lean();
 
+    // Include customer requests even when a future appointment is beyond the scheduling queue.
+    const cancellationBookings = await BookingService.find({
+      'customerCancellation.status': { $in: ['pending', 'under_review'] },
+      ...(linkedOrderBookingIds.length ? { _id: { $nin: linkedOrderBookingIds } } : {}),
+    }).sort({ 'customerCancellation.requestedAt': 1 }).allowDiskUse(true).limit(500).select(bookingFields)
+      .populate('customerId', 'firstName lastName name email phone').populate('technicianId', 'name').lean();
+    for (const booking of cancellationBookings) {
+      if (!bookings.some(row => String(row._id) === String(booking._id))) bookings.push(booking);
+    }
+
     if (focusedBooking && !linkedOrderBookingIds.includes(String(focusedBooking._id))
       && !bookings.some(item => String(item._id) === String(focusedBooking._id))) bookings.push(focusedBooking);
 
@@ -7321,6 +7366,7 @@ router.get("/resolution-center", async (req, res, next) => {
       const workload = bookingWorkload(booking, projectThresholdHours);
       cases.push({
         ...workload,
+        cancellationRequest: require('../utils/customerCancellationPolicy').publicRequest(booking.customerCancellation),
         projectScheduling: booking.projectScheduling || null,
         caseId: `booking:${caseKey}`,
         id: String(booking._id),
@@ -7339,6 +7385,7 @@ router.get("/resolution-center", async (req, res, next) => {
         status: booking.status,
         updatedAt: booking.updatedAt,
         recoveryAvailable: !workload.isProject && require('../utils/visitRecovery').eligible('booking', booking),
+        coreRepairFinding: require('../utils/coreRepairDiscovery').needsReview(booking),
         recoveryContact: booking.visitRecoveryHistory?.at(-1) || null,
         issueType,
         severity: details.severity || (isPastDate ? (daysPast >= 2 ? "critical" : "high") : "medium"),
@@ -7381,6 +7428,10 @@ router.get("/resolution-center", async (req, res, next) => {
     };
 
     for (const booking of bookings) {
+      if (require('../utils/customerCancellationPolicy').open(booking)) {
+        addCase(booking, 'customer_cancellation', { severity: 'high', reason: booking.customerCancellation.reason, requiresReschedule: false, canReassign: false });
+        continue;
+      }
       if (booking.status === 'cancelled') {
         addCase(booking, 'cancelled', { severity:'high', reason:booking.cancellationReason || 'Review this cancelled booking and any payment or refund.', requiresReschedule:false, canReassign:false });
         continue;
@@ -7432,19 +7483,24 @@ router.get("/resolution-center", async (req, res, next) => {
           canReassign: !isPastDate,
         });
       }
-      if (booking.status === "pending_reassignment") {
+      const acceptanceExpired = bookingAcceptanceNeedsResolution(booking, now);
+      if (booking.status === "pending_reassignment" || acceptanceExpired) {
         const lastAction = booking.cancellationHistory?.length ? booking.cancellationHistory[booking.cancellationHistory.length - 1] : null;
         const emergency = !booking.technicianId && booking.staffingEmergencies?.at(-1);
         addCase(booking, "technician_issue", {
           severity: "high",
-          reason: emergency ? `${emergency.reporterName} (${emergency.reporterRole === 'support' ? 'Supporting' : 'Primary'}) reported ${emergency.reason}. The whole visit is paused; review the crew before reassignment.`
+          reason: acceptanceExpired ? 'A technician did not accept before the response deadline. Review the team and assign a new technician, or confirm a new visit time with the customer.'
+            : emergency ? `${emergency.reporterName} (${emergency.reporterRole === 'support' ? 'Supporting' : 'Primary'}) reported ${emergency.reason}. The whole visit is paused; review the crew before reassignment.`
             : lastAction ? `${lastAction.technicianName || "Technician"} ${lastAction.action}: ${lastAction.reason || "No reason provided"}` : "Technician declined or cancelled; a new technician is required",
-          requiresReschedule: isPastDate,
-          canReassign: !isPastDate,
+          requiresReschedule: acceptanceExpired ? require('../utils/bookingDateTime').isAssignmentWindowExpired(booking, now) : isPastDate,
+          canReassign: acceptanceExpired ? !require('../utils/bookingDateTime').isAssignmentWindowExpired(booking, now) : !isPastDate,
         });
       }
-      if (activeExecutionStatuses.has(booking.status) && isPastDate && !followUpByBooking.has(String(booking._id))) {
+      if (!acceptanceExpired && activeExecutionStatuses.has(booking.status) && isPastDate && !followUpByBooking.has(String(booking._id))) {
         addCase(booking, "incomplete", { reason: `Visit is incomplete and ${daysPast} day${daysPast === 1 ? "" : "s"} past its scheduled date`, requiresReschedule: true, canReassign: false });
+      }
+      if (require('../utils/coreRepairDiscovery').needsReview(booking)) {
+        addCase(booking, 'incomplete', { reason: 'Repair found during core service: review paused work and any required refund in Service Findings.', requiresReschedule: false, canReassign: false, severity: 'high' });
       }
       const followUpReport = followUpByBooking.get(String(booking._id));
       if (followUpReport) {
@@ -7566,13 +7622,18 @@ router.post("/resolution-center/:id/reassign", async (req, res, next) => {
     if (!booking) return res.status(404).json({ error: "Booking not found" });
     require('../utils/resolutionPaymentPolicy').assertReady(booking);
     require('../utils/visitRecovery').assertContact('booking', booking);
-    const { manilaDateTime, parseAppointmentTime } = require('../utils/bookingDateTime');
-    const scheduledAt = manilaDateTime(booking.bookingDate, parseAppointmentTime(booking.startTime));
-    if (scheduledAt && scheduledAt < new Date()) {
+    if (require('../utils/bookingDateTime').isAssignmentWindowExpired(booking)) {
       return res.status(409).json({ error: "This booking date has passed. Reschedule the visit before assigning a technician.", code: "RESCHEDULE_REQUIRED" });
     }
     if (["cancelled", "no-show", "no-show-reported"].includes(booking.status)) {
       return res.status(409).json({ error: "Reschedule this case before assigning a technician.", code: "RESCHEDULE_REQUIRED" });
+    }
+
+    if (require('../utils/resolutionCenter').bookingAcceptanceNeedsResolution(booking)) {
+      const teamService = require('../utils/standardJobTeamService');
+      const result = await teamService.createService().releaseBooking(id, note, req.user);
+      await teamService.publish(result, req).catch(() => {});
+      return res.json({ success: true, message: "Booking sent to the assignment queue." });
     }
 
     const previousStatus = booking.status;

@@ -1,0 +1,51 @@
+.mixed-work-actions { width:100%; min-width:0; color:#172033; }
+.mixed-work-next { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.mixed-work-eyebrow { display:block; font-size:.65rem; font-weight:750; letter-spacing:.08em; color:#64748b; margin-bottom:4px; }
+.mixed-work-next h3,.mixed-repair-work h3 { font-size:.95rem; font-weight:750; margin:0 0 5px; line-height:1.35; }
+.mixed-work-next p,.mixed-repair-work header p { font-size:.78rem; line-height:1.5; margin:0; color:#64748b; max-width:600px; }
+.mixed-work-primary { flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; max-width:100%; white-space:normal; text-align:center; }
+.detail-panel-actions .mixed-work-primary { flex:0 0 auto; min-height:44px; padding:11px 16px; }
+#detailPanelActions .mixed-work-primary { min-height:44px !important; height:auto; }
+.detail-panel-actions .mixed-work-tools .btn { flex:0 1 auto; }
+#detailPanelContent.mixed-service-active .mw-detail-tab > span:not(.mw-tab-badge) { display:inline; }
+.mixed-work-tools { margin-top:12px; border-top:1px solid #e2e8f0; padding-top:9px; }
+.mixed-work-tools summary { cursor:pointer; width:fit-content; font-size:.76rem; font-weight:650; color:#475569; padding:3px 0; }
+.mixed-work-tools summary:focus-visible { outline:2px solid #2563eb; outline-offset:4px; }
+.mixed-work-tools > div { display:flex; gap:8px; flex-wrap:wrap; padding-top:12px; max-height:180px; overflow:auto; }
+.mixed-work-tools .btn { font-size:.76rem; min-height:42px; white-space:normal; }
+.mixed-repair-work { border:1px solid #e2e8f0; border-radius:14px; background:#fff; overflow:hidden; }
+.mixed-repair-work header { background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%); padding:16px 20px; border:0; color:#fff; }
+.mixed-repair-work header h3 { font-size:.85rem; color:#fff; }
+.mixed-repair-work header .mixed-work-eyebrow { color:#bfdbfe; }
+.mixed-repair-work header p { color:#dbeafe; font-size:.72rem; }
+.mixed-work-steps { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); list-style:none; padding:18px; margin:0; gap:10px; }
+.mixed-work-steps li { display:flex; flex-direction:column; align-items:flex-start; gap:8px; font-size:.73rem; font-weight:650; color:#64748b; line-height:1.4; }
+.mixed-work-steps li > span { display:grid; place-items:center; width:29px; height:29px; background:#f1f5f9; border-radius:50%; color:#64748b; }
+.mixed-work-steps [data-state=current] { color:#1d4ed8; }
+.mixed-work-steps [data-state=current] > span { background:#2563eb; color:#fff; box-shadow:0 0 0 4px #eff6ff; }
+.mixed-work-steps [data-state=done] > span { background:#def2e3; color:#166534; }
+.mixed-repair-appliances { padding:0 18px 18px; display:grid; gap:10px; }
+.mixed-repair-appliances article { display:flex; flex-wrap:wrap; gap:8px 12px; align-items:flex-start; justify-content:space-between; padding:14px; border:1px solid #e2e8f0; border-radius:10px; min-width:0; }
+.mixed-repair-appliances article > div { flex:1; min-width:130px; }
+.mixed-repair-appliances h4 { font-size:.83rem; font-weight:700; margin:0 0 4px; overflow-wrap:anywhere; }
+.mixed-repair-appliances p { font-size:.75rem; color:#64748b; margin:0; line-height:1.5; overflow-wrap:anywhere; }
+.mixed-work-status { display:inline-block; padding:4px 8px; border-radius:6px; background:#eff6ff; color:#1d4ed8; font-size:.68rem; line-height:1.4; }
+.mixed-repair-issue { flex-basis:100%; padding-top:8px; border-top:1px solid #edf1f6; }
+.mixed-work-note { font-size:.78rem; line-height:1.5; padding:0 18px 16px; margin:0; color:#64748b; }
+@media(max-width:767px) {
+  .mixed-work-next { flex-direction:column; align-items:stretch; gap:10px; }
+  .mixed-work-next p { font-size:.73rem; }
+  .mixed-work-next h3 { font-size:.87rem; }
+  .mixed-work-primary { width:100%; font-size:.82rem; padding:11px 12px; }
+  #detailPanelContent.mixed-service-active > .mw-detail-tabs { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:4px; overflow:visible; }
+  #detailPanelContent.mixed-service-active .mw-detail-tab { min-width:0; flex-direction:column; justify-content:center; gap:4px; padding:8px 4px; white-space:normal; }
+  #detailPanelContent.mixed-service-active .mw-detail-tab > i { display:none; }
+  #detailPanelContent.mixed-service-active .mw-detail-tab > span:not(.mw-tab-badge) { font-size:.73rem; line-height:1.3; }
+  #detailPanelContent.mixed-service-active .mw-tab-badge { margin-left:0; font-size:.59rem; }
+  .mixed-work-tools { margin-top:8px; padding-top:6px; }
+  .mixed-work-tools > div { max-height:140px; }
+  .mixed-repair-work header { padding:14px; }
+  .mixed-work-steps { padding:16px 14px; gap:8px; }
+  .mixed-work-steps li { font-size:.68rem; }
+  .mixed-repair-appliances { padding:0 14px 14px; }
+}

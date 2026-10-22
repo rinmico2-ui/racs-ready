@@ -231,7 +231,8 @@ test('all resolution queue sorts opt into disk use when MongoDB exceeds its sort
     const query = new mongoose.Query({}, {}, model, model.collection).find(filter);
     query.exec = async function () {
       if (this.getOptions().allowDiskUse !== true) throw Error('Sort exceeded memory limit of 33554432 bytes');
-      queries.set(model.modelName, this.getOptions());
+      const entries = queries.get(model.modelName) || [];
+      entries.push(this.getOptions()); queries.set(model.modelName, entries);
       return [];
     };
     return query;
@@ -247,9 +248,27 @@ test('all resolution queue sorts opt into disk use when MongoDB exceeds its sort
   assert.equal(res.code, 200);
   assert.equal(res.body.summary.total, 0);
   assert.deepEqual([...queries.keys()].sort(), ['BookingService', 'Order', 'ServiceReport']);
-  for (const options of queries.values()) assert.equal(options.allowDiskUse, true);
-  assert.deepEqual(queries.get('BookingService').sort, { bookingDate: 1, updatedAt: -1 });
-  assert.equal(queries.get('BookingService').limit, 500);
-  assert.equal(queries.get('Order').limit, 500);
+  for (const entries of queries.values()) for (const options of entries) assert.equal(options.allowDiskUse, true);
+  assert.deepEqual(queries.get('BookingService').map(options => options.sort), [{ bookingDate: 1, updatedAt: -1 }, { 'customerCancellation.requestedAt': 1 }]);
+  assert.ok(queries.get('BookingService').every(options => options.limit === 500));
+  assert.equal(queries.get('Order')[0].limit, 500);
   assert.ok(Booking.schema.indexes().some(([keys]) => keys.bookingDate === 1 && keys.updatedAt === -1));
+});
+
+test('future cancellation requests have their own case even beyond the scheduling candidates, with safe public history', async () => {
+  const future = { ...base, bookingDate: new Date('2099-01-01'), customerCancellation: { requestId: '507f191e810c19729de860ee', revision: 1, status: 'pending',
+    requestedAt: new Date(), reasonCode: 'payment_delay', reason: 'Please cancel because payment verification has been delayed.', history: [{ type: 'submitted', actor: id, at: new Date(), note: 'Please review my booking.' }] } };
+  const chain = rows => ({ sort() { return this; }, allowDiskUse() { return this; }, limit() { return this; }, select() { return this; }, populate() { return this; }, lean: async () => rows });
+  const mocks = {
+    '../models/BookingService': { find: filter => chain(filter['customerCancellation.status'] ? [future] : []) },
+    '../models/Order': { find: () => chain([]), distinct: async () => [] },
+    '../models/ServiceReport': { find: () => chain([]) },
+    '../utils/enterpriseSchedulingEngine': { getProjectThresholdHours: async () => 8 },
+  };
+  const res = response(); await handler('get', '/resolution-center', mocks)(request({}), res, error => { throw error; });
+  assert.equal(res.body.cases.length, 1); const item = res.body.cases[0];
+  assert.equal(item.id, id); assert.equal(item.issueType, 'customer_cancellation');
+  assert.equal(item.requiresReschedule, false); assert.equal(item.canReassign, false);
+  assert.ok(item.allowedActions.includes('review_cancellation')); assert.ok(!item.allowedActions.includes('reassign'));
+  assert.equal(item.cancellationRequest.history[0].actor, undefined);
 });

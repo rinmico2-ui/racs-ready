@@ -32,6 +32,9 @@
   if (!root || !errorBox || !noticeBox || !search || !refresh || !count || !previous || !next || !pageLabel) return;
 
   let requests = [], loading = false, loaded = false, activeFilter = 'all', page = 1;
+  const requestedId = new URLSearchParams(window.location.search).get('requestId');
+  const targetRequestId = /^[a-f\d]{24}$/i.test(requestedId || '') ? requestedId : null;
+  let revealRequest = targetRequestId, lastSignature = '';
   const pageSize = 6, pendingDecisions = new Set();
   const money = value => new Intl.NumberFormat('en-PH', { style:'currency', currency:'PHP', minimumFractionDigits:2, maximumFractionDigits:2 }).format(Number(value) || 0);
   const item = (tag, className, value) => {
@@ -243,7 +246,33 @@
       const data = await response.json().catch(() => null);
       if (!response.ok || !Array.isArray(data?.requests)) throw new Error(response.status === 401
         ? 'Your session expired. Sign in again to view your requests.' : data?.error || 'Could not load requests. Select Refresh to try again.');
-      requests = data.requests; loaded = true; setError(''); render();
+      const becameReady = loaded && data.requests.some(request => request.status === 'quoted' && quoteValid(request) &&
+        requests.some(previous => previous._id === request._id && previous.status === 'pending'));
+      const incoming = data.requests;
+      if (targetRequestId && !incoming.some(request => String(request._id) === targetRequestId)) {
+        const targetResponse = await fetch('/api/unit-assistance/mine/' + encodeURIComponent(targetRequestId), { credentials:'same-origin', cache:'no-store' });
+        if (targetResponse.ok) {
+          const target = await targetResponse.json();
+          if (target.request && String(target.request._id) === targetRequestId) incoming.push(target.request);
+        }
+      }
+      const signature = JSON.stringify([incoming, incoming.map(request => quoteValid(request))]);
+      setError('');
+      if (loaded && signature === lastSignature && !revealRequest) return;
+      requests = incoming; lastSignature = signature;
+      if (revealRequest) {
+        const index = selectRequests(requests).findIndex(request => String(request._id) === revealRequest);
+        if (index >= 0) page = Math.floor(index / pageSize) + 1;
+      }
+      loaded = true; setError(''); render();
+      if (revealRequest) {
+        const card = [...root.children].find(node => node.dataset.requestId === revealRequest);
+        if (card) {
+          card.tabIndex = -1; card.focus({ preventScroll:true }); card.scrollIntoView({ block:'center', behavior:'smooth' });
+          revealRequest = null;
+        }
+      }
+      if (becameReady) showSuccess('Your quote is ready', 'Review the verified details and price. Select Accept & book to choose your address and schedule.');
     } catch (error) {
       setError(error.message);
       if (!loaded) { root.replaceChildren(item('div','uac-empty','Your requests could not load. Select Refresh to try again.')); count.textContent = 'Requests unavailable'; }
@@ -254,6 +283,9 @@
   previous.addEventListener('click',() => { page--; render(); document.getElementById('uacSectionTitle')?.scrollIntoView({ block:'start',behavior:'smooth' }); });
   next.addEventListener('click',() => { page++; render(); document.getElementById('uacSectionTitle')?.scrollIntoView({ block:'start',behavior:'smooth' }); });
   refresh.addEventListener('click',load);
-  document.addEventListener('visibilitychange',() => { if (!document.hidden) load(); });
+  window.CustomerWorkflowRefresh?.bindWorkflowRefresh({ window, document,
+    socket: window.socket || (window.UnitAssistanceSocket ||= typeof window.io === 'function' ? window.io() : null),
+    refresh: load, isBusy: () => loading || pendingDecisions.size > 0, pollIntervalMs: 15000,
+  });
   load();
 })();

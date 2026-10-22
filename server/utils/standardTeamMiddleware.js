@@ -4,9 +4,11 @@ module.exports = async function standardTeamMiddleware(req, res, next) {
   try {
     const id = req.params.id;
     if (!require('mongoose').isValidObjectId(id)) return next();
-    const assignment = await require('../models/Assignment').findById(id).lean();
+    const assignment = await require('../models/Assignment').findById(id).select('_id bookingId technicianId serviceType serviceItemId status bookingDate startTime').lean();
     if (!assignment || assignment.serviceType === 'project') return next();
-    const job = await require('../models/BookingService').findById(assignment.bookingId).lean();
+    const job = await require('../models/BookingService').findById(assignment.bookingId).select(require('./technicianWorkSync').BOOKING_WORK_SELECT + ' customerCancellation').lean();
+    const action = req.path.replace(/^\//, '');
+    if (!['GET', 'HEAD'].includes(req.method) && !['note', 'emergency', 'cancel', 'decline'].includes(action)) require('./customerCancellationPolicy').assertNoHold(job);
     if (!team.members(job).length) return next();
     const tech = await require('../models/Technician').findOne({ user: req.user._id }).lean();
     // A technician keeps read access to their own completed/cancelled visit
@@ -18,7 +20,6 @@ module.exports = async function standardTeamMiddleware(req, res, next) {
     const entry = tech && team.member(job, tech._id);
     if (!entry || team.ref(entry.assignmentId) !== team.ref(assignment._id)) return res.status(403).json({ error: 'This team assignment is no longer yours.', code: 'ASSIGNMENT_ACCESS_CHANGED' });
     if (['GET', 'HEAD'].includes(req.method)) return next();
-    const action = req.path.replace(/^\//, '');
     if (['accept', 'decline'].includes(action)) {
       const result = await require('./standardJobTeamService').createService().respond('booking', job._id, tech._id, action, req.body.reason);
       const current = await require('../models/Assignment').findById(assignment._id).lean();
@@ -34,7 +35,8 @@ module.exports = async function standardTeamMiddleware(req, res, next) {
 module.exports.booking = async function bookingTeamGuard(req, res, next) {
   try {
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method) || !require('mongoose').isValidObjectId(req.params.id)) return next();
-    const job = await require('../models/BookingService').findById(req.params.id).select('technicianId technicianTeam isProject status archivedAt').lean();
+    const job = await require('../models/BookingService').findById(req.params.id).select('technicianId technicianTeam isProject status archivedAt customerCancellation').lean();
+    if (!/cancel|decline|note|emergency/.test(req.path)) require('./customerCancellationPolicy').assertNoHold(job);
     if (!team.members(job).length || job.isProject) return next();
     const tech = await require('../models/Technician').findOne({ user: req.user._id }).select('_id').lean();
     if (!tech || !team.isPrimary(job, tech._id)) return res.status(403).json({ error: 'The primary technician manages this job. Supporting technicians can add assignment notes.', code: 'PRIMARY_TECHNICIAN_REQUIRED' });

@@ -84,6 +84,16 @@ test('a public request cannot forge the late-assignment capacity mode and a whol
   assert.deepEqual(late.payload.timeSlots,[]);
 });
 
+test('late order assignment checks an exact current minute and rejects overlaps with other orders', async t => {
+  t.mock.timers.enable({ apis:['Date'], now:new Date('2026-10-19T01:10:15Z') }); fixture(t);
+  const input = { date:'2026-10-19', technicianId:id(1), duration:'60', travelTime:'15' };
+  const options = { excludeOrderId:id(2), existingAppointment:true, assignmentStartMinutes:551 };
+  const result = await calendar.getTimeSlotsForQuery(input, options);
+  assert.equal(result.payload.timeSlots.length, 1); assert.equal(startMinutes(result.payload.timeSlots[0]), 551);
+  t.mock.method(require('../models/Order'), 'find', () => query([{ _id:id(3), technicianId:id(1), delivery:{preferredDate:'2026-10-19'}, timeSlot:'10:30', fulfillmentType:'delivery_installation', items:[{quantity:1}], routeDurationMin:15 }]));
+  assert.deepEqual((await calendar.getTimeSlotsForQuery(input, options)).payload.timeSlots, []);
+});
+
 for (const [label, plan] of [["booking", buildAssignmentPlan], ["order", buildOrderAssignmentPlan]]) {
   test(`${label} AI planner uses the same company fallback as the manual picker when no custom schedule exists`, async t => {
     fixture(t);

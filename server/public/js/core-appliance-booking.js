@@ -4,6 +4,7 @@
   let catalog = [], hooks, host, editingId = null, mounted = false, step = 1, reached = 1, saved = false;
   let savedMove = null, detailsUnknown = false, helpOpen = false, confirmationOpen = false;
   let sending = false, requestToken = null, requestFingerprint = null, assistanceReceipt = null;
+  let assistanceUpdates = null;
   let assistanceOpen = false;
   let batch = null;
   let guide = null;
@@ -295,7 +296,7 @@
     const candidates = catalog.filter(service => service.active !== false && A.profile(service, selected.applianceKind) && (!A.isRelocation(service) || selected.applianceKind === 'aircon'));
     const typeName = selected.airconType ? field('airconType').selectedOptions[0]?.textContent : '';
     host.querySelector('[data-service-appliance]').textContent = [detailsUnknown ? 'Staff identification' : selected.brand, A.labels[selected.applianceKind], typeName, selected.hp ? `${selected.hp} HP` : '', `${selected.quantity || 0} appliance${selected.quantity === 1 ? '' : 's'}`].filter(Boolean).join(' · ');
-    const rows = [];
+    const rows = [], serviceCards = [];
     let excluded = 0;
     candidates.forEach(service => {
       const state = A.availability(service, selected);
@@ -316,10 +317,16 @@
         } else excluded += 1;
         return;
       }
-      rows.push(`<label class="cab-service"><input type="checkbox" name="service" value="${escape(service._id)}" ${checked.has(String(service._id)) ? 'checked' : ''}><span class="cab-service-copy"><strong>${escape(service.name)}</strong><small>${escape(service.description || 'Service for your selected appliance.')}</small></span><span class="cab-service-price">${money(pricing.unitPrice)}<small>${hooks.repair ? 'inspection only' : 'per appliance'} &middot; ${pricing.duration} min</small></span></label>`);
+      const simpleCore = !hooks.repair && selected.applianceKind === 'aircon' && window.CoreApplianceBatch;
+      const description = simpleCore ? CoreApplianceBatch.serviceDescription(service) : service.description || 'Service for your selected appliance.';
+      const html = `<label class="cab-service"><input type="checkbox" name="service" value="${escape(service._id)}" ${checked.has(String(service._id)) ? 'checked' : ''}><span class="cab-service-copy"><span class="cab-service-name"><strong>${escape(service.name)}</strong>${simpleCore ? '<span class="cab-service-state" aria-hidden="true"><span data-service-unselected>Select</span><span data-service-selected><i class="bi bi-check2" aria-hidden="true"></i>Selected</span></span>' : ''}</span><small>${escape(description)}</small></span><span class="cab-service-price">${money(pricing.unitPrice)}<small>${hooks.repair ? 'inspection only' : 'per appliance'} &middot; ${pricing.duration} min</small></span></label>`;
+      rows.push(html);
+      serviceCards.push({ service, html, available: true, checked: checked.has(String(service._id)) });
     });
     const servicesList = host.querySelector('[data-services]');
-    servicesList.innerHTML = rows.join('') || '<div class="cab-empty"><strong>No services are available for this appliance yet.</strong><p>Choose another appliance, or use Repair Service if it needs an inspection.</p></div>';
+    const markup = !hooks.repair && selected.applianceKind === 'aircon' && window.CoreApplianceBatch && serviceCards.length === rows.length
+      ? CoreApplianceBatch.groupServiceCards(serviceCards) : rows.join('');
+    servicesList.innerHTML = markup || '<div class="cab-empty"><strong>No services are available for this appliance yet.</strong><p>Choose another appliance, or use Repair Service if it needs an inspection.</p></div>';
     if (excluded && rows.length) {
       servicesList.insertAdjacentHTML('beforeend', `<p class="cab-note">${excluded} other service${excluded === 1 ? ' is' : 's are'} not offered for ${selected.applianceKind === 'aircon' ? 'this aircon type and HP' : 'this appliance'}.</p>`);
     }
@@ -401,7 +408,7 @@
     const individual = batch.differentDetails(), validQuantity = syncLimit(), state = batch.model.estimate();
     host.querySelector('[data-unit-details]').hidden = individual;
     host.querySelector('[data-details-required]').hidden = false;
-    host.querySelector('[data-help-options]').hidden = true;
+    if (host.querySelector('[data-help-options]')) host.querySelector('[data-help-options]').hidden = true;
     for (const name of ['brand','airconType','hp']) { field(name).disabled = individual; field(name).required = !individual; }
     syncBrand();
     if (individual) { field('brandCustom').disabled = true; field('brandCustom').required = false; }
@@ -409,13 +416,13 @@
     host.querySelector('[data-detail-appliance]').textContent = 'Shared aircon details';
     host.querySelector('[data-detail-caption]').textContent = `These details apply to all ${state.count} aircons.`;
     host.querySelector('[data-service-picker]').hidden = false;
-    host.querySelector('[data-assistance]').hidden = true;
+    if (host.querySelector('[data-assistance]')) host.querySelector('[data-assistance]').hidden = true;
     host.querySelector('[data-relocation-config]').hidden = true;
     host.querySelector('[data-service-appliance]').textContent = `${state.count} aircons · ${individual ? 'Individual unit details' : 'Shared unit details'}`;
-    host.querySelector('[data-services-intro]').textContent = 'Choose common services once, or adjust the services for each aircon.';
+    host.querySelector('[data-services-intro]').textContent = 'First, choose whether your aircons need the same work.';
     host.querySelector('[data-summary-appliance]').textContent = `${state.count} aircons · ${individual ? 'Different details' : 'Same details'}`;
     host.querySelector('[data-total]').textContent = state.tasks ? money(state.total) : '—';
-    host.querySelector('[data-count]').textContent = `${state.count} aircons · ${state.tasks} service task${state.tasks === 1 ? '' : 's'}`;
+    host.querySelector('[data-count]').textContent = `${state.count} aircons · ${state.tasks} service${state.tasks === 1 ? '' : 's'} selected`;
     host.querySelector('[data-duration]').textContent = state.minutes ? `${state.minutes} minutes of service work` : 'Choose services to see the total for your aircons.';
     host.querySelector('[data-next]').disabled = !validQuantity || step === 2 && !batch.detailsValid();
     host.querySelector('[data-submit]').disabled = saved || !validQuantity || !state.ready || outsideRows().some(window.ApplianceServices.isRelocation);
@@ -424,17 +431,18 @@
     batch.refreshServices();
   }
   function success(selected, ids, edited) {
+    assistanceUpdates?.stop(); assistanceUpdates = null;
     assistanceReceipt = null;
     saved = true; editingId = null; host.querySelector('[data-wizard]').hidden = true; host.querySelector('[data-success]').hidden = false;
     host.querySelector('[data-success] h3').textContent = edited ? 'Your changes are saved' : 'Added to your booking';
     host.querySelector('[data-saved-details]').textContent = `${selected.quantity} ${A.labels[selected.applianceKind].toLowerCase()}${selected.quantity > 1 ? 's' : ''} · ${ids.length} service${ids.length > 1 ? 's' : ''}`;
     host.querySelector('[data-saved-total]').textContent = `${A.unitCount(hooks.state.selectedServices)} / 40 appliances in your booking`;
-    host.querySelector('[data-address]').disabled = !hooks.state.selectedServices.length; host.querySelector('[data-new]').disabled = !A.remainingUnits(hooks.state.selectedServices); host.querySelector('[data-success] h3').focus({ preventScroll: true });
+    host.querySelector('[data-address]').hidden = false; host.querySelector('[data-address]').disabled = !hooks.state.selectedServices.length; host.querySelector('[data-new]').disabled = !A.remainingUnits(hooks.state.selectedServices); host.querySelector('[data-success] h3').focus({ preventScroll: true });
     const move = hooks.state.selectedServices.find(row => row.relocation)?.relocation;
     host.querySelector('[data-success-next-title]').textContent = move ? 'Next: Relocation locations' : 'Next: Service address';
     host.querySelector('[data-success-next-copy]').textContent = move?.scope === 'different_address' ? 'Pin the current and new addresses, then choose an available date and time. Review the price and pay as usual.' : move ? 'Pin the current property. Your current and new positions are saved with the aircon details.' : 'Tell us where the service will happen. Then choose your schedule and review your booking.';
     host.querySelector('[data-address]').textContent = move ? 'Continue to locations' : 'Continue to service address';
-    if (hooks.embedded) {
+    if (hooks.embedded && !hooks.bookingCreate) {
       if (hooks.bookingEdit) host.querySelector('[data-success] h3').textContent = 'Appliance changes are ready';
       host.querySelector('[data-success-next-title]').textContent = 'Next: Review your schedule';
       host.querySelector('[data-success-next-copy]').textContent = hooks.bookingEdit
@@ -446,6 +454,7 @@
     host.querySelector('[data-request-link]')?.setAttribute('hidden', ''); changed();
   }
   function showAssistanceSuccess() {
+    assistanceUpdates?.stop(); assistanceUpdates = null;
     saved = true; editingId = null;
     host.querySelector('[data-wizard]').hidden = true; host.querySelector('[data-success]').hidden = false;
     host.querySelector('[data-success] h3').textContent = 'Request sent for verification';
@@ -453,10 +462,38 @@
     host.querySelector('[data-saved-total]').textContent = `${A.unitCount(hooks.state.selectedServices)} / 40 appliances in your booking`;
     host.querySelector('[data-success-next-title]').textContent = 'Next: Staff confirms your unit and price';
     host.querySelector('[data-success-next-copy]').textContent = 'We will contact you if more details are needed. Review and accept the quote in Unit assistance before booking this service. No payment or schedule is taken for this request.';
-    host.querySelector('[data-address]').textContent = 'Continue with added services'; host.querySelector('[data-address]').disabled = !hooks.state.selectedServices.length;
+    host.querySelector('[data-address]').textContent = 'Continue with added services'; host.querySelector('[data-address]').hidden = !hooks.state.selectedServices.length; host.querySelector('[data-address]').disabled = !hooks.state.selectedServices.length;
     host.querySelector('[data-new]').disabled = !A.remainingUnits(hooks.state.selectedServices);
-    host.querySelector('[data-request-link]').hidden = false;
+    const link = host.querySelector('[data-request-link]');
+    link.hidden = false; link.href = '/unit-assistance?requestId=' + encodeURIComponent(assistanceReceipt.id);
+    link.textContent = 'View request and staff quote'; link.classList.remove('cab-primary'); link.classList.add('cab-help');
     host.querySelector('[data-success] h3').focus({ preventScroll: true }); changed();
+    assistanceUpdates = window.CustomerWorkflowRefresh?.bindWorkflowRefresh({ window, document,
+      socket: window.socket || (window.UnitAssistanceSocket ||= typeof window.io === 'function' ? window.io() : null),
+      refresh: refreshAssistanceQuote, isBusy: () => sending, pollIntervalMs: 15000,
+    });
+    assistanceUpdates?.schedule();
+  }
+  async function refreshAssistanceQuote() {
+    if (!saved || !assistanceReceipt?.id || !host.isConnected) return;
+    const id = String(assistanceReceipt.id);
+    const response = await fetch('/api/unit-assistance/mine/' + encodeURIComponent(id), { credentials:'same-origin', cache:'no-store' });
+    if (!response.ok) return;
+    const { request } = await response.json();
+    if (!saved || String(assistanceReceipt?.id) !== id || String(request?._id) !== id) return;
+    const currentQuote = Number.isFinite(new Date(request.quote?.expiresAt).getTime()) && new Date(request.quote.expiresAt) > new Date();
+    const quoted = request.status === 'quoted' && currentQuote;
+    const accepted = request.status === 'accepted' && currentQuote && !request.existingBookingId;
+    const link = host.querySelector('[data-request-link]');
+    host.querySelector('[data-success] h3').textContent = quoted ? 'Your quote is ready' : accepted ? 'Quote accepted' : 'Request sent for verification';
+    host.querySelector('[data-success-next-title]').textContent = quoted ? 'Next: Review and accept your quote' : accepted ? 'Next: Service address' : 'Next: Staff confirms your unit and price';
+    host.querySelector('[data-success-next-copy]').textContent = quoted
+      ? `${money(Number(request.quote.unitPrice) * Number(request.quantity))} ${request.requestType === 'repair' ? 'inspection fee' : 'service estimate'}, before travel fare. Review the verified details and accept the price to continue booking.`
+      : accepted ? 'Your approved service is ready. Continue to choose the address and schedule.'
+      : 'Review your request for the latest update. Accept a current quote before booking this service.';
+    link.href = (accepted ? '/services?assistanceId=' : '/unit-assistance?requestId=') + encodeURIComponent(id);
+    link.textContent = quoted ? 'Review quote and continue' : accepted ? 'Continue booking' : 'View request and staff quote';
+    link.classList.toggle('cab-primary', quoted || accepted); link.classList.toggle('cab-help', !quoted && !accepted);
   }
   async function requestAssistance(selected, service) {
     if (sending) return;
@@ -488,11 +525,11 @@
       : `<span class="cab-capacity" ${attribute}></span>`;
     const repairChoices = options.repair ? options.applianceChoices || '<label class="cab-note">Appliance *<select name="kind" required><option value="">Choose an appliance</option>' + A.kinds.map(kind => '<option value="' + escape(kind) + '">' + escape(A.labels[kind]) + '</option>').join('') + '</select></label>' : '';
     host.innerHTML = `<${formTag} class="cab-form" ${options.embedded ? 'role="group" aria-label="Appliance configuration"' : "novalidate"}><div class="cab-heading"><div><span class="cab-eyebrow">${options.repair ? 'REPAIR SERVICES' : 'CORE SERVICES'}</span><h2>${options.repair ? 'Set up your repair service' : 'Set up your service'}</h2><p>Choose an appliance and tell us what it needs.</p></div>${bookingCounter('data-capacity')}</div>
-      <div data-wizard><nav class="cab-progress" aria-label="Appliance service steps">${['Appliance', 'Details', 'Services'].map((name, index) => `<button type="button" data-step="${index + 1}" ${index ? 'disabled' : ''}><span>${index + 1}</span><strong>${name}</strong></button>`).join('')}</nav><div class="cab-step-meta"><span data-step-label></span><span>${options.embedded ? "Next booking step: Schedule" : "Next booking step: Service address"}</span></div>
+      <div data-wizard><nav class="cab-progress" aria-label="Appliance service steps">${['Appliance', 'Details', 'Services'].map((name, index) => `<button type="button" data-step="${index + 1}" ${index ? 'disabled' : ''}><span>${index + 1}</span><strong>${name}</strong></button>`).join('')}</nav><div class="cab-step-meta"><span data-step-label></span><span>${options.embedded && !options.bookingCreate ? "Next booking step: Schedule" : "Next booking step: Service address"}</span></div>
       ${options.priceNotice ? '<section class="cab-inspection-price" data-price-notice role="status" aria-live="polite" hidden></section>' : ''}<div class="cab-workspace"><div class="cab-main"><section data-panel="1" aria-labelledby="cabApplianceHeading"><h3 id="cabApplianceHeading" tabindex="-1">${options.repair ? 'Which appliance needs repair?' : 'Which appliance needs service?'}</h3><p class="cab-note">You can add another appliance after this one.</p><fieldset class="cab-appliances"><legend class="cab-sr-only">Choose an appliance</legend>${repairChoices || A.kinds.map((kind, index) => `<label><input type="radio" name="kind" value="${kind}" ${index === 0 ? 'checked' : ''}><span><i class="bi ${kind === 'aircon' ? 'bi-snow' : kind === 'refrigerator' ? 'bi-door-closed' : 'bi-box'}" aria-hidden="true"></i><strong>${A.labels[kind]}</strong><small>${kind === 'aircon' ? 'Type and HP pricing' : 'Services set by staff'}</small></span></label>`).join('')}</fieldset></section>
       <section data-panel="2" hidden aria-labelledby="cabDetailsHeading"><h3 id="cabDetailsHeading" tabindex="-1">Tell us about your appliance</h3><p class="cab-note" data-details-required>Fields marked * are required.</p>${canAsk() ? `<div class="cab-unit-help"><button type="button" class="cab-secondary" data-unit-help aria-expanded="false" aria-controls="cabHelpOptions">I don&#39;t know my unit details</button><p>Choose staff confirmation or get help reading your unit label with RACS Ready AI.</p></div><section id="cabHelpOptions" class="cab-help-options" data-help-options hidden aria-labelledby="cabHelpHeading"><h4 id="cabHelpHeading">How would you like help?</h4><p>Staff must confirm unidentified details before you book. AI can help you understand the text on your unit label.</p><div class="cab-help-choices"><button type="button" data-help-staff><i class="bi bi-person-check" aria-hidden="true"></i><span><strong>Ask staff to identify my unit</strong><small>Choose a service next, then confirm and send your request. Staff will check the details and send a price for your approval.</small></span></button><button type="button" data-help-ai><i class="bi bi-chat-dots" aria-hidden="true"></i><span><strong>Use RACS Ready AI</strong><small>Open the assistant to help read the brand, model, type and HP on your label. Your booking progress is kept.</small></span></button></div><p>No payment or schedule is confirmed by choosing help.</p></section>` : ''}<div data-unit-details class="cab-detail-card"><div class="cab-detail-intro"><span class="cab-detail-icon" aria-hidden="true"><i class="bi bi-sliders"></i></span><div><strong data-detail-appliance></strong><p data-detail-caption></p></div></div><div class="cab-fields"><label>Brand *<select name="brand" required aria-label="Brand"></select></label><label hidden>Other brand *<input name="brandCustom" maxlength="80" placeholder="Enter the brand on the label" autocomplete="off" disabled></label>${options.repair ? '<label>Model number <span class="cab-optional">optional</span><input name="model" maxlength="50" placeholder="Example: 42KDPV48" autocomplete="off"><small class="cab-field-hint">Add it if you can read it on the appliance label.</small></label>' : '<input name="model" type="hidden">'}</div><div class="cab-fields" data-aircon-details><label ${options.repair ? 'hidden' : ''}>Aircon type *<select name="airconType" required></select></label><label>Aircon capacity (HP) *<select name="hp" required aria-label="Aircon capacity (HP)"></select><small class="cab-field-hint">Choose the HP shown on the unit label.</small></label></div>
       <div class="cab-fields" data-compressor-details hidden><label>Compressor HP <span class="cab-optional">if known</span><select name="compressorHp"></select></label><p class="cab-note">Use the HP on the compressor label. It is needed only for services priced by HP.</p></div></div><div class="cab-quantity" ${options.repair ? 'hidden' : ''}><div><label for="cabQuantity">Number of appliances *</label><p>Use one group for appliances with the same details and services.</p></div><div class="cab-stepper"><button type="button" data-minus aria-label="Decrease appliance quantity">−</button><input id="cabQuantity" name="quantity" type="number" min="1" max="40" step="1" inputmode="numeric" value="1" required aria-describedby="cabUnitLimit cabQuantityFeedback"><button type="button" data-plus aria-label="Increase appliance quantity">+</button></div></div><p class="cab-limit" id="cabUnitLimit" data-limit ${options.repair ? 'hidden' : ''}></p><p class="cab-quantity-feedback" id="cabQuantityFeedback" data-quantity-feedback role="status" aria-live="polite"></p>${canAsk() ? '<p class="cab-note cab-identification-note">Choose staff assistance to request confirmation. No payment or schedule is taken until your unit details and price are confirmed.</p>' : '<a class="cab-help" href="/unit-assistance">Not sure about the type or HP? Request help with your unit.</a>'}</section>
-      <section data-panel="3" hidden aria-labelledby="cabServicesHeading"><div data-service-picker><h3 id="cabServicesHeading" tabindex="-1">Choose the services you need</h3><p class="cab-note">Aircon Relocation is a separate booking for one aircon and cannot be combined with other services.</p><p class="cab-note" data-services-intro>Select one or more services for the same appliance.</p><div class="cab-appliance-summary" data-service-appliance></div><div data-services></div></div><section class="cab-relocation" data-relocation-config hidden aria-labelledby="cabMoveHeading"><h4 id="cabMoveHeading">Where will the aircon move?</h4><p class="cab-note">We will use the brand, type and HP you already selected.</p><fieldset class="cab-move-scopes"><legend class="cab-sr-only">Relocation distance</legend><label><input type="radio" name="moveScope" value="same_property"><span><strong>Nearby, on the same property</strong><small>For example, from the living room to a bedroom.</small></span></label><label><input type="radio" name="moveScope" value="different_address"><span><strong>A different address</strong><small>Pin the current and new addresses, then choose a date and time.</small></span></label></fieldset><div class="cab-fields" data-nearby-fields hidden><label>Current position *<input name="moveFrom" minlength="2" maxlength="500" placeholder="e.g. Living room, ground floor"></label><label>New position *<input name="moveTo" minlength="2" maxlength="500" placeholder="e.g. Bedroom, ground floor"></label></div><p class="cab-note" data-move-address-note hidden>Relocation is booked on its own for one aircon. Your selected type and HP determine the service price. Choose both map pins in the next step, then follow the normal schedule and payment steps.</p></section>${canAsk() ? `<section class="cab-assistance" data-assistance hidden aria-labelledby="cabIdentificationHeading"><div class="cab-selected-request" data-selected-request hidden><strong data-selected-request-summary></strong><button type="button" class="cab-secondary" data-change-service>Change service</button></div><h4 id="cabIdentificationHeading" data-identification-heading tabindex="-1">Help us identify your unit</h4><p class="cab-note">Request one service for verification. After your unit is identified, you can add other services using the confirmed details. No payment or schedule is taken yet.</p><label>Photos <span class="cab-optional">optional</span><input type="file" name="assistancePhotos" accept="image/jpeg,image/png,image/webp" multiple><small data-photo-guidance>Up to two photos: the appliance and its model sticker. JPG, PNG or WEBP, up to 5 MB each. If you cannot take a photo, staff will contact you.</small></label><p data-photo-feedback class="cab-photo-feedback" role="status"></p><label>What do you know about the unit? <span class="cab-optional">optional</span><textarea name="assistanceNotes" maxlength="1000" rows="3" placeholder="For example, wall-mounted aircon in the bedroom"></textarea></label></section>` : ''}<section class="cab-confirmation" data-request-confirmation hidden aria-labelledby="cabConfirmHeading"><h4 id="cabConfirmHeading" data-confirm-heading tabindex="-1">Send this request to staff?</h4><p data-confirm-summary></p><p>Staff will identify your unit and send a price for you to review and accept. This request does not book a schedule or take payment.</p><div class="cab-actions"><button type="button" class="cab-secondary" data-keep-editing>Keep editing</button><button type="button" class="cab-primary" data-send-request>Confirm and send request</button></div></section></section></div>
+      <section data-panel="3" hidden aria-labelledby="cabServicesHeading"><div data-service-picker><h3 id="cabServicesHeading" tabindex="-1">Choose the services you need</h3><p class="cab-note">Aircon Relocation is a separate booking for one aircon and cannot be combined with other services.</p><p class="cab-note" data-services-intro>Select one or more services for the same appliance.</p><div class="cab-appliance-summary" data-service-appliance></div><div data-services></div></div><section class="cab-relocation" data-relocation-config hidden aria-labelledby="cabMoveHeading"><h4 id="cabMoveHeading">Where will the aircon move?</h4><p class="cab-note">We will use the brand, type and HP you already selected.</p><fieldset class="cab-move-scopes"><legend class="cab-sr-only">Relocation distance</legend><label><input type="radio" name="moveScope" value="same_property"><span><strong>Nearby, on the same property</strong><small>For example, from the living room to a bedroom.</small></span></label><label><input type="radio" name="moveScope" value="different_address"><span><strong>A different address</strong><small>Pin the current and new addresses, then choose a date and time.</small></span></label></fieldset><div class="cab-fields" data-nearby-fields hidden><label>Current position *<input name="moveFrom" minlength="2" maxlength="500" placeholder="e.g. Living room, ground floor"></label><label>New position *<input name="moveTo" minlength="2" maxlength="500" placeholder="e.g. Bedroom, ground floor"></label></div><p class="cab-note" data-move-address-note hidden>Relocation is booked on its own for one aircon. Your selected type and HP determine the service price. Choose both map pins in the next step, then follow the normal schedule and payment steps.</p></section>${(canAsk() || hooks.repair) ? `<section class="cab-assistance" data-assistance hidden aria-labelledby="cabIdentificationHeading"><div class="cab-selected-request" data-selected-request hidden><strong data-selected-request-summary></strong><button type="button" class="cab-secondary" data-change-service>Change service</button></div><h4 id="cabIdentificationHeading" data-identification-heading tabindex="-1">Help us identify your unit</h4><p class="cab-note">Request one service for verification. After your unit is identified, you can add other services using the confirmed details. No payment or schedule is taken yet.</p><label>Photos <span class="cab-optional">optional</span><input type="file" name="assistancePhotos" accept="image/jpeg,image/png,image/webp" multiple><small data-photo-guidance>Up to two photos: the appliance and its model sticker. JPG, PNG or WEBP, up to 5 MB each. If you cannot take a photo, staff will contact you.</small></label><p data-photo-feedback class="cab-photo-feedback" role="status"></p><label>What do you know about the unit? <span class="cab-optional">optional</span><textarea name="assistanceNotes" maxlength="1000" rows="3" placeholder="For example, wall-mounted aircon in the bedroom"></textarea></label></section>` : ''}<section class="cab-confirmation" data-request-confirmation hidden aria-labelledby="cabConfirmHeading"><h4 id="cabConfirmHeading" data-confirm-heading tabindex="-1">Send this request to staff?</h4><p data-confirm-summary></p><p>Staff will identify your unit and send a price for you to review and accept. This request does not book a schedule or take payment.</p><div class="cab-actions"><button type="button" class="cab-secondary" data-keep-editing>Keep editing</button><button type="button" class="cab-primary" data-send-request>Confirm and send request</button></div></section></section></div>
       <aside class="cab-summary" aria-label="Appliance service estimate"><span class="cab-eyebrow">YOUR SELECTION</span><strong data-summary-appliance></strong><span data-count></span><div class="cab-summary-price"><small>${options.repair ? 'Inspection fee total' : 'Estimated service total'}</small><strong data-total></strong></div><small data-duration></small><p>Travel fee is added once for the visit.</p></aside></div>
       <div class="cab-footer">${typeof hooks.review === 'function' ? bookingCounter('data-footer-capacity') : ''}<p data-feedback role="status" aria-live="polite"></p><p data-guidance></p><div class="cab-actions"><button type="button" class="cab-secondary" data-cancel hidden>Cancel changes</button><button type="button" class="cab-secondary" data-back hidden>Back</button><button type="button" class="cab-primary" data-next>Next: appliance details</button><button type="submit" data-submit class="cab-primary" hidden>Add to booking</button></div></div></div>
       <section class="cab-success" data-success hidden><span class="cab-success-icon" aria-hidden="true">✓</span><h3 tabindex="-1">Added to your booking</h3><p data-saved-details></p>${bookingCounter('data-saved-total')}<div class="cab-success-next"><strong data-success-next-title>Next: Service address</strong><p data-success-next-copy>Tell us where the service will happen. Then choose your schedule and review your booking.</p></div><div class="cab-actions"><button type="button" class="cab-secondary" data-new>Add another appliance</button><button type="button" class="cab-primary" data-address>Continue to service address</button></div><a class="cab-help" data-request-link href="/unit-assistance" hidden>View request and staff quote</a></section></${formTag}>`;
@@ -645,6 +682,7 @@
     refreshTypes(); setStep(1, false); restoreDraft(initialDraft);
   }
   function reset(focus = true) {
+    assistanceUpdates?.stop(); assistanceUpdates = null;
     batch?.reset();
     assistanceOpen = false;
     editingId = null; reached = 1; saved = false; savedMove = null; detailsUnknown = false; helpOpen = false;

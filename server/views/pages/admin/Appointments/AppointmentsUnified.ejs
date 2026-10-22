@@ -1796,8 +1796,11 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="/js/operations-request.js?v=20260926"></script>
-<link rel="stylesheet" href="/css/repair-units.css?v=20261017-repair-workspace-v2">
-<script src="/js/repair-units.js?v=20261017-repair-workspace-v2"></script>
+<link rel="stylesheet" href="/css/repair-units.css?v=20261021-repair-color">
+<link rel="stylesheet" href="/css/repair-workspace-theme.css?v=20261021-repair-color">
+<script src="/js/repair-units.js?v=20261021-repair-color"></script>
+<link rel="stylesheet" href="/css/core-repair-findings.css?v=20261022-discovery">
+<script src="/js/core-repair-findings.js?v=20261022-discovery"></script>
 <script>
 (function() {
   'use strict';
@@ -2599,7 +2602,7 @@
           id:b._id,source:b,reference:b.bookingReference||b._id.slice(-8).toUpperCase(),customer:b.customer?.name,
           description:b.service?.name||'Service booking',schedule:formatDate(b.bookingDate)+' '+formatTime(b.startTime)+(b.endTime?' - '+formatTime(b.endTime):''),
           technician:b.technician?.name,technicians:b.technicianTeam,address:b.address,deadline:b.acceptanceDeadline,isPastDate:b.isPastDate===true,
-          canExtend:b.technicianTeam?.length?b.technicianTeam.some(function(member){return member.status==='pending';}):!!b.assignmentId&&b.assignmentStatus==='pending_acceptance',canRequeue:b.technicianTeam?.length?b.technicianTeam.some(function(member){return member.status==='pending';}):b.assignmentStatus==='pending_acceptance',canResolve:APPOINTMENTS_CAN_RESOLVE
+          canExtend:b.technicianTeam?.length?b.technicianTeam.some(function(member){return member.status==='pending';}):!!b.assignmentId&&b.assignmentStatus==='pending_acceptance',canRequeue:b.technicianTeam?.length?b.technicianTeam.some(function(member){return ['pending','expired'].includes(member.status);}):b.assignmentStatus==='pending_acceptance',canResolve:APPOINTMENTS_CAN_RESOLVE
         };}),onAction:function(action,record,member){
           if(action==='view')AU.Overview.viewDetail(record.id);
           if(action==='extend')window.extendDeadline(member?.assignmentId||record.source.assignmentId);
@@ -3020,7 +3023,13 @@
     var id=b._id,status=b.status;
     var closed=['completed','repair_completed','under_warranty','cancelled','closed','rejected'].includes(status);
     if(bookingNeedsResolution(b)){
-      help.textContent='Resolve the schedule issue before assigning or starting this booking.';
+      var acceptanceIssue=b.overviewScheduleResolution?.issueType==='technician_issue';
+      help.textContent=acceptanceIssue?'The technician response expired. Assign a new technician or resolve the visit with the customer.':'Resolve the schedule issue before assigning or starting this booking.';
+      if(acceptanceIssue&&b.assignmentTiming?.isExpired===false){
+        add('reassign','Reassign Technician','primary',function(){return closeBookingDetailFor(id,function(){
+          return RACSJobTeams.open('booking',id,{onAssigned:function(){AU.Overview.load();AU.Pending.viewDetail(id);}});
+        });});
+      }
       if(APPOINTMENTS_CAN_RESOLVE)add('resolve','Resolve Issue','warning',null,bookingResolutionUrl(b));
     }else if(b.isProject){
       help.textContent='Review scheduling and staffing in Projects.';
@@ -3065,6 +3074,11 @@
     }else help.textContent='Review the final service details, payment records and completion evidence.';
     if(!closed&&b.repairUnitTracking&&['inspection_in_progress','inspection_completed','awaiting_approval','repair_approved','ready_for_repair','waiting_parts','repair_in_progress'].includes(status)){
       add('repair','Review Repair Quotes','outline-primary',function(){return closeBookingDetailFor(id,function(){return openRepairUnits('booking',id);});});
+    }
+    if((b.services||[]).some(function(item){return !!item.discoveredDuringService;})){
+      add('repair-findings','Review Service Findings','outline-warning',function(){
+        return CoreRepairFindings.open(id,{role:location.pathname.startsWith('/secretary')?'secretary':'admin',onSaved:function(){AU.Overview.load();return AU.Pending.viewDetail(id);}});
+      });
     }
     if(data.photosDeferred){
       add('photos','View Photos & Receipts','outline-secondary',async function(){
@@ -4111,7 +4125,7 @@
     return AU.Pending.viewDetail(id,null,function(b,data,body,subtitle){
       var refText=b.bookingReference||b.workOrderNumber||'#'+b._id.toString().slice(-8).toUpperCase();
       document.getElementById('detailTitle').textContent='Job '+refText;
-      subtitle.textContent=refText+' / '+bookingStatusLabel(b);
+      subtitle.textContent=refText+' / '+bookingStatusLabel(b)+(bookingNeedsResolution(b)?' / '+bookingScheduleIssueLabel(b):'');
       var trackerSteps=[
         {key:'assigned',label:'Awaiting Acceptance',icon:'bi-hourglass-split'},
         {key:'confirmed',label:'Confirmed',icon:'bi-check-circle'},

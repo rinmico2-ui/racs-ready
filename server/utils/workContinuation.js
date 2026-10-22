@@ -52,6 +52,7 @@ function createService(overrides = {}) {
     const details = continuationRequest(input);
     return deps.lock(`continuation:${source}:${id}`, async () => {
       const state = await load(source, id, { technicianId });
+      if (source === 'booking' && require('./coreRepairDiscovery').needsReview(state.job)) throw fail('Operations must review the paused core service and any required refund before another visit is requested.');
       if (state.job.archivedAt || ['completed', 'cancelled', 'repair_completed'].includes(state.job.status)) throw fail('This job is already closed.');
       if (state.job.continuation?.status === 'pending') return { ...state, duplicate: true };
       if (source === 'booking' ? state.assignment.status !== 'in_progress' : state.job.status !== 'installing') throw fail('Start the work before requesting a continuation.');

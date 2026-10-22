@@ -1716,6 +1716,8 @@ document.addEventListener("DOMContentLoaded", function () {
       dateInput.value = prefDate ? toLocalDateStr(prefDate) : "";
     }
     if (timeSelect) timeSelect.value = prefTime || "";
+    document.getElementById('aoAssignDateLabel').textContent = fmtDate(prefDate);
+    document.getElementById('aoAssignTimeLabel').textContent = fmtTime(prefTime);
     if (noteInput) noteInput.value = "";
     const prioritySelect = document.getElementById("aoAssignPriority");
     if (prioritySelect) prioritySelect.value = "normal";

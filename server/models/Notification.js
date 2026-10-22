@@ -30,6 +30,8 @@ const notificationSchema = new mongoose.Schema(
         "attendance_missing_checkin",
         "attendance_missing_checkout",
         "booking_cancelled",
+        "booking_cancellation_requested",
+        "booking_cancellation_decided",
         "booking_change_approved",
         "booking_change_rejected",
         "booking_change_requested",

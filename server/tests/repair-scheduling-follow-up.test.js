@@ -56,6 +56,11 @@ test('the repair scheduling queue preserves the support crew and delegates new v
   assert.deepEqual(f.calls[0][2].technicianIds, [id(3), id(4)]); assert.equal(f.calls[0][2].scheduledDate, '2035-01-02'); assert.equal(f.calls[0][4].repairVisit, true);
   assert.equal(f.messages[0].userId, id(2)); assert.match(f.messages[0].message, /2035-01-02/);
 });
+test('legacy repairs use fresh visit assignments instead of reactivating the inspection assignment',async t=>{
+  const f=fixture(t);f.booking.repairUnitTracking=false;f.booking.status='repair_scheduled';
+  const res=await f.schedule();assert.equal(res.statusCode,200);assert.equal(f.calls.length,1);
+  assert.equal(f.calls[0][4].repairVisit,true);assert.deepEqual(f.calls[0][2].technicianIds,[id(3),id(4)]);
+});
 test('duplicate approved part lines cannot reuse one reserved part to schedule an understocked repair', async t => {
   const f = fixture(t), part = { name: 'Capacitor', toolId: id(6), quantity: 1, cost: 500 };
   f.booking.services[0].units[0].quotation.parts = [{ ...part }, { ...part }];

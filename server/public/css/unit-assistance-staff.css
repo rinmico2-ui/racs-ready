@@ -84,7 +84,9 @@
 .ua-guidance-warm i { color:#a7752c; }
 .ua-form { display:grid; gap:13px; }
 .ua-form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.ua-brand-fields { display:grid; align-content:start; gap:10px; min-width:0; }
 .ua-field { display:grid; align-content:start; gap:6px; min-width:0; }
+.ua-field[hidden] { display:none; }
 .ua-field > span { font-size:.72rem; font-weight:650; }
 .ua-field > small { color:var(--muted); font-size:.67rem; line-height:1.4; }
 .ua-field input,.ua-field select,.ua-field textarea { width:100%; min-height:42px; padding:9px 11px; border:1px solid #cfd8e4; border-radius:7px; background:#fff; color:var(--ink); font-size:.78rem; }

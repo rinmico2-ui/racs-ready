@@ -88,6 +88,20 @@ function fixture({ coreStatus = 'in_progress', repairStatus = 'inspection_in_pro
 }
 
 for (const endpoint of ['single', 'batch']) {
+  test(`${endpoint}: Core completion moves an arrived shared booking to In Progress and retains access to pending Repair`, async () => {
+    const f = fixture({ bookingStatus: 'arrived', repairStatus: 'arrived' });
+    const shared = { _id: id(5), technicianId: id(1), serviceType: 'mixed', status: 'in_progress' };
+    f.booking.assignmentId = shared._id;
+    for (const item of f.booking.services) { item.assignmentId = shared._id; item.technicianId = shared.technicianId; }
+    const before = snapshot(f.booking.services[1]);
+    const response = await f.update(endpoint, 'completed');
+    assert.equal(response.body.allServicesCompleted, false); assert.equal(f.booking.status, 'in-progress');
+    assert.equal(f.booking.completedAt, null); assert.deepEqual(snapshot(f.booking.services[1]), before);
+    assert.equal(require('../utils/technicianWorkSync').assignmentWorkDecision(shared, f.booking).current, true);
+    assert.equal((await f.update('single', 'inspection_in_progress', id(4))).statusCode, 200);
+    assert.equal(f.booking.services[0].status, 'completed');
+  });
+
   test(`${endpoint}: starting Core work preserves the entire Repair item`, async () => {
     const f = fixture({ coreStatus: 'arrived', repairStatus: 'inspection_scheduled' });
     const before = snapshot(f.booking.services[1]);

@@ -1,5 +1,10 @@
 "use strict";
 
+function nonNegativeInteger(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
 function parseDirectHosts(value) {
   const hosts = String(value || "")
     .split(",")
@@ -76,4 +81,4 @@ function buildMongoConnectionUri(srvUri, options = {}) {
   };
 }
 
-module.exports = { buildMongoConnectionUri, disableRetryableWritesForDirectConnection, isTlsProtectedMongoUri, isSingleLabelMongoUri, parseDirectHosts };
+module.exports = { buildMongoConnectionUri, disableRetryableWritesForDirectConnection, isTlsProtectedMongoUri, isSingleLabelMongoUri, parseDirectHosts, nonNegativeInteger };

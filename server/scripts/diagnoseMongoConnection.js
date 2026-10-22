@@ -4,7 +4,7 @@
 require("dotenv").config({ quiet: true });
 
 const mongoose = require("mongoose");
-const { buildMongoConnectionUri, disableRetryableWritesForDirectConnection } = require("../utils/mongoConnection");
+const { buildMongoConnectionUri, disableRetryableWritesForDirectConnection, nonNegativeInteger } = require("../utils/mongoConnection");
 const { inspectMongoDeployment } = require("../utils/mongoDeployment");
 
 const configuredUri = process.env.MONGODB_URI;
@@ -38,7 +38,7 @@ if (!configuredUri) {
     const connection = mongoose.createConnection(disableRetryableWritesForDirectConnection(uri), {
       retryWrites: false,
       maxPoolSize: positiveInteger(process.env.MONGODB_MAX_POOL_SIZE, 20),
-      minPoolSize: positiveInteger(process.env.MONGODB_MIN_POOL_SIZE, process.env.NODE_ENV === "production" ? 2 : 1),
+      minPoolSize: nonNegativeInteger(process.env.MONGODB_MIN_POOL_SIZE, process.env.NODE_ENV === "production" ? 2 : 1),
       waitQueueTimeoutMS: positiveInteger(process.env.MONGODB_WAIT_QUEUE_TIMEOUT_MS, 5000),
       serverSelectionTimeoutMS: positiveInteger(process.env.MONGODB_SERVER_SELECTION_TIMEOUT_MS, 5000),
       connectTimeoutMS: positiveInteger(process.env.MONGODB_CONNECT_TIMEOUT_MS, 10000),

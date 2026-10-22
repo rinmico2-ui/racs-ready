@@ -112,10 +112,56 @@ test('an expired invitation explains how to recover instead of presenting an unu
   assert.doesNotMatch(html, /data-action="accept"|data-action="decline"/);
 });
 
+test('order detail emergency action is limited to travel and arrival before installation starts', () => {
+  const start = view.indexOf("    var aHtml = '';");
+  const code = view.slice(start, view.indexOf('    var actDiv =', start)) + '\naHtml;';
+  const render = overrides => vm.runInNewContext(code, {
+    o: { ...job(), viewerAssignment: { status: 'accepted' }, ...overrides }, esc: String,
+    scheduleRecovery: false, installReady: true, dispatchReady: true, preparationDate: '2035-01-02'
+  });
+  for (const fulfillmentType of ['delivery_installation', 'delivery_only']) {
+    for (const status of ['out_for_delivery', 'arrived']) {
+      assert.match(render({ status, fulfillmentType }), /Report Emergency/);
+      assert.doesNotMatch(render({ status, fulfillmentType, continuation: { status: 'pending' } }), /Report Emergency/);
+      assert.doesNotMatch(render({ status, fulfillmentType, isProject: true }), /Report Emergency/);
+    }
+    for (const status of ['technician_assigned', 'technician_accepted', 'preparing_unit', 'installing', 'completed', 'cancelled', 'pending_reassignment']) {
+      for (const memberStatus of ['pending', 'accepted']) {
+        assert.doesNotMatch(render({ status, fulfillmentType, viewerAssignment: { status: memberStatus } }), /Report Emergency/);
+      }
+    }
+  }
+});
+
+test('supporting installation cards use the same emergency stages and require an accepted member', async () => {
+  const window = { addEventListener() {} }, appended = [];
+  const body = { append: node => appended.push(node) };
+  const host = { querySelectorAll: selector => selector === 'article .card-body' ? [body] : [] };
+  let current;
+  const location = { pathname: '/fixture' };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../public/js/standard-job-team.js'), 'utf8'), {
+    window, location,
+    document: { getElementById: () => host, createElement: () => ({ addEventListener() {} }), head: { append() {} } },
+    fetch: async () => ({ ok: true, json: async () => ({ jobs: [current] }) })
+  });
+  location.pathname = '/technician/orders';
+  for (const status of ['technician_assigned', 'technician_accepted', 'preparing_unit', 'out_for_delivery', 'arrived', 'installing', 'completed', 'cancelled', 'pending_reassignment']) {
+    for (const myStatus of ['pending', 'accepted', 'declined', 'expired']) {
+      for (const continuation of [undefined, 'pending']) {
+        current = { id: orderId, date: '2035-01-02', status, myStatus, continuation };
+        appended.length = 0;
+        await window.RACSJobTeams.supportingOrders();
+        const visible = appended.some(node => node.textContent === 'Report Emergency');
+        assert.equal(visible, ['out_for_delivery', 'arrived'].includes(status) && myStatus === 'accepted' && continuation !== 'pending', `${status}/${myStatus}/${continuation}`);
+      }
+    }
+  }
+});
+
 test('the Accept button sends JSON and waits for team acceptance before opening daily preparation', async () => {
   const start = view.indexOf('  window.doAccept = async function(id)');
   let request, kitOpened = false; const messages = [];
-  const sandbox = { window: {}, _orders: [job()], orderNeedsScheduleRecovery: () => false, orderDateKey: () => '2035-01-02',
+  const sandbox = { window: {}, _allOrders: [job()], orderNeedsScheduleRecovery: () => false, orderDateKey: () => '2035-01-02',
     fetch: async (url, options) => { request = { url, options }; return { ok: true, json: async () => ({ success: true, order: job() }) }; },
     Swal: { fire: async (...args) => { messages.push(args); return { isConfirmed: true }; } },
     openOrderDailyKit() { kitOpened = true; }, fetchOrders() {} };
@@ -123,4 +169,17 @@ test('the Accept button sends JSON and waits for team acceptance before opening 
   await sandbox.window.doAccept(orderId);
   assert.equal(request.options.headers['Content-Type'], 'application/json'); assert.equal(request.options.body, '{}');
   assert.equal(messages[0][0].title, 'Assignment Accepted'); assert.equal(kitOpened, false);
+});
+
+test('legacy staff assignment rejects schedule changes before saving or notifying a technician', async t => {
+  const order = { ...job(), status:'preparing_unit', technicianId:null, technicianTeam:[] };
+  t.mock.method(Order, 'findById', () => query(order));
+  t.mock.method(Order.prototype, 'save', () => assert.fail('A different date must be rescheduled first.'));
+  for (const role of ['admin', 'secretary']) for (const fulfillmentType of ['delivery_only', 'delivery_installation']) {
+    order.fulfillmentType = fulfillmentType;
+    const res = response();
+    await handler('/:id/assign-technician')({ params:{id:orderId}, body:{technicianId:lead,scheduledDate:'2035-01-03',timeSlot:'08:00'}, user:{_id:id(9),role} }, res);
+    assert.equal(res.statusCode, 409); assert.equal(res.body.code, 'ORDER_SCHEDULE_CHANGE_REQUIRES_RESCHEDULE');
+    assert.equal(order.technicianId, null); assert.equal(order.status, 'preparing_unit');
+  }
 });

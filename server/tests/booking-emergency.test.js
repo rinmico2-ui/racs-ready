@@ -232,8 +232,8 @@ test('supporting technicians can report an emergency through the team guard whil
   const middleware = require('../utils/standardTeamMiddleware');
   const lead = { _id: LEAD }, support = { _id: SUPPORT };
   const job = { technicianId: LEAD, technicianTeam: [{ technicianId: LEAD, assignmentId: A, status: 'accepted' }, { technicianId: SUPPORT, assignmentId: S, status: 'accepted' }] };
-  t.mock.method(Assignment, 'findById', () => ({ lean: async () => ({ _id: S, technicianId: SUPPORT, bookingId: B, status: 'en_route' }) }));
-  t.mock.method(Booking, 'findById', () => ({ lean: async () => job }));
+  t.mock.method(Assignment, 'findById', () => ({ select() { return this; }, lean: async () => ({ _id: S, technicianId: SUPPORT, bookingId: B, status: 'en_route' }) }));
+  t.mock.method(Booking, 'findById', () => ({ select() { return this; }, lean: async () => job }));
   t.mock.method(require('../models/Technician'), 'findOne', () => ({ lean: async () => support }));
   for (const action of ['emergency', 'cancel', 'status']) {
     let passed = false;

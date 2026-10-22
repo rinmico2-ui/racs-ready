@@ -44,7 +44,15 @@ function routeFixture(kind = "customer", overrides = {}) {
     isAftercareBooking,
     async reopenScheduleAfterBookingCancellation() {},
     async releaseReservedEquipment({ reason }) { normalizeLifecycleReason(reason, "Release"); releases++; },
-    require() { return { async updateMany() { assignmentUpdates++; } }; },
+    require(name) {
+      if (name.endsWith('customerCancellationPolicy')) return require('../utils/customerCancellationPolicy');
+      if (name.endsWith('customerCancellationController')) return { async submit(req, res) {
+        logs.push({ delegated: true, body: req.body });
+        if (String(booking.customerId) !== String(req.user._id)) return res.status(404).json({ error: 'Booking not found.' });
+        return res.status(201).json({ success: true, message: 'Handled by the cancellation request service.' });
+      } };
+      return { async updateMany() { assignmentUpdates++; } };
+    },
     googleCalendarSync: { isConfigured: () => false }, audit: { logEvent: async () => undefined },
     console: { error(...args) { logs.push(args); }, warn() {}, log() {} },
   };
@@ -83,7 +91,7 @@ for (const role of ["customer", "admin", "secretary"]) {
 
 test("valid cancellation saves a normalized reason and releases assignments and equipment", async () => {
   const f = routeFixture(), res = response();
-  await f.handler(request(" Changed  my\nplans today "), res);
+  await f.handler(request(" Changed  my\nplans today ", 'admin'), res);
   assert.equal(res.statusCode, 200);
   assert.equal(f.booking.status, "cancelled");
   assert.equal(f.booking.cancellationReason, "Changed my plans today");
@@ -97,7 +105,7 @@ test("valid cancellation saves a normalized reason and releases assignments and 
 test("cancellation retains ownership and paid-booking protections", async () => {
   const other = routeFixture("customer", { customerId: "someone-else" }), denied = response();
   await other.handler(request("Changed my plans today"), denied);
-  assert.equal(denied.statusCode, 403);
+  assert.equal(denied.statusCode, 404);
   assert.equal(other.saves, 0);
   const paid = routeFixture(), held = response();
   paid.context.Payment.exists = async () => true;
@@ -127,11 +135,13 @@ test("the shared customer endpoint delegates linked maintenance to the guarded t
   assert.equal(f.releases, 1);
 });
 
-test("ordinary awaiting-assignment bookings keep their existing customer cancellation limit", async () => {
+test("ordinary awaiting-assignment bookings delegate to the cancellation request service without legacy writes", async () => {
   const f = routeFixture("customer", { status: "awaiting_assignment" }), res = response();
   await f.handler(request("Changed my plans today"), res);
-  assert.equal(res.statusCode, 400);
+  assert.equal(res.statusCode, 201);
   assert.equal(f.saves, 0);
+  assert.equal(f.logs.at(-1).delegated, true);
+  assert.equal(f.logs.at(-1).body.reasonCode, 'other');
 });
 
 test("completed-booking conflict returns 409 and infrastructure failures remain generic 500", async () => {

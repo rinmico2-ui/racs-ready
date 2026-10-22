@@ -24,12 +24,14 @@ function state(record, source = 'booking') {
 }
 
 function assertReady(record, source = 'booking') {
+  if (source === 'booking') require('./customerCancellationPolicy').assertNoHold(record);
   const review = state(record, source);
   if (review.required) throw Object.assign(new Error(review.reason), { status: 409, code: 'RESOLUTION_PAYMENT_REVIEW_REQUIRED', paymentReview: review });
 }
 
 function allowedActions(record, source, actions) {
   const review = state(record, source);
+  if (source === 'booking' && require('./customerCancellationPolicy').open(record)) return ['view', ...actions.filter(action => action === 'call'), 'review_cancellation'];
   return review.required ? [...actions.filter(action => ['view', 'call'].includes(action)), review.kind === 'cash' ? 'confirm_cash' : 'verify_payment'] : actions;
 }
 

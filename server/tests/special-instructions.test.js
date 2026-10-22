@@ -52,7 +52,8 @@ for (const serviceType of ['core', 'repair', 'mixed']) {
     const start = source.indexOf('    function renderCustomerDetails(');
     const end = source.indexOf('    function renderOverviewPage(', start);
     assert.ok(start > 0 && end > start);
-    const context = { window: { SpecialInstructions: instructions, RACSVisitSchedule: require('../public/js/technician-visit-schedule') },
+    const mixedDetails = require('../public/js/mixed-service-details');
+    const context = { MixedServiceDetails: mixedDetails, window: { MixedServiceDetails: mixedDetails, SpecialInstructions: instructions, RACSVisitSchedule: require('../public/js/technician-visit-schedule') },
       isRepairAssignment: () => serviceType === 'repair', isMixedWorkStarted: () => false,
       statusLabels: { accepted: 'Accepted' }, toPhTime: value => value };
     vm.runInNewContext(source.slice(source.indexOf('    function renderDailyPreparationCard('), source.indexOf('    function getWizardPageActions(')), context);
@@ -75,7 +76,7 @@ test('technician calendar booking API retains instructions and enforces the assi
     mongoose: { Types: { ObjectId: { isValid: () => true } } },
     loadTechnicianContext: async () => ({ tech: { _id: 'tech-1' }, technicianIds: ['tech-1'] }),
     presentTechnicianBooking,
-    require: () => ({ findById: () => ({ select(value) { selected = value; return this; },
+    require: module => module.includes('repair-visit-payment') ? require('../public/js/repair-visit-payment') : ({ findById: () => ({ select(value) { selected = [selected, value].filter(Boolean).join(' '); return this; },
       lean: async () => ({ technicianId: assigned ? 'tech-1' : 'tech-2', paymentNotes: message,
         customer: { name: 'Fixture', email: 'private@example.test' }, paymentProof: 'private' }) }) }),
   };

@@ -1,0 +1,32 @@
+.repair-completion-dialog { border: 0; border-radius: 18px; overflow: hidden; }
+.repair-completion-dialog [hidden] { display: none !important; }
+.repair-completion-header { background: linear-gradient(130deg, #047857, #0f766e); color: #fff; padding: 22px 24px; border: 0; align-items: flex-start; }
+.repair-completion-header small { display: block; font-size: .67rem; font-weight: 700; letter-spacing: .06em; opacity: .85; }
+.repair-completion-header h5 { margin: 5px 0; font-size: 1.13rem; font-weight: 700; }
+.repair-completion-header p { margin: 0; font-size: .8rem; opacity: .9; }
+.repair-completion-header .btn-close { flex-shrink: 0; margin-left: 16px; }
+.repair-completion-body { padding: 22px 24px; background: #f8fafc; font-size: .84rem; }
+.repair-completion-notice { padding: 12px 14px; color: #065f46; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 10px; margin-bottom: 16px; }
+.repair-completion-card { padding: 14px; background: #fff; border: 1px solid #dbe4ec; border-radius: 12px; margin-bottom: 16px; }
+.repair-completion-card summary { cursor: pointer; color: #1e293b; font-weight: 600; }
+.repair-completion-card summary span + span { color: #64748b; font-size: .75rem; font-weight: 400; margin-left: 6px; }
+.repair-completion-card h6 { color: #065f46; font-size: .87rem; font-weight: 700; }
+.repair-completion-card p { font-size: .76rem; color: #64748b; margin: 8px 0 0; }
+.repair-completion-part, .repair-completion-consumable { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 0; border-bottom: 1px solid #eef2f6; }
+.repair-completion-part:last-child, .repair-completion-consumable:last-child { border: 0; padding-bottom: 0; }
+.repair-completion-part > span, .repair-completion-consumable label { min-width: 0; overflow-wrap: anywhere; }
+.repair-completion-part small, .repair-completion-consumable small { display: block; font-size: .72rem; color: #64748b; margin-top: 3px; }
+.repair-completion-part strong { white-space: nowrap; color: #0f766e; }
+.repair-completion-consumable input { width: 88px; flex-shrink: 0; font-size: .85rem; }
+.repair-completion-equipment { display: flex; align-items: flex-start; gap: 9px; color: #64748b; font-size: .75rem; margin: 0 0 18px; }
+.repair-completion-equipment i { color: #0f766e; }
+.repair-completion-photo { padding: 16px; background: #fff; border: 1px dashed #99cdbd; border-radius: 12px; margin-bottom: 16px; }
+.repair-completion-photo small { display: block; color: #64748b; font-size: .73rem; margin-top: 8px; }
+.repair-completion-photo img { display: block; max-width: 100%; max-height: 220px; object-fit: contain; margin: 12px auto 0; border-radius: 8px; }
+.repair-completion-dialog .modal-footer { padding: 14px 24px; gap: 8px; flex-wrap: nowrap; }
+.repair-completion-dialog .modal-footer .btn { border-radius: 9px; padding: 10px 14px; font-size: .82rem; }
+.repair-completion-dialog .modal-footer .btn-success { flex: 1; }
+@media (max-width: 420px) {
+  .repair-completion-header, .repair-completion-body { padding: 18px; }
+  .repair-completion-dialog .modal-footer { padding: 12px 16px; }
+}

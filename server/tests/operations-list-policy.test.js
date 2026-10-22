@@ -77,7 +77,7 @@ test('every booking tab uses the same cancellable lightweight modal loader', () 
   for (const method of ['Queue.viewBooking', 'Active.viewDetail', 'Completed.viewDetail']) {
     const start = source.indexOf('AU.' + method + '=function(id)');
     assert.ok(start > 0);
-    assert.match(source.slice(start, start + 180), /return AU\.Pending\.viewDetail\(id,null,function/);
+    assert.match(source.slice(start, start + 180), /return AU\.Pending\.viewDetail\(id(?:\)|,null,function)/);
   }
   assert.match(source, /encodeURIComponent\(id\)\+'\?view=modal'/);
   assert.match(source, /if\(data\.photosDeferred\)/);

@@ -34,17 +34,20 @@ test('repair steps accept blank models but block invalid values when supplied', 
   nodes.unitModel.value = 'MODEL-123'; assert.equal(context.getRepairGuideStep(), 5);
 });
 
-test('the verified model is carried from an accepted identification request into regular checkout', async () => {
+test('accepted core identification resumes checkout with or without an optional model', async () => {
   const source = read('public/js/services-multi.js'), start = source.indexOf('async function openAcceptedUnitAssistance('), end = source.indexOf('function injectTransitionStyles(', start);
   const catalog = { _id: 'clean', name: 'Cleaning', isAirconService: true, airconTypes: [{ type: 'split', name: 'Split Type', hpPricing: [{ hp: 1, price: 500, durationMinutes: 60 }] }] };
-  const request = { _id: 'synthetic-request', status: 'accepted', applianceKind: 'aircon', serviceId: 'clean', model: 'IDENTIFIED-123', quantity: 1,
-    quote: { brand: 'Carrier', airconType: 'split', hp: 1, unitPrice: 500, expiresAt: new Date(Date.now() + 3600000) } };
-  let saved;
-  const context = { window: { location: { search: '?assistanceId=synthetic-request' }, ApplianceServices: require('../public/js/appliance-services') }, URLSearchParams,
-    fetch: async () => ({ ok: true, json: async () => ({ request }) }), BookingState: { catalog: { coreServices: [catalog] }, selectedServices: [] },
-    selectedUnitTotal: () => 0, MAX_BOOKING_UNITS: 40, commitCoreAppliance: rows => { saved = rows; }, history: { replaceState() {} },
-    showBookingToast() {}, showError(error) { throw Error(error); } };
-  vm.createContext(context); vm.runInContext(source.slice(start, end), context); await context.openAcceptedUnitAssistance();
-  assert.equal(saved[0].model, 'IDENTIFIED-123'); assert.equal(saved[0].assistanceRequestId, 'synthetic-request');
-  assert.equal(saved[0].unitPrice, 500); assert.equal(validateRepairModel(saved[0].model, { required: true }).valid, true);
+  for (const model of ['IDENTIFIED-123', '']) {
+    const request = { _id: 'synthetic-request', status: 'accepted', applianceKind: 'aircon', serviceId: 'clean', model, quantity: 1,
+      quote: { brand: 'Carrier', airconType: 'split', hp: 1, unitPrice: 500, expiresAt: new Date(Date.now() + 3600000) } };
+    let saved;
+    const context = { window: { location: { search: '?assistanceId=synthetic-request' }, ApplianceServices: require('../public/js/appliance-services') }, URLSearchParams,
+      fetch: async () => ({ ok: true, json: async () => ({ request }) }), BookingState: { catalog: { coreServices: [catalog] }, selectedServices: [] },
+      selectedUnitTotal: () => 0, MAX_BOOKING_UNITS: 40, commitCoreAppliance: rows => { saved = rows; }, history: { replaceState() {} },
+      saveBookingProgress() {}, validateStep: () => true, showStep() {},
+      showBookingToast() {}, showError(error) { throw Error(error); } };
+    vm.createContext(context); vm.runInContext(source.slice(start, end), context); await context.openAcceptedUnitAssistance();
+    assert.equal(saved[0].model, model); assert.equal(saved[0].assistanceRequestId, 'synthetic-request');
+    assert.equal(saved[0].unitPrice, 500); assert.equal(validateRepairModel(saved[0].model).valid, true);
+  }
 });

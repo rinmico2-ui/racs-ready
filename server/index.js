@@ -25,7 +25,7 @@ const apiAuth = require("./middleware/authenticate");
 const { requireBookingEvidenceAccess } = require("./middleware/privateUploadAccess");
 const { requireProofAccess } = require("./middleware/projectProofAccess");
 const { isAccountEnabled } = require("./middleware/accountState");
-const { buildMongoConnectionUri, disableRetryableWritesForDirectConnection, isTlsProtectedMongoUri, isSingleLabelMongoUri } = require("./utils/mongoConnection");
+const { buildMongoConnectionUri, disableRetryableWritesForDirectConnection, isTlsProtectedMongoUri, isSingleLabelMongoUri, nonNegativeInteger } = require("./utils/mongoConnection");
 const { requestTelemetry, trackMongoPool } = require("./middleware/requestTelemetry");
 const { createHttpAdmission } = require("./middleware/httpAdmission");
 const { createAuthAdmission } = require("./middleware/authAdmission");
@@ -113,7 +113,7 @@ const databaseReady = new Promise((resolve) => setImmediate(resolve))
     // provider URIs that silently enable retryable writes.
     retryWrites: false,
     maxPoolSize: positiveInteger(process.env.MONGODB_MAX_POOL_SIZE, 20),
-    minPoolSize: positiveInteger(
+    minPoolSize: nonNegativeInteger(
       process.env.MONGODB_MIN_POOL_SIZE,
       process.env.NODE_ENV === "production" ? 2 : 1,
     ),

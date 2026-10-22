@@ -16,7 +16,24 @@ test('waiting API includes all technician responses after the primary accepts an
   let response;await handler({query:{limit:'100'}},{json:value=>{response=value;},status(){return this;}});
   assert.equal(response.bookings[0].technicianTeam.length,2);assert.equal(response.bookings[0].technicianTeam[0].role,'primary');
   assert.equal(response.bookings[0].technicianTeam[1].role,'support');assert.equal(response.bookings[0].technicianTeam[1].assignmentId,id(5));
-  assert.equal(filter.$or[0].technicianTeam.$elemMatch.status,'pending');assert.equal(filter.sourceOrderId,null);assert.deepEqual(filter.isProject,{$ne:true});
+  assert.deepEqual(filter.$or[0].technicianTeam.$elemMatch.status,{$in:['pending','expired']});assert.equal(filter.sourceOrderId,null);assert.deepEqual(filter.isProject,{$ne:true});
+});
+
+test('expired team invitations remain visible for schedule recovery without an extension button', async t => {
+  const booking={_id:id(1),status:'inspection_scheduled',bookingDate:new Date('2020-01-05'),startTime:'09:30',endTime:'15:15',
+    technicianId:{_id:id(2),name:'Primary'},assignmentId:{_id:id(4),status:'expired'},
+    technicianTeam:[{technicianId:id(2),assignmentId:id(4),name:'Primary',status:'expired',deadlineAt:new Date('2020-01-05T01:30:00Z')}]};
+  t.mock.method(Assignment,'find',()=>({distinct:async()=>[]}));
+  t.mock.method(Booking,'find',()=>query([booking]));t.mock.method(Booking,'countDocuments',async()=>1);
+  const handler=router.stack.find(layer=>layer.route?.path==='/waiting-acceptance/list').route.stack.at(-1).handle;
+  let response;await handler({query:{}},{json:value=>{response=value;}});
+  assert.equal(response.bookings[0].technicianTeam[0].status,'expired');assert.equal(response.bookings[0].isPastDate,true);
+  const context={window:{}};vm.runInNewContext(fs.readFileSync(require.resolve('../public/js/acceptance-workspace.js'),'utf8'),context);
+  const container={};context.window.RACSAcceptance.render({container,stats:{},records:[{
+    ...response.bookings[0],technicians:response.bookings[0].technicianTeam,canResolve:true,
+  }],onAction(){}});
+  assert.match(container.innerHTML,/Response expired/);assert.match(container.innerHTML,/data-acceptance-action="recover"/);
+  assert.doesNotMatch(container.innerHTML,/data-acceptance-action="extend"/);
 });
 test('acceptance cards show all members, their own response states, and extend the selected supporting invitation',()=>{
   const context={window:{}};vm.runInNewContext(fs.readFileSync(require.resolve('../public/js/acceptance-workspace.js'),'utf8'),context);
@@ -35,21 +52,22 @@ function refreshFixture() {
   let finishInitial;
   const initial=new Promise(resolve=>{finishInitial=resolve;});
   const calls=[];
-  const context={window:{_currentDetailId:id(4)},detailLoad:{id:id(4),promise:initial},currentFilter:'today',currentPage:1,
+  const context={window:{_currentDetailId:id(4),showDetail:async()=>{calls.push('fresh detail');await initial;}},
+    detailLoadController:{abort:()=>calls.push('abort old detail')},detailLoad:{id:id(4),promise:initial},currentFilter:'today',currentPage:1,
     document:{getElementById:()=>({value:''})},loadAssignments:async()=>calls.push('list'),showDetail:async()=>calls.push('fresh detail'),switchDetailTab:tab=>calls.push(tab)};
   vm.runInNewContext(refresh,context);
   return {context,calls,finishInitial};
 }
-test('AI refresh waits for the initial detail request before fetching the saved diagnosis',async()=>{
+test('AI refresh cancels the older detail request and loads the list and saved diagnosis together',async()=>{
   const fixture=refreshFixture();
   const refreshing=fixture.context.window.refreshOpenAssignmentDetail('ai-assistant');
-  await Promise.resolve();assert.deepEqual(fixture.calls,['list']);
+  await Promise.resolve();assert.deepEqual(fixture.calls,['abort old detail','list','fresh detail']);
   fixture.finishInitial();await refreshing;
-  assert.deepEqual(fixture.calls,['list','fresh detail','ai-assistant']);
+  assert.deepEqual(fixture.calls,['abort old detail','list','fresh detail','ai-assistant']);
 });
 test('a completed AI refresh does not reopen a job the technician already left',async()=>{
   const fixture=refreshFixture();
   const refreshing=fixture.context.window.refreshOpenAssignmentDetail('ai-assistant');
   fixture.context.window._currentDetailId=id(99);fixture.finishInitial();await refreshing;
-  assert.deepEqual(fixture.calls,['list']);
+  assert.deepEqual(fixture.calls,['abort old detail','list','fresh detail']);
 });

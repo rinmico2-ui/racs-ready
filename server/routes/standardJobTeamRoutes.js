@@ -30,7 +30,7 @@ router.get('/mine', requireRole('technician'), async (req, res, next) => {
   } catch (error) { next(error); }
 });
 router.get('/:source/:id/candidates', staff, async (req, res, next) => {
-  try { const manager = service(), job = await manager.load(req.params.source, req.params.id); res.json({ ...(await manager.candidates(req.params.source, job, req.query)), team: team.publicTeam(job), staffing: require('../utils/assignmentStaffing').staffingFor(req.params.source, job) }); }
+  try { const manager = service(), job = await manager.load(req.params.source, req.params.id); res.json({ ...(await manager.candidates(req.params.source, job, req.query)), scheduleKey: team.scheduleKey(req.params.source, job), scheduledTime: req.params.source === 'order' ? job.timeSlot : undefined, team: team.publicTeam(job), staffing: require('../utils/assignmentStaffing').staffingFor(req.params.source, job) }); }
   catch (error) { if (error.status) return res.status(error.status).json({ error: error.message, code: error.code }); next(error); }
 });
 router.get('/:source/:id', async (req, res, next) => {

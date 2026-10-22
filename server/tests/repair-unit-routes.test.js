@@ -11,7 +11,7 @@ const notifications = [];
 notify.createNotification = async body => { notifications.push(body); };
 const router = require('../routes/repairUnitRoutes');
 notify.createNotification = originalNotification;
-function query(value) { return { session(){return this;},select(){return this;},limit(){return this;},lean:async()=>value,then(resolve,reject){return Promise.resolve(value).then(resolve,reject);} }; }
+function query(value) { return { session(){return this;},select(){return this;},sort(){return this;},limit(){return this;},lean:async()=>value,then(resolve,reject){return Promise.resolve(value).then(resolve,reject);} }; }
 function fixture(t, standard = false) {
   const customerId = new mongoose.Types.ObjectId(), techUser = new mongoose.Types.ObjectId(), techId = new mongoose.Types.ObjectId();
   const booking = new Booking({ customerId, bookingDate:new Date(), serviceType:'repair', isProject:!standard, repairUnitTracking:true, technicianId:techId, status:'inspection_in_progress', totalPrice:1000, __v:0,
@@ -48,6 +48,52 @@ test('customers can only read their own repair appliances', async t=>{
 test('unassigned technicians cannot read another team repair records',async t=>{
   const f=fixture(t);t.mock.method(Technician,'findOne',()=>query({_id:new mongoose.Types.ObjectId()}));
   assert.equal((await f.call(null)).error.status,403);
+});
+
+test('inspection reuses the earlier service assessment with catalog pricing without generating AI or changing records', async t => {
+  const f = fixture(t,true);
+  f.booking.technicianAssistant = {summary:'Earlier aircon assessment',verifiedByTechnician:true,serviceAnalyses:[{serviceIndex:0,summary:'Check the capacitor.',probableCauses:[{cause:'Capacitor below its rated capacitance'}],possibleParts:[{name:'Capacitor',cost:1}],repairComplexity:'low'}]};
+  t.mock.method(Tool,'find',()=>query([{_id:new mongoose.Types.ObjectId(),itemName:'Capacitor',sellingPrice:500}]));
+  const generate = t.mock.method(require('../utils/aiTechnicianAssistant'),'generateAssistantReport',async()=>{throw Error('Inspection opening must reuse the report');});
+  const before = f.booking.toObject();
+  const {result,error} = await f.call(null);assert.ifError(error);
+  assert.equal(result.units[0].preVisitAssessment.summary,'Check the capacitor.');
+  assert.equal(result.units[0].preVisitAssessment.reviewed,true);
+  assert.equal(result.units[0].preVisitAssessment.quoteSuggestion.parts[0].cost,500);
+  assert.equal(result.aiReport,undefined);assert.equal(generate.mock.callCount(),0);assert.equal(f.writes.length,0);
+  assert.deepEqual(f.booking.toObject(),before);
+});
+
+test('repair catalog and quotation writes apply the same replacement-part rules, even for forged inventory selections', async t => {
+  const f=fixture(t,true), sift=require('sift').default;
+  const partId=new mongoose.Types.ObjectId(), equipmentId=new mongoose.Types.ObjectId(), consumableId=new mongoose.Types.ObjectId();
+  const inventory=[
+    {_id:partId,itemName:'Capacitor',type:'part',inventoryClass:'merchandise',sellingPrice:500,quantity:0,status:'out_of_stock'},
+    {_id:equipmentId,itemName:'Ladder',type:'equipment',inventoryClass:'merchandise',sellingPrice:0},
+    {_id:consumableId,itemName:'Gloves',type:'consumable',inventoryClass:'merchandise',sellingPrice:20},
+  ];
+  t.mock.method(Tool,'find',filter=>query(inventory.filter(sift(filter))));
+  const view=await f.call(null);assert.ifError(view.error);
+  assert.deepEqual(view.result.parts.map(item=>item.itemName),['Capacitor']);
+  assert.equal(view.result.parts[0].quantity,0);
+  for(const toolId of [equipmentId,consumableId]) {
+    const invalid=await f.call('inspect','technician',{...inspection,key:'G1-U001',findings:'Capacitor measured below its required rating.',diagnosis:'Faulty capacitor',parts:[{toolId,quantity:1,cost:1}],laborCategory:'minor'});
+    assert.equal(invalid.error.status,400);assert.match(invalid.error.message,/repair part is unavailable/);
+  }
+  assert.equal(f.writes.length,0);
+  const valid=await f.call('inspect','technician',{...inspection,key:'G1-U001',findings:'Capacitor measured below its required rating.',diagnosis:'Faulty capacitor',parts:[{toolId:partId,quantity:1,cost:1}],laborCategory:'minor'});
+  assert.ifError(valid.error);assert.equal(valid.result.units[0].quotation.parts[0].cost,500);
+  assert.equal(valid.result.units[0].quotation.totalCost,800);
+});
+
+test('earlier technician assessment and internal review notes are omitted from customer and staff repair views', async t => {
+  const f=fixture(t,true);
+  f.booking.technicianAssistant={summary:'Internal preliminary report',technicianNotes:'Private preparation note',verifiedByTechnician:true,probableCauses:[{cause:'Capacitor fault'}]};
+  for (const role of ['customer','admin','secretary']) {
+    const {result,error}=await f.call(null,role);assert.ifError(error);
+    assert.ok(result.units.every(unit=>unit.preVisitAssessment===undefined));
+    assert.equal(result.aiReport,undefined);
+  }
 });
 test('staff cannot inspect and technicians cannot approve staff review',async t=>{
   const f=fixture(t);

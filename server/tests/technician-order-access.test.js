@@ -127,6 +127,7 @@ test('unassigned, removed and stale supporting memberships cannot view or accept
 test('supporting acceptance does not grant primary execution, payment or staff permissions', async t => {
   const f = await fixture(t);
   for (const [action, method, body] of [
+    ['/collection-summary', 'GET', undefined],
     ['/status', 'PATCH', { status: 'out_for_delivery' }], ['/collect-payment', 'POST', {}],
     ['/cancel', 'POST', { reason: 'Synthetic cancellation request' }], ['/dispatch-ready', 'POST', {}],
     ['/payment', 'PATCH', { paymentStatus: 'paid' }], ['/assign-technician', 'POST', { technicianId: support }],

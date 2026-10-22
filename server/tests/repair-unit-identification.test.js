@@ -137,7 +137,7 @@ test('accepted repair identification resumes as a repair inspection with the ver
   const state = { selectedServices: [] };
   const context = { window: { location: { search: `?assistanceId=${requestId}` }, ApplianceServices: require('../public/js/appliance-services') }, URLSearchParams, BookingState: state, MAX_BOOKING_UNITS: 40,
     fetch: async () => ({ ok: true, json: async () => ({ request }) }), selectedUnitTotal: () => 0,
-    repairUnitPricing: () => ({ inspectionFee: 500 }), updateSelectedServicesDisplay() {}, updatePricingDisplay() {}, updateContinueButtonState() {}, saveBookingProgress() {}, history: { replaceState() {} }, showBookingToast() {}, showError(error) { throw Error(error); } };
+    repairUnitPricing: () => ({ inspectionFee: 500 }), updateSelectedServicesDisplay() {}, updatePricingDisplay() {}, updateContinueButtonState() {}, saveBookingProgress() {}, validateStep: () => true, showStep() {}, history: { replaceState() {} }, showBookingToast() {}, showError(error) { throw Error(error); } };
   vm.runInNewContext(source.slice(start, end), context); await context.openAcceptedUnitAssistance(); await context.openAcceptedUnitAssistance();
   assert.equal(state.selectedServices.length, 1); const item = state.selectedServices[0];
   assert.equal(item.type, 'repair'); assert.equal(item.model, 'MODEL-123'); assert.equal(item.assistanceRequestId, requestId);
@@ -156,6 +156,7 @@ test('staff can render verification for a repair-only appliance without a Core s
   };
   const context = { text, section: () => text('section'), field: (_label, input) => input, guidance: value => text('p', '', value),
     option: (value, label) => Object.assign(text('option', '', label), { value }), canRenewAccepted: () => false,
+    state: { brands: ['Carrier', 'LG'] }, append: (parent, ...children) => { parent.append(...children); return parent; },
     A: { profile() { throw Error('Repair must not use Core appliance pricing'); } }, pesos: value => `PHP ${value}` };
   vm.runInNewContext(source.slice(start, end), context);
   const result = context.renderQuoteForm({ requestType: 'repair', applianceKind: 'other', serviceId: null, status: 'pending', quantity: 2,

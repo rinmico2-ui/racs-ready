@@ -2,9 +2,12 @@ const {
   ASSIGNMENT_GRACE_MINUTES,
   manilaDateTime,
   parseAppointmentTime,
+  bookingAssignmentWindow,
+  manilaDateKey,
 } = require("./bookingDateTime");
 
 const TECHNICIAN_RESPONSE_MINUTES = 120;
+const DISPATCH_PREPARATION_MINUTES = 30;
 
 // These stages have not started physical fulfillment. If their customer
 // schedule expires, operations must agree on a replacement schedule before
@@ -27,6 +30,19 @@ function scheduledDate(order) {
 function scheduledStartMinutes(order) {
   const firstWindowValue = String(order?.timeSlot || "").trim().split(/\s*(?:-|–|—)\s*/)[0];
   return parseAppointmentTime(firstWindowValue);
+}
+
+function orderAssignmentWindow(order, now = new Date()) {
+  return bookingAssignmentWindow({ bookingDate: scheduledDate(order), startTime: scheduledStartMinutes(order) }, now);
+}
+
+function assertOrderAssignmentSchedule(order, input = {}) {
+  if (input.scheduledDate && manilaDateKey(input.scheduledDate) !== manilaDateKey(scheduledDate(order))
+    || input.timeSlot && scheduledStartMinutes({ timeSlot: input.timeSlot }) !== scheduledStartMinutes(order)) {
+    throw Object.assign(new Error('Assignment uses the saved customer schedule. Reschedule the order before changing its date or time.'), {
+      status: 409, code: 'ORDER_SCHEDULE_CHANGE_REQUIRES_RESCHEDULE',
+    });
+  }
 }
 
 /**
@@ -56,6 +72,33 @@ function lastAssignmentAt(order) {
   const entry = history.slice().reverse().find((item) => item?.status === "technician_assigned");
   const timestamp = entry?.timestamp ? new Date(entry.timestamp) : null;
   return timestamp && !Number.isNaN(timestamp.getTime()) ? timestamp : null;
+}
+
+function orderDispatchWindow(order, now = new Date()) {
+  const scheduledCutoff = requestedOrderCutoff(order);
+  let deadline = scheduledCutoff, acceptedAt = null;
+  const members = order?.technicianTeam || [];
+  const allAccepted = !members.length || members.every(member => member.status === 'accepted');
+  if (order?.status === 'technician_accepted' && order.technicianId && allAccepted
+    && order.fulfillmentType !== 'customer_pickup' && !order.isProject && scheduledCutoff) {
+    const assignedAt = lastAssignmentAt(order);
+    // Preparation notes also append the current status to history. They must
+    // neither extend nor invalidate a previously accepted departure window.
+    const responses = [order.technicianAcceptance?.status === 'accepted' && order.technicianAcceptance.respondedAt,
+      ...members.map(member => member.respondedAt)].filter(Boolean);
+    const historyAcceptance = (order.statusHistory || []).find(entry => entry.status === 'technician_accepted'
+      && (!assignedAt || new Date(entry.timestamp) >= assignedAt));
+    const recorded = (responses.length ? responses : [historyAcceptance?.timestamp])
+      .filter(Boolean).map(value => new Date(value)).filter(value => Number.isFinite(value.getTime()));
+    const latest = recorded.length ? new Date(Math.max(...recorded.map(Number))) : null;
+    if (latest && latest <= scheduledCutoff && latest <= new Date(now) && (!assignedAt || latest >= assignedAt)) {
+      acceptedAt = latest;
+      deadline = new Date(Math.max(Number(scheduledCutoff), Number(acceptedAt) + DISPATCH_PREPARATION_MINUTES * 60000));
+    }
+  }
+  return { acceptedAt, deadline, preparationMinutes: DISPATCH_PREPARATION_MINUTES,
+    extended: Boolean(deadline && scheduledCutoff && deadline > scheduledCutoff),
+    expired: Boolean(deadline && new Date(now) > deadline) };
 }
 
 function technicianAcceptanceState(order, now = new Date()) {
@@ -129,12 +172,14 @@ function attentionCopy(order) {
 
 function orderAttentionState(order, now = new Date()) {
   const cutoff = requestedOrderCutoff(order);
+  const dispatch = orderDispatchWindow(order, now);
+  const progressCutoff = order?.status === 'technician_accepted' ? dispatch.deadline : cutoff;
   const reference = now instanceof Date ? now : new Date(now);
   const isPastDate = Boolean(
     REVIEWABLE_ORDER_STATUSES.has(order?.status)
-      && cutoff
+      && progressCutoff
       && !Number.isNaN(reference.getTime())
-      && reference.getTime() > cutoff.getTime()
+      && reference.getTime() > progressCutoff.getTime()
   );
   const copy = isPastDate ? attentionCopy(order) : {
     attentionType: null,
@@ -153,6 +198,10 @@ function orderAttentionState(order, now = new Date()) {
     ...copy,
     scheduledStartAt: start ? start.toISOString() : null,
     requestedScheduleAt: cutoff ? cutoff.toISOString() : null,
+    dispatchDeadlineAt: order?.status === 'technician_accepted' && dispatch.deadline ? dispatch.deadline.toISOString() : null,
+    dispatchAcceptedAt: dispatch.acceptedAt ? dispatch.acceptedAt.toISOString() : null,
+    dispatchPreparationMinutes: DISPATCH_PREPARATION_MINUTES,
+    dispatchWindowExtended: dispatch.extended,
     blocksProgress: isPastDate,
     ...technicianAcceptanceState(order, reference),
   };
@@ -165,7 +214,11 @@ function withOrderAttentionState(order, now = new Date()) {
 module.exports = {
   REVIEWABLE_ORDER_STATUSES,
   TECHNICIAN_RESPONSE_MINUTES,
+  DISPATCH_PREPARATION_MINUTES,
   orderAttentionState,
+  orderAssignmentWindow,
+  orderDispatchWindow,
+  assertOrderAssignmentSchedule,
   requestedOrderCutoff,
   technicianAcceptanceState,
   withOrderAttentionState,

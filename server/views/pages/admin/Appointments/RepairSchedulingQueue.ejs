@@ -320,7 +320,7 @@
             </svg>
           </div>
           <div>
-            <h6 class="modal-title fw-bold mb-0">Assign & Schedule Repair</h6>
+            <h6 class="modal-title fw-bold mb-0" id="assignModalTitle">Assign & Schedule Repair</h6>
             <small class="opacity-75" id="assignWorkOrder"></small>
           </div>
         </div>
@@ -328,6 +328,7 @@
       </div>
       <div class="ent-modal-body">
         <input type="hidden" id="assignBookingId">
+        <p class="small text-muted mb-3">This schedules the approved Phase 2 repair. The assigned team must accept the new visit. Completed work and recorded payments stay with the booking.</p>
 
         <!-- Customer & Quotation Summary -->
         <div class="ent-detail-grid mb-3">
@@ -516,6 +517,7 @@
   let selectedTechId = null;
   let selectedAdminDate = null;
   let currentAssignBooking = null;
+  let scheduleDateGeneration = 0, scheduleSlotGeneration = 0, assignmentSubmitting = false;
 
   // ── Load Queue ────────────────────────────────────────────────────────
   window.loadQueue = async function() {
@@ -579,6 +581,7 @@
 
   // ── Render Card ───────────────────────────────────────────────────────
   function renderCard(b) {
+    const escapeSchedule = value => String(value || '').replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
     const dates = (b.preferredDates || []).map(d => {
       const dt = new Date(d);
       const label = dt.toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' });
@@ -660,6 +663,7 @@
         </div>
 
         <div class="rsq-action-bar">
+          ${isScheduled && b.scheduledDate ? `<span class="small text-muted me-auto">Current repair visit: ${escapeSchedule(new Date(b.scheduledDate).toLocaleDateString('en-PH', { timeZone:'Asia/Manila', month:'short', day:'numeric', year:'numeric' }))} ${escapeSchedule(b.scheduledTime)}${b.assignedTechnician ? ' / ' + escapeSchedule(b.assignedTechnician) : ''}</span>` : ''}
           ${!partsReady && canAssign ? `
             <span class="text-danger small me-2" style="font-size:0.7rem;display:flex;align-items:center;">
               <i class="bi bi-exclamation-triangle-fill me-1"></i>Cannot schedule until parts are received
@@ -677,8 +681,8 @@
               <i class="bi bi-box-seam me-1"></i>Manage Parts
             </button>
           ` : isScheduled ? `
-            <button class="btn btn-sm btn-success" disabled>
-              <i class="bi bi-check-circle me-1"></i>Scheduled
+            <button class="btn btn-sm btn-outline-primary" onclick="openAssignModal('${b._id}')">
+              <i class="bi bi-calendar-event me-1"></i>Reschedule / Reassign
             </button>
           ` : `
             <button class="btn btn-sm btn-outline-secondary" disabled>
@@ -738,9 +742,15 @@
     }
 
     currentAssignBooking = booking;
+    scheduleDateGeneration++; scheduleSlotGeneration++;
+    document.getElementById('assignModalTitle').textContent = booking.status === 'repair_scheduled' ? 'Reschedule / Reassign Phase 2' : 'Assign & Schedule Phase 2';
+    document.getElementById('assignNotes').value = '';
     selectedTechId = null;
     selectedAdminDate = null;
     selectedAdminTime = null;
+    document.getElementById('assignSubmitBtn').disabled = true;
+    document.getElementById('assignSubmitBtn').innerHTML = '<i class="bi bi-check-lg me-1"></i>' + (booking.status === 'repair_scheduled' ? 'Save new repair visit' : 'Assign & Schedule');
+    document.getElementById('assignPreview').style.display = 'none';
     document.getElementById('assignBookingId').value = bookingId;
     document.getElementById('assignWorkOrder').textContent = booking.workOrderNumber;
     document.getElementById('assignCustomerName').textContent = booking.customer?.name || '-';
@@ -902,6 +912,7 @@
 
   // ── Fetch Technician Available Dates ──────────────────────────────────
   async function fetchTechAvailableDates(techId, duration, travelTime) {
+    const ticket = ++scheduleDateGeneration, bookingId = currentAssignBooking._id;
     const gridEl = document.getElementById('adminDateGrid');
     const placeholderEl = document.getElementById('adminDatePlaceholder');
     const capacityEl = document.getElementById('adminDateCapacity');
@@ -912,10 +923,13 @@
     capacityEl.textContent = '-';
 
     try {
-      const res = await fetch(`${REPAIR_OPERATIONS_API}/technicians/${techId}/available-dates?duration=${duration || 90}&travelTime=${Math.max(0, Number(travelTime) || 0)}`, { credentials: 'same-origin' });
+      const datesUrl = currentAssignBooking.isProject
+        ? `${REPAIR_OPERATIONS_API}/technicians/${techId}/available-dates?duration=${duration || 90}&travelTime=${Math.max(0, Number(travelTime) || 0)}`
+        : `${REPAIR_OPERATIONS_API}/repair-scheduling-queue/${bookingId}/schedule?technicianId=${encodeURIComponent(techId)}`;
+      const res = await fetch(datesUrl, { credentials: 'same-origin', cache: 'no-store' });
       if (!res.ok) throw new Error('Failed to load dates');
       const data = await res.json();
-
+      if (ticket !== scheduleDateGeneration || selectedTechId !== techId || currentAssignBooking?._id !== bookingId) return;
       if (!data.dates || data.dates.length === 0) {
         gridEl.innerHTML = '<div class="text-muted small">No dates available</div>';
         return;
@@ -948,6 +962,7 @@
       gridEl.innerHTML = html;
       if (placeholderEl) placeholderEl.remove();
     } catch (err) {
+      if (ticket !== scheduleDateGeneration || selectedTechId !== techId || currentAssignBooking?._id !== bookingId) return;
       gridEl.innerHTML = '<div class="text-danger small"><i class="bi bi-exclamation-triangle me-1"></i>' + err.message + '</div>';
     }
   }
@@ -975,6 +990,7 @@
 
   // ── Render Time Slots ─────────────────────────────────────────────────
   async function renderAdminTimeSlots(date) {
+    const ticket = ++scheduleSlotGeneration, techId = selectedTechId, bookingId = currentAssignBooking?._id;
     const gridEl = document.getElementById('adminTimeGrid');
     const duration = currentAssignBooking?.technicianAssistant?.estimatedDurationMinutes || 90;
     const preferredWindow = currentAssignBooking?.preferredTimeWindow || 'any';
@@ -997,8 +1013,13 @@
     try {
       // Call the SAME API as the customer service page, but with technicianId
       // to get that specific technician's schedule-based slots
-      const resp = await fetch(`/api/schedule/time-slots?technicianId=${selectedTechId}&date=${date}&duration=${duration}`, { credentials: 'same-origin' });
+      const slotsUrl = currentAssignBooking.isProject
+        ? `/api/schedule/time-slots?technicianId=${techId}&date=${date}&duration=${duration}`
+        : `${REPAIR_OPERATIONS_API}/repair-scheduling-queue/${bookingId}/schedule?technicianId=${encodeURIComponent(techId)}&date=${encodeURIComponent(date)}`;
+      const resp = await fetch(slotsUrl, { credentials: 'same-origin', cache: 'no-store' });
       const data = await resp.json();
+      if (ticket !== scheduleSlotGeneration || selectedTechId !== techId || selectedAdminDate !== date || currentAssignBooking?._id !== bookingId) return;
+      if (!resp.ok) throw new Error(data.error || 'Could not check repair team availability');
 
       if (data.blocked) {
         gridEl.innerHTML = `<div class="text-danger small" style="grid-column:1/-1;padding:12px;text-align:center;"><i class="bi bi-exclamation-triangle me-1"></i>${data.message || 'Booking exceeds working hours'}</div>`;
@@ -1119,6 +1140,7 @@
 
       gridEl.innerHTML = html;
     } catch (err) {
+      if (ticket !== scheduleSlotGeneration || selectedTechId !== techId || selectedAdminDate !== date || currentAssignBooking?._id !== bookingId) return;
       gridEl.innerHTML = '<div class="text-danger small" style="grid-column:1/-1;padding:12px;text-align:center;"><i class="bi bi-exclamation-triangle me-1"></i>Failed to load slots</div>';
     }
   }
@@ -1165,12 +1187,14 @@
 
   // ── Submit Assignment ─────────────────────────────────────────────────
   window.submitAssignment = async function() {
+    if (assignmentSubmitting) return;
     const bookingId = document.getElementById('assignBookingId').value;
     const date = selectedAdminDate;
     const time = selectedAdminTime;
     const notes = document.getElementById('assignNotes').value;
 
     if (!selectedTechId || !date || !time) return;
+    assignmentSubmitting = true;
 
     const btn = document.getElementById('assignSubmitBtn');
     btn.disabled = true;
@@ -1185,6 +1209,7 @@
           technicianId: selectedTechId,
           scheduledDate: date,
           scheduledTime: time,
+          expectedSchedule: currentAssignBooking?.scheduleKey,
           notes
         })
       });
@@ -1203,6 +1228,8 @@
       showToast('error', err.message);
       btn.disabled = false;
       btn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Assign & Schedule';
+    } finally {
+      assignmentSubmitting = false;
     }
   };
 

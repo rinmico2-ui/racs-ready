@@ -42,9 +42,21 @@
   function unitCount(services) {
     let total = 0;
     const groups = new Map();
+    const discoveredUnits = new Set();
     for (const item of services || []) {
       const quantity = Number(item.quantity);
       if (!Number.isInteger(quantity) || quantity < 1 || quantity > 40) throw new Error('Choose 1 to 40 appliances for each item.');
+      if (item.discoveredDuringService) {
+        const finding = item.discoveredDuringService;
+        const source = services.find(row => String(row._id || row.id || '') === String(finding.sourceServiceItemId || '') && row.type === 'core');
+        const unit = Number(finding.unitIndex);
+        const key = source && `${source.applianceGroupId || source._id || source.id}:${unit}`;
+        if (!source || item.type !== 'repair' || quantity !== 1 || !Number.isInteger(unit) || unit < 1 || unit > Number(source.quantity)
+          || item.applianceGroupId || discoveredUnits.has(key) || String(item.brand || '') !== String(source.brand || '')
+          || Number(item.hp || 0) !== Number(source.hp || 0)) throw new Error('Check the repair finding and its original appliance.');
+        discoveredUnits.add(key);
+        continue;
+      }
       const groupId = item.applianceGroupId;
       if (!groupId) { total += quantity; continue; }
       if (typeof groupId !== 'string' || !/^[a-zA-Z0-9_-]{8,80}$/.test(groupId) || (item.type || item.serviceType || 'core') !== 'core') throw new Error('Invalid shared appliance details.');
@@ -62,6 +74,23 @@
     }
     if (total > 40) throw new Error('A booking can contain at most 40 appliances.');
     return total;
+  }
+  function applianceGroups(services) {
+    const groups = [], byKey = new Map();
+    (services || []).forEach((row, index) => {
+      const isCore = (row.type || row.serviceType || 'core') === 'core';
+      const sourceIndex = row.discoveredDuringService ? services.findIndex(item => String(item._id || item.id || '') === String(row.discoveredDuringService.sourceServiceItemId) && item.type === 'core') : -1;
+      const source = sourceIndex >= 0 ? services[sourceIndex] : null;
+      const key = source ? source.applianceGroupId ? `core:${source.applianceGroupId}` : `item:${sourceIndex}`
+        : isCore && row.applianceGroupId ? `core:${row.applianceGroupId}` : `item:${index}`;
+      let group = byKey.get(key);
+      if (!group) {
+        group = { key, primary: row, rows: [], indexes: [], quantity: Number(row.quantity) || 1 };
+        byKey.set(key, group); groups.push(group);
+      }
+      group.rows.push(row); group.indexes.push(index);
+    });
+    return groups;
   }
   const sharedSplitTypes = Object.freeze({ split_suspended: 'Split Suspended', cassette: 'Cassette Type' });
   const catalogValue = value => typeof value?.toObject === 'function' ? value.toObject() : value;
@@ -201,5 +230,5 @@
   function remainingUnits(services, editingGroupId) {
     return Math.max(0, 40 - unitCount((services || []).filter(row => !editingGroupId || row.applianceGroupId !== editingGroupId)));
   }
-  return { kinds, labels, profiles, profile, price, unitPrice, availability, airconHpOptions, effectiveAirconTypes, airconHpValues, unitCount, serviceLines, setQuantity, remainingUnits, parseHp, formatHp, isRelocation, assertStandaloneServices, assertServiceTypes, needsVerification, repairHpValues, isRepairAircon, repairDetails };
+  return { kinds, labels, profiles, profile, price, unitPrice, availability, airconHpOptions, effectiveAirconTypes, airconHpValues, unitCount, applianceGroups, serviceLines, setQuantity, remainingUnits, parseHp, formatHp, isRelocation, assertStandaloneServices, assertServiceTypes, needsVerification, repairHpValues, isRepairAircon, repairDetails };
 });

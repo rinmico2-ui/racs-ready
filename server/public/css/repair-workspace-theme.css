@@ -1,0 +1,291 @@
+/* Shared visual language for inspection, quotation and the repair work plan.
+   Layout and workflow rules remain in repair-units.css. */
+.ru-dialog {
+  --rw-ink: #1a3347;
+  --rw-muted: #5c7082;
+  --rw-border: #dce5ec;
+  --rw-teal: #087d73;
+  --rw-blue: #2457b9;
+  --rw-green: #18734f;
+  --rw-amber: #895b0d;
+  --rw-red: #b33f4c;
+  --ru-border: var(--rw-border);
+  --ru-ink: var(--rw-ink);
+  --ru-muted: var(--rw-muted);
+  color: var(--rw-ink);
+  font-family: Inter, "Segoe UI", system-ui, sans-serif;
+  box-shadow: 0 28px 90px #102a3b45, 0 0 0 1px #ffffff55;
+}
+.ru-dialog::backdrop { background: #102838b8; }
+.ru-dialog .ru-icon { display: block; width: 22px; height: 22px; flex-shrink: 0; }
+.ru-dialog > .ru-header {
+  background: linear-gradient(115deg, #122e42, #154847);
+  border-top: 4px solid #36c4aa;
+  border-bottom: 1px solid #0d3740;
+  padding: 20px 26px 22px;
+  color: #fff;
+}
+.ru-dialog .ru-heading-group { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.ru-dialog .ru-heading-group > div { min-width: 0; }
+.ru-dialog .ru-heading-icon {
+  display: grid; place-items: center; width: 48px; height: 48px; flex-shrink: 0;
+  background: #ffffff13; border: 1px solid #ffffff32; border-radius: 14px; color: #91e6d4;
+}
+.ru-dialog .ru-heading-icon .ru-icon { width: 27px; height: 27px; }
+.ru-dialog .ru-header h2 { color: #fff; font-size: 1.4rem; font-weight: 650; line-height: 1.35; margin: 5px 0; }
+.ru-dialog .ru-header p { color: #c2d8dc; font-size: .78rem; line-height: 1.6; }
+.ru-dialog .ru-header .ru-eyebrow,
+.ru-dialog .ru-header .rv-eyebrow { color: #9ee2d4; letter-spacing: .09em; font-size: .63rem; overflow-wrap: anywhere; }
+.ru-dialog .ru-close {
+  width: 40px; height: 40px; margin: 0; background: #ffffff12;
+  border: 1px solid #ffffff30; color: #fff; border-radius: 12px;
+}
+.ru-dialog .ru-close:hover { background: #ffffff26; border-color: #ffffff70; }
+.ru-workspace > .ru-body,
+.rv-dialog > .ru-body { background: linear-gradient(135deg, #edf5f4, #f3f6fb); }
+.ru-dialog .ru-btn { border-color: #c7d9de; color: #225563; font-size: .78rem; min-height: 42px; }
+.ru-dialog .ru-btn:not(.ru-btn-primary):not(.rq-btn-danger):hover { background: #eaf4f6; border-color: #9ebfc8; }
+.ru-dialog .ru-btn-primary {
+  color: #fff; background: linear-gradient(110deg, #087d73, #126b59);
+  border-color: #0c7568; box-shadow: 0 3px 8px #0c766921;
+}
+.ru-dialog .ru-btn-primary:hover { color: #fff; background: #09685f; border-color: #09685f; }
+.ru-dialog button:disabled { cursor: not-allowed; }
+.ru-dialog button:focus-visible,
+.ru-dialog input:focus-visible,
+.ru-dialog select:focus-visible,
+.ru-dialog textarea:focus-visible { outline: 3px solid #27a99b; outline-offset: 3px; }
+.ru-dialog .ru-close:focus-visible { outline-color: #9ce8dc; }
+.ru-dialog .ru-field { color: #36536a; font-weight: 600; }
+.ru-dialog .ru-field input,
+.ru-dialog .ru-field select,
+.ru-dialog .ru-field textarea { color: #213c51; border-color: #cbdbe3; background-color: #fff; }
+.ru-dialog .ru-field input:focus,
+.ru-dialog .ru-field select:focus,
+.ru-dialog .ru-field textarea:focus { border-color: #24988f; box-shadow: 0 0 0 3px #1a9c8d12; }
+.ru-dialog .ru-field input::placeholder,
+.ru-dialog .ru-field textarea::placeholder { color: #5b7080; }
+.ru-dialog .ru-field small,
+.ru-dialog .ru-muted { color: #5c7082; }
+.ru-dialog input[type=checkbox] { accent-color: #087d73; }
+
+/* Appliance context and a progress indicator that uses words as well as color. */
+.ru-dialog .ru-appliances > .ru-eyebrow { color: #537082; }
+.ru-dialog .ru-appliances button { border-color: #d5e2e7; box-shadow: 0 2px 6px #24465c06; }
+.ru-dialog .ru-appliances button[aria-pressed=true] {
+  background: linear-gradient(120deg, #def3ed, #ecf8f6); border-color: #73b7a9;
+  box-shadow: inset 3px 0 #128775, 0 3px 12px #166a5b0a;
+}
+.ru-dialog .ru-appliance-icon { background: #d7eee9; color: #137665; border-radius: 10px; width: 34px; height: 34px; }
+.ru-dialog .ru-appliance-icon .ru-icon { width: 20px; height: 20px; }
+.ru-dialog .ru-appliances small { color: #526d7c; }
+.ru-dialog .ru-appliances em { display: inline-flex; align-items: center; gap: 6px; color: #805d1b; font-size: .65rem; }
+.ru-dialog .ru-appliances em::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.ru-dialog .ru-appliances [data-review-state=staff_review] em { color: #2457b9; }
+.ru-dialog .ru-appliances [data-review-state=approved] em,
+.ru-dialog .ru-appliances [data-review-state=completed] em { color: #18734f; }
+.ru-dialog .ru-appliances [data-review-state=declined] em { color: #b33f4c; }
+.ru-workspace .ru-unit-content > .ru-evidence.ru-reported-problem {
+  padding: 14px 17px; background: #e8f3f8; border-color: #cbdfe9;
+  border-left: 4px solid #4c8ab4; color: #36596d; font-size: .79rem;
+}
+.ru-dialog .ru-reported-problem strong { color: #346c8a; font-size: .65rem; letter-spacing: .055em; text-transform: uppercase; }
+.ru-dialog .rq-progress { background: #e2eaf0; padding: 5px; border: 1px solid #d6e1e9; gap: 5px; }
+.ru-dialog .rq-progress button { color: #506b80; border-radius: 7px; min-height: 43px; font-family: inherit; font-weight: 600; }
+.ru-dialog .rq-progress button span { width: 23px; height: 23px; background: #cddbe4; color: #3e5e75; }
+.ru-dialog .rq-progress button[aria-current] { background: #fff; color: #076f65; box-shadow: 0 2px 5px #153b5012; }
+.ru-dialog .rq-progress button[aria-current] span { background: #087d73; color: #fff; }
+.ru-dialog .rq-progress [data-inspection-step=quotation][aria-current] { color: #2457b9; }
+.ru-dialog .rq-progress [data-inspection-step=quotation][aria-current] span { background: #2457b9; }
+.ru-dialog .rq-progress [data-inspection-step=review][aria-current] { color: #18734f; }
+.ru-dialog .rq-progress [data-inspection-step=review][aria-current] span { background: #18734f; }
+.ru-dialog .rq-progress [data-completed=true] { color: #217560; }
+.ru-dialog .rq-progress [data-completed=true] span { font-size: 0; background: #ceeadd; color: #18734f; }
+.ru-dialog .rq-progress [data-completed=true] span::after { content: "\2713"; font-size: .8rem; }
+
+/* Each stage has its own restrained accent, while form fields stay neutral. */
+.ru-dialog .rq-section { --rw-stage: #087d73; --rw-stage-soft: #dff3ed; border-color: #d5e3e7; box-shadow: 0 4px 14px #193b5005; }
+.ru-dialog [data-inspection-panel] { background: linear-gradient(180deg, #f1faf7, #fff 170px); border-top: 3px solid #27a68b; }
+.ru-dialog [data-quotation-panel] { --rw-stage: #2457b9; --rw-stage-soft: #e5edfd; background: linear-gradient(180deg, #f2f6ff, #fff 170px); border-top: 3px solid #5480d9; }
+.ru-dialog [data-review-panel] { --rw-stage: #18734f; --rw-stage-soft: #ddf1e6; background: linear-gradient(180deg, #eff9f3, #fff 170px); border-top: 3px solid #3d9b70; }
+.ru-dialog .rq-section-title { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 13px; align-items: start; }
+.ru-dialog .rq-section-symbol { display: grid; place-items: center; width: 40px; height: 40px; margin-top: 2px; background: var(--rw-stage-soft); border-radius: 11px; color: var(--rw-stage); }
+.ru-dialog .rq-section-title .ru-eyebrow { color: var(--rw-stage); }
+.ru-dialog .rq-section-title h3 { color: #19374b; font-weight: 650; font-size: 1.12rem; }
+.ru-dialog .rq-section-title p { color: #5a7183; }
+.ru-dialog .rq-required-note { color: #677887; background: #ffffffc9; border: 1px solid #e0e9ed; padding: 4px 7px; border-radius: 5px; }
+.ru-dialog .rq-ai { background: #f4f0fd; border-color: #dcd1f3; }
+.ru-dialog .rq-ai strong { color: #60429a; }
+.ru-dialog .rq-ai small { color: #72618d; }
+.ru-dialog .ru-ai-symbol { background: #e5dafa; color: #6a43ab; }
+.ru-dialog .rq-ai > summary > span:last-child { color: #7651b1; }
+.ru-dialog .rq-ai[open] { border-color: #bea5e4; }
+.ru-dialog .rq-assessment-origin { color: #6a4c98; }
+.ru-dialog .rq-confirmed-cause { background: #e4f4ec; color: #236549; border-color: #afdbca; }
+.ru-dialog .rq-evidence { background: #f1f6fb; border-color: #d5e2ed; }
+.ru-dialog .rq-evidence > summary { color: #3b6083; }
+.ru-dialog .rq-evidence > summary > span { color: #5a7084; }
+.ru-dialog .rq-labor-options { border-color: #dce6ef; }
+.ru-dialog .rq-labor-options > summary { color: #466482; }
+
+/* Pricing and replacement parts. Amber always accompanies a written stock warning. */
+.ru-dialog .rq-count { background: #e2ebfc; color: #2457b9; }
+.ru-dialog .rq-section-heading h4 { color: #254966; }
+.ru-dialog [data-add-part] { border-color: #a8c0ec; background: #edf3ff; color: #2457b9; }
+.ru-dialog [data-add-part]:hover { background: #e1ebff; border-color: #7fa4e4; }
+.ru-dialog .rq-part-picker { border-color: #aec7ed; box-shadow: 0 5px 18px #265b9b0d; }
+.ru-dialog .rq-picker-heading { background: #e9f0fd; color: #2d5596; border-color: #cfdef6; }
+.ru-dialog .rq-picker-supplier { background: #f4f7fd; color: #536b87; border-color: #dae4f2; }
+.ru-dialog .rq-catalog-part:hover { background: #f7faff; }
+.ru-dialog .rq-catalog-price strong { color: #2457b9; }
+.ru-dialog .rq-parts-empty { background: #f6f9fe; color: #586f8a; border-color: #cbd9eb; }
+.ru-dialog .rq-part-row { background: #f7faff; border-color: #d2e0f1; border-left: 3px solid #7198d5; }
+.ru-dialog .rq-part-row[data-part-source=supplier],
+.ru-dialog .rq-part-row[data-part-source=unavailable] { background: #fffbf2; border-color: #e8d6a8; border-left-color: #c79536; }
+.ru-dialog .rq-part-identity input:read-only { color: #21496b; background: transparent; }
+.ru-dialog .ru-part-cost:read-only { background: #ebf2fd; border-color: #cfdef2; color: #28548e; }
+.ru-dialog .rq-part-subtotal { color: #355b80; border-color: #dce6f4; font-weight: 600; }
+.ru-dialog .rq-stock-badge { background: #def1e7; color: #1b6a47; }
+.ru-dialog .rq-stock-badge.is-unavailable { background: #fff0c8; color: #815712; }
+.ru-dialog .rq-part-identity small.is-unavailable { color: #8a6018; }
+.ru-dialog .rq-stock-guidance { background: #fff8e9; border-color: #e9d49f; border-left: 3px solid #c9942d; color: #815915; }
+.ru-dialog .rq-stock-guidance p { color: #81602b; }
+.ru-dialog .rq-quote-total {
+  background: linear-gradient(115deg, #173e57, #155c63); border: 0;
+  border-radius: 12px; color: #e5f3f5; padding: 20px; box-shadow: 0 5px 15px #123f5712;
+}
+.ru-dialog .rq-quote-total strong,
+.ru-dialog .rq-quote-total h4 { color: #fff; }
+.ru-dialog .rq-quote-total small { color: #c0dce2; line-height: 1.6; }
+.ru-dialog .rq-quote-total .rq-total { color: #fff; border-color: #ffffff35; font-size: .9rem; }
+.ru-dialog .rq-quote-total .rq-total strong { color: #a9f2dc; font-size: 1.3rem; }
+.ru-dialog .rq-review-findings h4,
+.ru-dialog .rq-review-prices h4 { color: #2b6474; }
+.ru-dialog .rq-review-findings dt { color: #58758a; }
+.ru-dialog .rq-review-findings dd { color: #28465d; }
+.ru-dialog .rq-review-prices .rq-review-total {
+  background: #e3f3eb; border: 1px solid #bbdfcc; color: #1d6948;
+  border-radius: 10px; margin-top: 12px; padding: 16px; align-items: center;
+}
+.ru-dialog .rq-review-total strong { color: #166644; }
+.ru-dialog .rq-inspection .rv-check { background: #edf7f1; border-color: #cae3d5; color: #305d48; }
+.ru-dialog > .ru-footer { background: #fff; border-color: #d4e2e7; box-shadow: 0 -4px 14px #17384d05; }
+.ru-dialog .ru-footer > p { color: #5d7483; }
+.ru-dialog .ru-error { background: #fff0f1; color: #a03343; border: 1px solid #eec9ce; }
+.ru-dialog .rq-notice { background: #fff7e7; border-color: #ead39e; color: #805916; }
+
+/* The three decisions are parallel choices, with explicit labels and distinct icons. */
+.rv-dialog .rv-quote-bar {
+  background: linear-gradient(112deg, #17445c, #166264); border: 0; padding: 22px 24px;
+  box-shadow: 0 5px 16px #153f5210; overflow: hidden;
+}
+.rv-dialog .rv-quote-bar .ru-eyebrow { color: #b2dfe2; }
+.rv-dialog .rv-quote-bar strong { color: #fff; font-size: 2rem; font-weight: 650; }
+.rv-dialog .rv-quote-bar small { color: #c5e0e4; }
+.rv-dialog .rv-quote-status { display: inline-flex; align-items: center; gap: 7px; background: #e1f2e9; color: #1d6248; font-weight: 600; }
+.rv-dialog .rv-quote-status::before { content: ""; width: 6px; height: 6px; flex-shrink: 0; background: currentColor; border-radius: 50%; }
+.rv-dialog .rv-quote-status[data-approval=pending] { color: #79500c; background: #fff0c5; }
+.rv-dialog .rv-decisions { gap: 12px; }
+.rv-dialog .rv-decisions button {
+  --decision-color: #14765b; --decision-bg: #e8f6ef; --decision-border: #b5dbcb;
+  position: relative; align-items: flex-start; background: var(--decision-bg);
+  border: 1px solid var(--decision-border); border-radius: 12px; padding: 18px 16px;
+  color: var(--decision-color); font-family: inherit; min-height: 112px;
+  box-shadow: 0 2px 5px #243b4f05; transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+.rv-dialog .rv-decisions [data-mode=later] { --decision-color: #2b5cba; --decision-bg: #edf3ff; --decision-border: #c6d7f5; }
+.rv-dialog .rv-decisions [data-mode=cancel] { --decision-color: #ad4350; --decision-bg: #fff1f1; --decision-border: #edcdd2; }
+.rv-dialog .rv-decisions button:hover { border-color: var(--decision-color); transform: translateY(-1px); }
+.rv-dialog .rv-decisions button[aria-pressed=true] { border-color: var(--decision-color); box-shadow: inset 0 0 0 1px var(--decision-color), 0 3px 10px #1d4c6510; }
+.rv-dialog .rv-decisions button[aria-pressed=true]::after { content: "\2713"; position: absolute; top: 7px; right: 9px; font-size: .72rem; font-weight: 700; color: var(--decision-color); }
+.rv-dialog .rv-decision-mark { width: 35px; height: 35px; border-radius: 10px; color: var(--decision-color); background: #ffffffc7; border: 1px solid var(--decision-border); }
+.rv-dialog .rv-decisions [aria-pressed=true] .rv-decision-mark { color: #fff; background: var(--decision-color); border-color: var(--decision-color); }
+.rv-dialog .rv-decisions strong { color: var(--decision-color); font-size: .87rem; line-height: 1.5; padding-right: 8px; }
+.rv-dialog .rv-decisions small { color: #526a7a; font-size: .73rem; line-height: 1.6; margin-top: 5px; }
+.rv-dialog .rv-card { border-color: #d8e4ea; box-shadow: 0 3px 12px #183c5305; }
+.rv-dialog .rv-card h3 { color: #24475f; font-weight: 650; }
+.rv-dialog .rv-card p { color: #5c7284; }
+.rv-dialog .rv-heading-label { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.rv-dialog .rv-heading-label > div { min-width: 0; }
+.rv-dialog .rv-section-symbol { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; background: #dcf0e7; color: #18734f; flex-shrink: 0; }
+.rv-dialog .rv-parts-summary { border-top: 3px solid #4ba27d; background: linear-gradient(180deg, #f3faf6, #fff 150px); }
+.rv-dialog .rv-parts-summary[data-parts-state=missing] { border-top-color: #d7a442; background: linear-gradient(180deg, #fff9ed, #fff 150px); }
+.rv-dialog [data-parts-state=missing] .rv-section-symbol { background: #ffedc1; color: #8a5c10; }
+.rv-dialog .rv-badge { color: #1b6a47; background: #dff1e6; }
+.rv-dialog .rv-badge.is-warning { color: #815712; background: #fff0c8; }
+.rv-dialog .rv-source-card { border-color: #bed2ef; border-top: 3px solid #5480d9; background: linear-gradient(180deg, #f0f5ff, #fff 170px); }
+.rv-dialog .rv-source-card .ru-eyebrow { color: #2b5cba; }
+.rv-dialog .rv-source-card .rv-buy-part { border-color: #d1dff2; background: #f5f8fd; }
+.rv-dialog .rv-source-card .rv-buy-part small { color: #5c7284; }
+.rv-dialog .rv-approval-card { background: #e8f6ee; border-color: #c2e1cf; }
+.rv-dialog .rv-approval-card .rv-consent { color: #2b6047; }
+.rv-dialog .rv-purchase { background: #f0f7fb; border-color: #cfdfec; }
+.rv-dialog .rv-result { background: #fff7e5; color: #815a13; border-color: #d1a249; }
+.rv-dialog .rv-result.is-ready { background: #eaf6ef; color: #266645; border-color: #419c70; }
+.rv-dialog .rv-tool-status { color: #815b12; background: #fff2d0; padding: 3px 7px; border-radius: 5px; }
+.rv-dialog .rv-tool-status.is-ready { color: #226745; background: #e0f2e7; }
+.rv-dialog .rv-time-details > summary,
+.rv-dialog .rv-tools-details > summary { color: #355d7b; }
+.rv-dialog .rv-time-details > summary > span,
+.rv-dialog .rv-tools-details > summary > span { color: #526f84; background: #edf3f8; padding: 4px 8px; border-radius: 5px; }
+.rv-dialog .rv-request-card { border-top: 3px solid #5480d9; background: linear-gradient(180deg, #f0f5ff, #fff 165px); }
+.rv-dialog .rv-request-card > .ru-eyebrow { color: #2b5cba; }
+.rv-dialog[data-decision=later] .rv-action-footer .ru-btn-primary { background: #2b5cba; border-color: #2b5cba; }
+.rv-dialog[data-decision=later] .rv-action-footer .ru-btn-primary:hover { background: #214c9e; }
+.rv-dialog[data-decision=cancel] .rv-request-card { border-top-color: #ce6675; background: linear-gradient(180deg, #fff3f4, #fff 165px); }
+.rv-dialog[data-decision=cancel] .rv-request-card > .ru-eyebrow { color: #ad4350; }
+.rv-dialog .rq-btn-danger { background: #b33f4c; color: #fff; border-color: #b33f4c; }
+.rv-dialog .rq-btn-danger:hover { background: #98323f; color: #fff; border-color: #98323f; }
+.rv-dialog .rv-paid-card { background: #e8f6ee; border-color: #badfc9; }
+.rv-dialog .rv-start-card { background: #f1f8f5; border-color: #c9e3d5; }
+
+@media (max-width: 760px) {
+  .ru-dialog > .ru-header { padding: 17px 18px 19px; }
+  .ru-dialog .ru-heading-group { gap: 12px; }
+  .ru-dialog .ru-heading-icon { width: 40px; height: 40px; border-radius: 11px; }
+  .ru-dialog .ru-heading-icon .ru-icon { width: 23px; height: 23px; }
+  .ru-dialog .ru-header h2 { font-size: 1.15rem; }
+  .ru-dialog .ru-header p { font-size: .73rem; }
+  .ru-dialog .rq-section-title { gap: 10px; }
+  .ru-dialog .rq-section-title h3 { font-size: 1rem; }
+  .rv-dialog .rv-quote-bar { padding: 18px; }
+  .rv-dialog .rv-quote-bar strong { font-size: 1.65rem; }
+}
+@media (max-width: 600px) {
+  .ru-dialog .ru-heading-icon { display: none; }
+  .ru-dialog .ru-btn { min-height: 44px; }
+  .ru-dialog .rq-section-title { grid-template-columns: 34px minmax(0, 1fr); }
+  .ru-dialog .rq-section-symbol { width: 34px; height: 34px; border-radius: 9px; }
+  .ru-dialog .rq-section-symbol .ru-icon { width: 20px; height: 20px; }
+  .ru-dialog .rq-required-note { grid-column: 2; justify-self: start; margin-top: -3px; font-size: .62rem; }
+  .ru-dialog .rq-progress button { font-size: .7rem; gap: 5px; }
+  .ru-dialog .rq-progress button span { width: 21px; height: 21px; }
+  .ru-dialog .rq-quote-total { padding: 16px; }
+  .ru-dialog .rq-quote-total .rq-total strong { font-size: 1.15rem; }
+  .ru-dialog .rq-review-prices .rq-review-total { padding: 12px; gap: 10px; flex-wrap: wrap; }
+  .ru-dialog .rq-picker-heading .ru-btn { min-height: 36px; }
+  .rv-dialog .rv-decisions { grid-template-columns: 1fr; gap: 9px; }
+  .rv-dialog .rv-decisions button { flex-direction: row; align-items: center; min-height: 74px; padding: 12px 16px; gap: 13px; }
+  .rv-dialog .rv-decisions strong { font-size: .83rem; margin: 0; }
+  .rv-dialog .rv-decisions small { font-size: .71rem; margin-top: 3px; }
+  .rv-dialog .rv-decision-mark { width: 35px; height: 35px; }
+  .rv-dialog .rv-quote-bar { gap: 12px; }
+  .rv-dialog .rv-quote-status { font-size: .64rem; padding: 8px; max-width: 115px; }
+  .rv-dialog .rv-card-heading { gap: 9px; flex-wrap: wrap; }
+  .rv-dialog .rv-heading-label { gap: 10px; }
+  .rv-dialog .rv-heading-label .rv-section-symbol { width: 32px; height: 32px; border-radius: 8px; }
+  .rv-dialog .rv-heading-label .ru-icon { width: 20px; height: 20px; }
+  .rv-dialog .rv-parts-summary .rv-card-heading > .rv-badge { margin-left: 42px; }
+  .rv-dialog .rv-time-details > summary,
+  .rv-dialog .rv-tools-details > summary { gap: 10px; align-items: flex-start; }
+  .rv-dialog .rv-time-details > summary > span { max-width: 130px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ru-dialog *, .ru-dialog *::before, .ru-dialog *::after { transition: none !important; scroll-behavior: auto !important; }
+  .rv-dialog .rv-decisions button:hover { transform: none; }
+}
+@media (forced-colors: active) {
+  .ru-dialog .rq-progress button[aria-current],
+  .rv-dialog .rv-decisions button[aria-pressed=true] { outline: 2px solid Highlight; outline-offset: -3px; }
+  .ru-dialog .ru-btn, .ru-dialog .ru-close { border: 1px solid ButtonText; }
+}

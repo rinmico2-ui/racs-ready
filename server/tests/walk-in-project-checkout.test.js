@@ -6,7 +6,7 @@ const engine = require("../utils/enterpriseSchedulingEngine");
 const projectPolicy = require("../utils/orderInstallationProject");
 const router = require("../routes/posRoutes").walkInAirconRouter;
 const source = router.stack.find(l => l.route?.path === "/checkout").route.stack.at(-1).handle.toString();
-const userId = new mongoose.Types.ObjectId(), productId = new mongoose.Types.ObjectId(), variantId = new mongoose.Types.ObjectId();
+const userId = new mongoose.Types.ObjectId(), productId = new mongoose.Types.ObjectId(), variantId = new mongoose.Types.ObjectId(), technicianId = new mongoose.Types.ObjectId();
 function fixture(quantity, options = {}) {
   const writes = [], events = [], customer = { _id: userId, role: "customer", firstName: "Demo", lastName: "Customer", email: "customer@example.test", phone: "09171234567" };
   const Model = kind => class {
@@ -23,6 +23,9 @@ function fixture(quantity, options = {}) {
   const session = { startTransaction: () => events.push("start"), commitTransaction: async () => events.push("commit"), inTransaction: () => !events.includes("commit"), abortTransaction: async () => { events.push("abort"); writes.length = 0; }, endSession: async () => events.push("end") };
   const query = data => ({ populate() { return this; }, lean: async () => data });
   const fakeRequire = name => {
+    if (name === '../utils/standardJobTeam') return require('../utils/standardJobTeam');
+    if (name === '../utils/orderScheduleCapacity') return require('../utils/orderScheduleCapacity');
+    if (name === './scheduleRoutes') return { getTimeSlotsForQuery: async () => ({ statusCode: 200, payload: { timeSlots: [{ available: true, startTime: '09:00' }] } }) };
     if (name === "../utils/orderInstallationProject") return projectPolicy;
     if (name === "../models/Project") return Model("project");
     if (name === "../utils/bookingDateTime") return require("../utils/bookingDateTime");
@@ -38,7 +41,10 @@ function fixture(quantity, options = {}) {
     paymentMapping: () => ({ source: "gcash", order: "gcash_full", payment: "gcash", gateway: "gcash" }),
     normalizedSerialNumbers: () => [], validateCheckoutItems: policy.validateCheckoutItems, parseDateOnly: policy.parseDateOnly,
     User: { findOne: async () => customer }, Order: Model("order"), Payment: Model("payment"), BookingService: Model("booking"),
-    Technician: { findOne: () => { throw Error("A project must not choose one technician"); } },
+    Technician: { findOne: () => {
+      assert.ok(quantity < 8, 'A project must not choose one technician');
+      return query({ _id: technicianId, name: 'Fixture Technician', user: { role: 'technician', active: true, firstName: 'Fixture', lastName: 'Technician' } });
+    } },
     HVACProduct: { findOne: () => query({ _id: productId, modelLine: "Split", brand: { name: "Demo Brand" }, variants: [{ _id: variantId, quantity: 40, active: true, capacity: 1, sellingPrice: 20000 }] }), findOneAndUpdate: async () => ({ _id: productId }) },
     getOrderCheckoutSettings: async () => ({ companyLocation: {}, farePerKm: 10 }),
     authoritativeDeliveryQuote: async () => ({ transportationFee: 100, distanceKm: 10, durationMin: 20 }),
@@ -48,6 +54,7 @@ function fixture(quantity, options = {}) {
   const body = { accountConsent: true, checkoutRequestId: "walkin-project-checkout-1234", customer, items: [{ toolId: String(variantId), quantity }], fulfillmentType: "delivery_installation", paymentMethod: "gcash", paymentReference: "AUTH-12345", amountPaid: quantity * 20000 + 100, discount: 0,
     delivery: { address: "Customer installation site", preferredDate: "2035-01-02", coordinates: { lat: 14, lng: 121 } }, projectScheduling: { preferredStartDate: "2035-01-02", preferredCompletionDeadline: "2035-01-10" } };
   const req = { body, user: { _id: userId, role: "admin" }, app: { get: () => null } };
+  if (quantity < 8) Object.assign(body, { technicianId: String(technicianId), timeSlot: '09:00', projectScheduling: undefined });
   const res = { code: 200, status(code) { this.code = code; return this; }, json(value) { this.body = value; return this; } };
   return { req, res, writes, events, run: () => handler(req, res) };
 }
@@ -77,4 +84,25 @@ test("failed project writes abort the walk-in order and its payment", async t =>
   t.mock.method(engine, "getProjectWindowAvailability", async () => ({ sufficient: true }));
   const f = fixture(10, { fail: "project" }); await f.run();
   assert.equal(f.res.code, 500); assert.ok(f.events.includes("abort")); assert.ok(!f.events.includes("commit")); assert.equal(f.writes.length, 0);
+});
+
+test('standard walk-in orders keep a pending offer and mirror the team without a second charge', async t => {
+  t.mock.method(engine, 'isLargeProject', async () => false);
+  const f = fixture(2); await f.run();
+  assert.equal(f.res.code, 201, JSON.stringify(f.res.body));
+  const order = f.res.body.order;
+  assert.equal(order.status, 'technician_assigned');
+  assert.equal(order.technicianAcceptance.status, 'pending');
+  assert.equal(order.technicianTeam[0].status, 'pending');
+  assert.equal(order.technicianAcceptance.deadlineAt.getTime(), order.technicianTeam[0].deadlineAt.getTime());
+  const booking = f.writes.find(row => row.kind === 'booking').data;
+  assert.equal(String(booking.sourceOrderId), String(order._id));
+  assert.equal(booking.technicianTeamSchedule, order.technicianTeamSchedule);
+  assert.equal(booking.technicianTeam[0].status, 'pending');
+  assert.equal(booking.serviceDurationMinutes, 120);
+  assert.equal(booking.services[0].duration, 60);
+  assert.equal(booking.endTime, '11:20');
+  assert.equal(booking.balanceAmount, 0);
+  assert.equal(order.paymentStatus, 'paid');
+  assert.equal(f.writes.filter(row => row.kind === 'payment').length, 1);
 });

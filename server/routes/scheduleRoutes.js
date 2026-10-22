@@ -1212,7 +1212,7 @@ function schedulingResult(handler, query, trustedExclusions = {}) {
       _trustedOngoingStart: trustedExclusions.existingAppointment === true && trustedExclusions.excludeBookingId
         && Number.isInteger(trustedExclusions.ongoingStartMinutes) && trustedExclusions.ongoingStartMinutes >= 0 && trustedExclusions.ongoingStartMinutes < 1440
         ? trustedExclusions.ongoingStartMinutes : undefined,
-      _trustedAssignmentStart: trustedExclusions.existingAppointment === true && trustedExclusions.excludeBookingId
+      _trustedAssignmentStart: trustedExclusions.existingAppointment === true && (trustedExclusions.excludeBookingId || trustedExclusions.excludeOrderId)
         && Number.isInteger(trustedExclusions.assignmentStartMinutes) && trustedExclusions.assignmentStartMinutes >= 0 && trustedExclusions.assignmentStartMinutes < 1440
         ? trustedExclusions.assignmentStartMinutes : undefined,
     }, response)).catch(reject);

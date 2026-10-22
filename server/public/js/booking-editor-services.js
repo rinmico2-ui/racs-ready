@@ -8,17 +8,7 @@
   const coreGroup = row => row.applianceGroupId || identity(row);
 
   function groups(rows) {
-    const result = [], byKey = new Map();
-    rows.forEach((row, index) => {
-      const key = row.type === 'repair' ? `repair:${index}` : `core:${coreGroup(row) || index}`;
-      let group = byKey.get(key);
-      if (!group) {
-        group = { key, primary: row, rows: [], indexes: [], quantity: Number(row.quantity) || 1 };
-        byKey.set(key, group); result.push(group);
-      }
-      group.rows.push(row); group.indexes.push(index);
-    });
-    return result;
+    return A.applianceGroups(rows);
   }
 
   // Keep each saved service identity at most once when one older quantity

@@ -122,6 +122,12 @@ test("shared equipment cannot be returned while another linked booking remains u
   await assert.rejects(f.service.receiveEquipment(input), { status: 409 });
   assert.equal(f.writes.length, 0);
 });
+test('extra company equipment remains protected by its additional booking until that work finishes', async () => {
+  const f=fixture();f.data.EquipmentAssignment[0].bookingIds=[U];f.data.BookingService.push({_id:U,status:'in-progress'});
+  await assert.rejects(f.service.receiveEquipment(input),{status:409});assert.equal(f.writes.length,0);
+  f.data.BookingService[1].status='completed';await f.service.receiveEquipment(input);
+  assert.equal(f.data.EquipmentAssignment[0].status,'returned');assert.equal(f.data.Tool[0].quantity,5);
+});
 
 test('a closed visit releases its kit while another active job continues to protect shared tools', async () => {
   const f = fixture(); Object.assign(f.data.BookingService[0], { status: 'in-progress', continuation: { status: 'pending' } });

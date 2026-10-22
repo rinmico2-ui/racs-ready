@@ -49,7 +49,7 @@
   }
   function ready(rows) { return !rows?.length || rows.every(row => row.status === 'accepted'); }
   function emergencyAction(assignment) {
-    if (!validId(assignment?._id) || assignment.serviceType === 'project' || !['accepted', 'en_route', 'on_site'].includes(assignment.status)) return '';
+    if (!validId(assignment?._id) || assignment.serviceType === 'project' || !['en_route', 'on_site'].includes(assignment.status)) return '';
     const booking = assignment.bookingId || {};
     if (assignment.workUnavailable || ['in-progress', 'in_progress', 'inspection_in_progress', 'repair_in_progress'].includes(booking.status)
       || (booking.services || []).some(row => ['in_progress', 'inspection_in_progress', 'repair_in_progress', 'payment_pending'].includes(row.status))) return '';
@@ -121,29 +121,19 @@
     document.body.append(element); modal = new bootstrap.Modal(element); modal.show();
     const form = element.querySelector('form'), list = form.querySelector('[data-team-list]'), primary = form.elements.primary, submit = form.querySelector('[type=submit]'), error = form.querySelector('[data-team-error]');
     if (source === 'order') {
-      const schedule = document.createElement('fieldset'); schedule.className = 'mb-3';
-      schedule.innerHTML = '<legend class="fs-6">Installation schedule</legend><div class="row g-2"><label class="col-sm-6">Date<input type="date" class="form-control" name="scheduledDate" required></label><label class="col-sm-6">Start time<input type="time" class="form-control" name="timeSlot" required step="1800"></label></div><button type="button" data-check-team class="btn btn-outline-primary btn-sm mt-2">Check team availability</button>';
+      const schedule = document.createElement('section'); schedule.className = 'mb-3 p-3 border rounded-3 bg-light';
+      schedule.dataset.orderSchedule = ''; schedule.setAttribute('aria-busy', 'true');
+      schedule.innerHTML = `<h6 class="mb-3"><i class="bi bi-calendar-check me-2" aria-hidden="true"></i>${options.recovery ? 'Confirmed replacement schedule' : 'Customer schedule'}</h6><dl class="row g-2 mb-2"><div class="col-sm-6"><dt class="small text-muted fw-normal">Date</dt><dd class="fw-semibold mb-0" data-order-date>Loading schedule...</dd></div><div class="col-sm-6"><dt class="small text-muted fw-normal">Arrival time</dt><dd class="fw-semibold mb-0" data-order-time>Loading schedule...</dd></div></dl><p class="small text-muted mb-0">Technicians are checked for this appointment. To change the date or time, reschedule the order first.</p>`;
       list.before(schedule);
-      if (options.recovery) {
-        schedule.querySelector('legend').textContent = 'Confirmed replacement schedule';
-        schedule.querySelectorAll('input').forEach(input => { input.readOnly = true; });
-        const help = document.createElement('p'); help.className = 'small text-muted mt-2 mb-0';
-        help.textContent = 'To change this arrival time, confirm another schedule with the customer in the Resolution Center.';
-        schedule.append(help);
-      }
-      schedule.addEventListener('change', () => { candidateRequest++; rows = []; list.textContent = 'Check availability for the new schedule.'; loading = true; refresh(); });
-      schedule.querySelector('[data-check-team]').addEventListener('click', () => loadCandidates());
     }
-    let rows = [], loading = true, busy = false, candidateRequest = 0, preselected = false;
+    let rows = [], loading = true, busy = false, candidateRequest = 0, preselected = false, scheduleKey = '';
     const staffingHint = document.createElement('p'); staffingHint.className = 'alert alert-info small'; staffingHint.hidden = true; list.before(staffingHint);
     const windowHint = document.createElement('p'); windowHint.className = 'alert alert-warning small'; windowHint.hidden = true; windowHint.setAttribute('role', 'status'); list.before(windowHint);
-    if (source === 'booking') {
-      const refreshButton = document.createElement('button'); refreshButton.type = 'button'; refreshButton.className = 'btn btn-outline-secondary btn-sm mt-2'; refreshButton.textContent = 'Refresh availability'; refreshButton.addEventListener('click', () => loadCandidates()); list.after(refreshButton);
-    }
-    const scheduleInput = () => source === 'order' ? { scheduledDate: form.elements.scheduledDate.value, timeSlot: form.elements.timeSlot.value } : {};
+    const refreshButton = document.createElement('button'); refreshButton.type = 'button'; refreshButton.className = 'btn btn-outline-secondary btn-sm mt-2'; refreshButton.textContent = 'Refresh availability'; refreshButton.addEventListener('click', () => loadCandidates()); list.after(refreshButton);
+    const assignmentSchedule = () => source === 'order' ? { expectedSchedule: scheduleKey } : {};
     function showFailure(failure) {
       error.textContent = failure.message;
-      if (['BOOKING_ASSIGNMENT_WINDOW_EXPIRED', 'BOOKING_SCHEDULE_REQUIRED', 'ORDER_SCHEDULE_PASSED', 'TEAM_CAPACITY_UNAVAILABLE', 'CUSTOMER_CONTACT_REQUIRED'].includes(failure.code)) {
+      if (['BOOKING_ASSIGNMENT_WINDOW_EXPIRED', 'BOOKING_SCHEDULE_REQUIRED', 'ORDER_SCHEDULE_PASSED', 'ORDER_SCHEDULE_REQUIRED', 'ORDER_SCHEDULE_CHANGE_REQUIRES_RESCHEDULE', 'TEAM_CAPACITY_UNAVAILABLE', 'CUSTOMER_CONTACT_REQUIRED'].includes(failure.code)) {
         if (failure.code !== 'TEAM_CAPACITY_UNAVAILABLE') { rows = []; list.replaceChildren(); windowHint.hidden = true; staffingHint.hidden = true; }
         const link = document.createElement('a'); link.className = 'btn btn-sm btn-outline-primary d-block mt-2';
         link.dataset.teamScheduleRecovery = 'true'; link.textContent = failure.code === 'TEAM_CAPACITY_UNAVAILABLE' ? 'Choose another schedule' : 'Resolve schedule';
@@ -161,6 +151,7 @@
       primary.value = selected.includes(previous) ? previous : selected[0] || '';
       submit.textContent = multiple ? `Assign ${selected.length} technicians` : 'Assign technician';
       submit.disabled = loading || busy || !primary.value || !selected.length || selected.length > 10 || multiple && selected.length < 2;
+      refreshButton.disabled = loading || busy;
       const primaryLabel = primary.closest('label'); primaryLabel.hidden = !multiple; primaryLabel.classList.toggle('d-block', multiple);
     }
     form.addEventListener('change', event => {
@@ -176,23 +167,39 @@
       busy = true; error.textContent = ''; refresh();
       try {
         const selected = [...form.querySelectorAll('[name=member]:checked')].map(input => input.value);
-        await json(`/api/work-teams/${source}/${id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ technicianId: primary.value, technicianIds: selected, notes: form.elements.notes.value, ...scheduleInput() }) });
+        await json(`/api/work-teams/${source}/${id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ technicianId: primary.value, technicianIds: selected, notes: form.elements.notes.value, ...assignmentSchedule() }) });
         modal.hide(); options.onAssigned?.();
         if (window.Swal) await Swal.fire({ icon: 'success', title: selected.length > 1 ? 'Technician team assigned' : 'Technician assigned', text: 'Each selected technician must accept the assignment.' });
         document.dispatchEvent(new CustomEvent('racs:team-assigned', { detail: { source, id } }));
-      } catch (failure) { showFailure(failure); busy = false; refresh(); }
+      } catch (failure) {
+        busy = false;
+        if (source === 'order' && failure.code === 'ASSIGNMENT_SCHEDULE_CHANGED') {
+          await loadCandidates();
+          if (!error.textContent) error.textContent = 'The order schedule changed. Review the updated appointment and choose technicians again.';
+        } else showFailure(failure);
+        refresh();
+      }
     });
     async function loadCandidates() {
      const sequence = ++candidateRequest; loading = true; refresh(); error.textContent = ''; windowHint.hidden = true; list.textContent = 'Checking availability...';
      try {
-      const result = await json(`/api/work-teams/${source}/${id}/candidates?${new URLSearchParams(scheduleInput())}`);
+      const result = await json(`/api/work-teams/${source}/${id}/candidates`);
       if (currentRequest !== requestId || sequence !== candidateRequest || !element.isConnected) return;
-      if (source === 'order') { form.elements.scheduledDate.value = result.visit.date; form.elements.timeSlot.value = result.visit.time.split(/\s+-\s+/)[0]; }
+      if (source === 'order') {
+        const appointment = new Date(`${result.visit?.date}T${result.visit?.time}:00+08:00`);
+        if (!Number.isFinite(appointment.getTime()) || !result.scheduleKey) throw new Error('The order schedule could not be confirmed. Refresh availability.');
+        scheduleKey = result.scheduleKey;
+        form.querySelector('[data-order-date]').textContent = appointment.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        const savedTime = String(result.scheduledTime || '');
+        form.querySelector('[data-order-time]').textContent = /[-\u2013\u2014]/.test(savedTime) ? savedTime
+          : appointment.toLocaleTimeString('en-PH', { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit' });
+        form.querySelector('[data-order-schedule]').setAttribute('aria-busy', 'false');
+      }
       rows = result.candidates || [];
       if (result.visit?.assignmentWindow?.withinGrace) {
         windowHint.hidden = false;
         const until = new Date(result.visit.assignmentWindow.assignmentCutoffAt).toLocaleTimeString('en-PH', { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit' });
-        windowHint.textContent = `The booking's assignment window is still open. All technicians must accept by ${until} PHT. Availability includes the full visit starting now.`;
+        windowHint.textContent = `The ${source === 'order' ? 'order' : 'booking'}'s assignment window is still open. All technicians must accept by ${until} PHT. Availability includes the full visit starting now.`;
       }
       if (result.staffing) { staffingHint.hidden = false; staffingHint.textContent = `${result.staffing.recommendedCount} technician(s) recommended. ${result.staffing.reason} Staff can review the crew for this job.`; }
       list.innerHTML = rows.length ? `<div class="job-team-list">${rows.map(row => `<label class="job-team-person${row.available ? '' : ' unavailable'}"><input type="checkbox" name="member" value="${escape(row.technicianId)}" ${row.available ? '' : 'disabled'}><span><strong>${escape(row.name)}</strong><small>${escape(row.reason)}</small></span></label>`).join('')}</div>` : '<div class="alert alert-warning">No active technician accounts are available.</div>';
@@ -205,7 +212,15 @@
       primary.value = proposed.find(row => row.role === 'primary')?.technicianId || proposed[0]?.technicianId || '';
       loading = false; refresh();
       if (!rows.some(row => row.available)) showFailure({ message: 'No technician is available for the full visit at this time. Choose another schedule.', code: 'TEAM_CAPACITY_UNAVAILABLE' });
-     } catch (failure) { if (sequence !== candidateRequest || currentRequest !== requestId || !element.isConnected) return; list.textContent = ''; showFailure(failure); loading = false; refresh(); }
+     } catch (failure) {
+       if (sequence !== candidateRequest || currentRequest !== requestId || !element.isConnected) return;
+       if (source === 'order' && !scheduleKey) {
+         form.querySelector('[data-order-date]').textContent = 'Schedule needs review';
+         form.querySelector('[data-order-time]').textContent = 'Check the saved order';
+         form.querySelector('[data-order-schedule]').setAttribute('aria-busy', 'false');
+       }
+       list.textContent = ''; showFailure(failure); loading = false; refresh();
+     }
     }
     await loadCandidates();
   }
@@ -233,6 +248,20 @@
     const rows = a.technicianTeam || a.bookingId?.technicianTeam?.map(row => ({ ...row, role: String(row.technicianId) === String(a.bookingId.technicianId) ? 'primary' : 'support' }));
     return `<article class="card border-0 shadow-sm mb-3"><div class="card-body"><span class="badge bg-primary-subtle text-primary">Supporting technician</span><h5 class="mt-2">${escape(a.serviceName || 'Service appointment')}</h5><p>${escape(a.customerName)} · ${escape(a.startTime)} · ${escape(new Date(a.bookingDate).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' }))}</p><p>${escape(a.address)}${a.customerPhone ? '<br>' + escape(a.customerPhone) : ''}</p>${a.bookingNotes ? `<p><strong>Special instructions</strong><br>${escape(a.bookingNotes)}</p>` : ''}${summary(rows)}${assignmentActions(a)}</div></article>`;
   }
+  function orderTeamCard(order) {
+    const id = value => String(value?._id || value || '');
+    const primary = id(order?.technicianId);
+    if (!primary) return '';
+    const rows = order.technicianTeam?.length ? order.technicianTeam : [{ technicianId: primary,
+      name: order.technician?.name || order.technicianId?.name || 'Primary technician',
+      status: order.technicianAcceptance?.status || (order.status === 'technician_assigned' ? 'pending' : 'accepted') }];
+    const states = { pending: 'Awaiting response', accepted: 'Accepted', declined: 'Declined', expired: 'Response expired' };
+    return `<section class="to-detail-card" data-order-team aria-label="Service team"><div class="to-detail-card-head"><h6 class="to-detail-card-title"><i class="bi bi-people"></i>Service team</h6><span class="to-detail-card-count">${rows.length} technician${rows.length === 1 ? '' : 's'}</span></div><div class="to-detail-card-body"><ul class="to-team-list">${rows.map(row => {
+      const name = row.name || 'Technician';
+      const completed = order.status === 'completed' && row.status === 'accepted';
+      return `<li class="to-team-member"><div class="to-info-icon"><i class="bi bi-person"></i></div><div class="to-team-person"><div class="to-team-name">${escape(name)}${id(row.technicianId) === id(order.viewerAssignment?.technicianId) ? '<span class="to-team-you">You</span>' : ''}</div><div class="to-item-meta">${id(row.technicianId) === primary ? 'Primary technician' : 'Supporting technician'}</div><div class="to-team-state">${escape(completed ? 'Completed' : states[row.status] || 'Awaiting response')}</div></div></li>`;
+    }).join('')}</ul></div></section>`;
+  }
   function display(source, job, container, editable = false) {
     if (!container || !job) return;
     const entries = job.technicianTeam?.length ? job.technicianTeam : editable && job.technicianId ? [{ technicianId: job.technicianId?._id || job.technicianId, name: job.technician?.name || job.technicianId?.name || 'Primary technician', status: ['assigned', 'technician_assigned'].includes(job.status) ? 'pending' : 'accepted' }] : [];
@@ -248,7 +277,7 @@
     if (editable) for (const entry of entries) for (const note of entry.workNotes || []) {
       const paragraph = document.createElement('p'); paragraph.className = 'small'; paragraph.textContent = `${entry.name} - ${note.text}`; section.append(paragraph);
     }
-    if (editable && !job.isProject && validId(job._id) && ['assigned','confirmed','scheduled','inspection_scheduled','technician_assigned','technician_accepted'].includes(job.status)) {
+    if (editable && !job.isProject && !job.overviewScheduleResolution?.required && validId(job._id) && ['assigned','confirmed','scheduled','inspection_scheduled','repair_scheduled','technician_assigned','technician_accepted'].includes(job.status)) {
       const button = document.createElement('button'); button.type = 'button'; button.className = 'btn btn-sm btn-outline-primary mb-3'; button.textContent = 'Review technician team';
       button.addEventListener('click', () => open(source, job._id, { onAssigned: () => location.reload() })); section.append(button);
     }
@@ -295,7 +324,7 @@
           const button = document.createElement('button'); button.type = 'button'; button.className = 'btn btn-outline-primary btn-sm'; button.textContent = 'Add work note'; button.addEventListener('click', () => orderNote(job.id)); body.append(button);
           const kitButton = document.createElement('button'); kitButton.type = 'button'; kitButton.className = 'btn btn-outline-success btn-sm ms-2'; kitButton.textContent = 'View shared daily kit';
           kitButton.addEventListener('click', () => window.openTechnicianDailyKit(kitDate(job.date))); body.append(kitButton);
-          if (['technician_assigned','technician_accepted','out_for_delivery','arrived'].includes(job.status) && job.continuation !== 'pending') {
+          if (['out_for_delivery','arrived'].includes(job.status) && job.continuation !== 'pending') {
             const emergency = document.createElement('button'); emergency.type = 'button'; emergency.className = 'btn btn-outline-danger btn-sm ms-2'; emergency.textContent = 'Report Emergency'; emergency.addEventListener('click', () => reportOrderEmergency(job.id)); body.append(emergency);
           }
         }
@@ -314,7 +343,7 @@
     try { await json(`/api/technician/assignments/${id}/${decision}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); if (window.TechnicianWorkUpdates) finish?.(true); else if (window._refreshTechnicianWork) await window._refreshTechnicianWork(); else location.reload(); }
     catch (failure) { finish?.(false); button.disabled = false; await Swal.fire({ icon: 'error', text: failure.message }); }
   }
-  window.RACSJobTeams = { open, reportOrderEmergency, recommendation, planPicker, planRow, planSelection, note, orderNote, summary, bookingTeamCard, ready, emergencyAction, emergencyNotice, reviewEmergencyEquipment, assignmentActions, supportCard, respondBooking, display, supportingOrders };
+  window.RACSJobTeams = { open, reportOrderEmergency, recommendation, planPicker, planRow, planSelection, note, orderNote, summary, bookingTeamCard, orderTeamCard, ready, emergencyAction, emergencyNotice, reviewEmergencyEquipment, assignmentActions, supportCard, respondBooking, display, supportingOrders };
   supportingOrders();
   window.addEventListener('racs:work-refresh', supportingOrders);
   const styles = document.createElement('style'); styles.textContent = '.job-team-options{display:flex;flex-wrap:wrap;gap:1rem;margin-bottom:1rem}.job-team-options label{padding:.75rem;border:1px solid #cbd5e1;border-radius:10px}.job-team-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.5rem}.job-team-person{display:flex;gap:.75rem;padding:.85rem;border:1px solid #cbd5e1;border-radius:10px;align-items:start}.job-team-person:has(input:checked){border-color:#2563eb;background:#eff6ff}.job-team-person.unavailable{opacity:.6}.job-team-person small,.job-team-summary small{display:block;color:#64748b}.job-team-summary{padding:.85rem;background:#f8fafc;border-radius:10px;margin:.75rem 0}.job-team-summary>div{display:flex;justify-content:space-between;gap:1rem;padding:.35rem 0}'; document.head.append(styles);

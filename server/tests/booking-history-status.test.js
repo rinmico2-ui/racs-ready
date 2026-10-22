@@ -164,6 +164,7 @@ for (const lookupFails of [false, true]) {
     const context = {
       router: { get(_url, _auth, callback) { handler = callback; } },
       auth: { authenticate() {} },
+      require,
       mongoose: { Types: { ObjectId: { isValid: () => false } } },
       console: { warn() {}, error: (...args) => assert.fail(args.join(" ")) },
       CUSTOMER_HISTORY_EXCLUDED_FIELDS: "-paymentProof -statusHistory",

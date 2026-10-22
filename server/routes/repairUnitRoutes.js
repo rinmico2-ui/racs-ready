@@ -15,6 +15,8 @@ const team = require('../utils/standardJobTeam');
 const { repairWorkAccess } = require('../utils/repairWorkAccess');
 const flow = require('../utils/repairUnitWorkflow');
 const { getRepairLaborFees } = require('../utils/repairLaborPricing');
+const { repairPreVisitAssessment } = require('../utils/repairPreVisitAssessment');
+const { buildRepairQuoteSuggestion } = require('../utils/repairQuoteSuggestion');
 const { createNotification } = require('../utils/notify');
 const router = express.Router();
 router.use(auth.authenticate);
@@ -70,13 +72,13 @@ function view(document, req, technician, assignment) {
     needsSetup: !!document.unitGroups && !document.repairUnitTracking && document.projectPhase === 'execution' && !document.completedUnits,
     closed: !!document.archivedAt || ['cancelled', 'completed', 'closed', 'repair_completed', 'under_warranty'].includes(document.status),
     role: req.user.role, canInspect: req.user.role === 'technician' && (access ? access.canInspect : String(document.leadTechnicianId) === String(technician?._id)), blockedReason: access?.reason || '',
-    aiReport: req.user.role === 'technician' && access?.canInspect ? document.technicianAssistant : undefined,
     canComplete: Boolean(access?.canComplete),
     canPlanRepair: req.user.role === 'technician' && !document.unitGroups && access?.canInspect && (document.approval?.status === 'approved' || flow.canDecideOnSite(document)),
     canRecordOnSiteDecision: req.user.role === 'technician' && !document.unitGroups && access?.canInspect && flow.canDecideOnSite(document),
     readyForCompletion: Boolean(access?.canComplete && flow.rows(document).length && flow.rows(document).some(row => row.unit.repairReview?.state === 'completed')
       && flow.rows(document).every(row => ['completed', 'declined'].includes(row.unit.repairReview?.state))),
     units: flow.rows(document).map(({ key, group, groupIndex, unit }) => ({ key, serviceIndex: groupIndex, serviceItemId: group._id, label: unit.label, brand: group.brand, model: group.model, problemDescription: unit.problemDescription,
+      preVisitAssessment: req.user.role === 'technician' && access?.canInspect ? repairPreVisitAssessment(document, {group, groupIndex}) : undefined,
       inspection: unit.inspection, diagnosis: unit.diagnosis, quotation: unit.quotation, review: unit.repairReview, status: unit.status, repairVerification: unit.repairVerification, completionNotes: unit.completionNotes, completedAt: unit.completedAt })),
   };
 }
@@ -86,7 +88,10 @@ router.get('/:scope/:id', async (req, res, next) => {
     const result = view(document, req, technician, assignment);
     if (result.canInspect) {
       result.laborFees = await getRepairLaborFees();
-      result.parts = await Tool.find({ $and: [Tool.merchandiseFilter()], active: { $ne: false } }).select('_id itemName sellingPrice costPrice').limit(500).lean();
+      result.parts = await Tool.find(Tool.repairPartFilter())
+        .select('_id itemName sellingPrice costPrice quantity reservedQuantity status unit category specification')
+        .sort({ itemName: 1, _id: 1 }).limit(500).lean();
+      result.units.forEach(unit => { if (unit.preVisitAssessment) unit.preVisitAssessment.quoteSuggestion = buildRepairQuoteSuggestion(unit.preVisitAssessment, result.parts, result.laborFees); });
     }
     res.json(result);
   } catch (error) { next(error); }
@@ -179,10 +184,10 @@ router.post('/:scope/:id/ai-diagnostic', diagnosticLimiter, async (req, res, nex
     activeDiagnostics++; admitted = true;
     const result = await require('../utils/aiTechnicianAssistant').generateAssistantReport({
       unitType: row.group.applianceTypeName || row.group.unitType || row.group.name || 'Appliance', brand: row.group.brand, model: row.group.model,
-      problemDescription: `${row.unit.problemDescription || ''}${findings ? `\nTechnician on-site findings: ${findings}` : ''}${testsPerformed ? `\nTechnician checks and test results: ${testsPerformed}` : ''}${diagnosis ? `\nTechnician confirmed diagnosis: ${diagnosis}` : ''}`, photos: [],
+      problemDescription: `${row.unit.problemDescription || ''}${findings ? `\nTechnician on-site findings: ${findings}` : ''}${testsPerformed && testsPerformed !== findings ? `\nTechnician checks and test results: ${testsPerformed}` : ''}${diagnosis ? `\nTechnician confirmed diagnosis: ${diagnosis}` : ''}`, photos: [],
     });
     const [catalog, fees] = await Promise.all([
-      Tool.find({ $and: [Tool.merchandiseFilter()], active: { $ne: false } }).select('_id itemName sellingPrice costPrice').limit(500).lean(), getRepairLaborFees(),
+      Tool.find(Tool.repairPartFilter()).select('_id itemName sellingPrice costPrice').limit(500).lean(), getRepairLaborFees(),
     ]);
     res.json({ technicianAssistant: result.technicianAssistant, quoteSuggestion: require('../utils/repairQuoteSuggestion').buildRepairQuoteSuggestion(result.technicianAssistant, catalog, fees), version: document.__v || 0 });
   } catch (error) { next(error); }
@@ -223,7 +228,7 @@ router.post('/:scope/:id/:action', async (req, res, next) => {
           if (req.body.parts.some(part => !part || typeof part !== 'object' || Array.isArray(part))) flow.fail('Choose valid repair parts.', 400);
           const ids = req.body.parts.map(part => part.toolId).filter(Boolean);
           if (ids.some(id => !mongoose.isValidObjectId(id))) flow.fail('Invalid repair part.', 400);
-          const catalog = await Tool.find({ _id: { $in: ids }, $and: [Tool.merchandiseFilter()] }).select('_id itemName sellingPrice costPrice').session(session).lean();
+          const catalog = await Tool.find({ ...Tool.repairPartFilter(), _id: { $in: ids } }).select('_id itemName sellingPrice costPrice').session(session).lean();
           flow.inspect(document, req.body.key, req.body, { technicianId: technician._id, catalog, laborFees: await getRepairLaborFees() });
         }
         if (action === 'inspect-and-submit') {
@@ -302,7 +307,7 @@ router.post('/:scope/:id/:action', async (req, res, next) => {
       document.repairUnitTracking = true;
       // Compare-and-set keeps edits and decisions from overwriting newer work.
       const model = document.unitGroups ? Project : Booking;
-      const fields = document.unitGroups ? ['unitGroups', 'repair', 'repairQuoteHistory', 'assessmentVisit', 'repairUnitTracking', 'requestedUnitCount', 'totalUnits', 'projectPhase', 'quotationReview', 'inspectionReport', 'status'] : ['services', 'repairUnitTracking', 'quotationReview', 'inspection', 'quotation', 'approval', 'balanceAmount', 'status'];
+      const fields = document.unitGroups ? ['unitGroups', 'repair', 'repairQuoteHistory', 'assessmentVisit', 'repairUnitTracking', 'requestedUnitCount', 'totalUnits', 'projectPhase', 'quotationReview', 'inspectionReport', 'status'] : ['services', 'repairUnitTracking', 'quotationReview', 'inspection', 'quotation', 'approval', 'balanceAmount', 'balanceCollected', 'status'];
       const changes = Object.fromEntries(fields.filter(key => document[key] !== undefined).map(key => [key, document[key]?.toObject?.() || document[key]]));
       changes.updatedAt = new Date();
       const versionFilter = document.__v == null ? { $or: [{ __v: 0 }, { __v: { $exists: false } }] } : { __v: document.__v };

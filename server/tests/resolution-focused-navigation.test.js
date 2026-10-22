@@ -23,7 +23,7 @@ function setup(source = 'booking', overrides = {}) {
       getElementById: () => ({ classList: { add() {} } }) },
     window: { requestAnimationFrame: fn => fn(), setTimeout(fn) { timers.set(++nextTimer, fn); return nextTimer; }, clearTimeout: key => timers.delete(key) },
     findResolutionCase: (type, id) => context.allResolutionCases.find(item => item.sourceType === type && item.id === id),
-    ...Object.fromEntries(['openResolutionPaymentReview', 'openVisitRecoveryCase', 'openOrderResolutionForCase', 'viewOrderDetail', 'viewDetail', 'openResolveMenuForCase', 'openReschedule']
+    ...Object.fromEntries(['openCustomerCancellationCase', 'openResolutionPaymentReview', 'openVisitRecoveryCase', 'openOrderResolutionForCase', 'viewOrderDetail', 'viewDetail', 'openResolveMenuForCase', 'openReschedule']
       .map(name => [name, (...args) => { trace.push({ name, args }); }])) });
   vm.runInContext(implementation, context);
   return { context, target, trace, cards, ready, async flush() { await Promise.resolve(); for (const fn of timers.values()) fn(); timers.clear(); await Promise.resolve(); } };
@@ -50,6 +50,12 @@ test('the selected record opens payment review before recovery, including change
     f.ready(); await f.flush();
     assert.deepEqual(f.trace[0], { name: 'openResolutionPaymentReview', args: [source, 'selected-id'] });
   }
+});
+
+test('customer cancellation opens its own request first, including when a submitted payment needs verification', async () => {
+  const f = setup('booking', { allowedActions: ['view', 'review_cancellation'], paymentReview: { required: true }, issueType: 'customer_cancellation' });
+  f.context.focusRequestedResolutionCase(); f.ready(); await f.flush();
+  assert.deepEqual(f.trace[0], { name: 'openCustomerCancellationCase', args: ['selected-id'] });
 });
 
 test('a linked booking follows its owning order and preserves that exact order identity', async () => {

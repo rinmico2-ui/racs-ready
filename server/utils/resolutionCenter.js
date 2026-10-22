@@ -9,10 +9,17 @@ const RECOVERY_BOOKING_STATUSES = Object.freeze([
   "pending_inspection", "inspection_scheduled", "ready_for_repair", "repair_scheduled",
 ]);
 
+function bookingAcceptanceNeedsResolution(booking, now = new Date()) {
+  if (!booking || booking.isProject || booking.sourceOrderId || !booking.technicianId
+    || !['assigned', 'confirmed', 'scheduled', 'inspection_scheduled', 'repair_scheduled'].includes(booking.status)) return false;
+  return (booking.technicianTeam || []).some(member => ['expired', 'declined'].includes(member.status)
+    || member.status === 'pending' && member.deadlineAt && new Date(member.deadlineAt) < now);
+}
+
 function bookingScheduleNeedsResolution(booking, now = new Date()) {
   if (!booking || !RECOVERY_BOOKING_STATUSES.includes(booking.status)) return false;
   if (bookingReviewState(booking, now).isReviewOverdue) return true;
-  if (["awaiting_assignment", "pending_reassignment"].includes(booking.status)) {
+  if (["awaiting_assignment", "pending_reassignment"].includes(booking.status) || bookingAcceptanceNeedsResolution(booking, now)) {
     const timing = assignmentTimingState(booking, now);
     if (timing.assignmentCutoffAt) return timing.isExpired;
   }
@@ -28,6 +35,8 @@ function bookingScheduleNeedsResolution(booking, now = new Date()) {
 }
 
 function bookingIssueRequiresOutcome(booking, issueType, now = new Date()) {
+  if (issueType === 'incomplete' && require('./coreRepairDiscovery').needsReview(booking)) return true;
+  if (issueType === 'customer_cancellation') return require('./customerCancellationPolicy').open(booking);
   if (!booking || ['cancelled', 'completed', 'closed', 'repair_completed', 'rejected'].includes(booking.status)) return false;
   if (issueType === 'past_date') {
     if (booking.status === 'reschedule-required' || bookingScheduleNeedsResolution(booking, now)) return true;
@@ -39,7 +48,7 @@ function bookingIssueRequiresOutcome(booking, issueType, now = new Date()) {
   if (issueType === 'no_show') return ['reschedule-required', 'no-show-reported', 'no-show'].includes(booking.status);
   if (issueType === 'no_technician') return !booking.isProject && ['awaiting_assignment', 'confirmed', 'scheduled'].includes(booking.status)
     && !booking.technicianId && !pendingResolutionProposal(booking);
-  if (issueType === 'technician_issue') return booking.status === 'pending_reassignment';
+  if (issueType === 'technician_issue') return booking.status === 'pending_reassignment' || bookingAcceptanceNeedsResolution(booking, now);
   if (issueType === 'customer_reschedule') return booking.status === 're-scheduled' || Boolean(pendingResolutionProposal(booking) || pendingResolutionRequest(booking));
   if (issueType === 'schedule_conflict') return Boolean(booking.technicianId) && ['assigned', 'confirmed', 'scheduled', 're-scheduled'].includes(booking.status);
   return false;
@@ -56,6 +65,7 @@ function bookingResolutionCaseIsResolved(booking, issueType, now = new Date()) {
 // The overview's schedule warning is separate from the actual booking status.
 // A case clears only when its underlying issue has an approved outcome.
 function bookingOverviewScheduleResolution(booking, now = new Date()) {
+  if (require('./customerCancellationPolicy').open(booking)) return { required: true, issueType: 'customer_cancellation' };
   const issues = [];
   if (!booking || ['cancelled', 'completed', 'closed', 'repair_completed'].includes(booking.status)) {
     return { required: false, issueType: null };
@@ -77,6 +87,8 @@ function bookingOverviewScheduleResolution(booking, now = new Date()) {
     if (booking.status !== 'reschedule-required'
       && (booking.status === 're-scheduled' || pendingResolutionProposal(booking) || pendingResolutionRequest(booking))) issues.push('customer_reschedule');
   }
+  if (bookingAcceptanceNeedsResolution(booking, now)) issues.push('technician_issue');
+  if (require('./coreRepairDiscovery').needsReview(booking)) issues.push('incomplete');
   const issueType = issues.find(issue => !bookingResolutionCaseIsResolved(booking, issue, now)) || null;
   return { required: Boolean(issueType), issueType };
 }
@@ -93,7 +105,7 @@ function focusedResolutionCases(cases, focus) {
 }
 
 const SEVERITY_RANK = Object.freeze({ critical: 0, high: 1, medium: 2, low: 3 });
-const ISSUE_PRIORITY = Object.freeze({ no_show: 0, past_date: 1, schedule_conflict: 2, technician_issue: 3, customer_reschedule: 4, incomplete: 5, no_technician: 6 });
+const ISSUE_PRIORITY = Object.freeze({ customer_cancellation: -1, no_show: 0, past_date: 1, schedule_conflict: 2, technician_issue: 3, customer_reschedule: 4, incomplete: 5, no_technician: 6 });
 
 function groupResolutionCases(cases) {
   const records = new Map();
@@ -168,7 +180,8 @@ function orderResolutionCase(order, now = new Date(), thresholdHours = 8) {
   if (!incident && !replacementPending && (!attention.isPastDate || !attention.attentionType)) return null;
   const issueType = incident || replacementPending ? 'technician_issue' : attention.attentionType;
 
-  const scheduledAt = attention.requestedScheduleAt ? new Date(attention.requestedScheduleAt) : null;
+  const attentionDeadline = attention.dispatchDeadlineAt || attention.requestedScheduleAt;
+  const scheduledAt = attentionDeadline ? new Date(attentionDeadline) : null;
   const elapsedMs = scheduledAt && !Number.isNaN(scheduledAt.getTime()) ? now.getTime() - scheduledAt.getTime() : 0;
   const daysPast = Math.max(0, Math.floor(elapsedMs / 86400000));
   const itemCount = (order.items || []).reduce((total, item) => total + Math.max(1, Number(item.quantity) || 1), 0);
@@ -201,8 +214,8 @@ function orderResolutionCase(order, now = new Date(), thresholdHours = 8) {
     issueLabel: incident ? 'Technician emergency' : replacementPending ? 'Replacement assignment needed' : orderIssueLabel(issueType),
     severity: daysPast >= 2 ? "critical" : "high",
     reason: incident ? `${incident.reporterName} reported ${incident.reason}. Contact the customer before arranging a replacement visit.` : replacementPending ? 'The customer agreed to a new visit. Assign the replacement technician team.' : attention.attentionReason || "The requested order schedule passed and requires admin action.",
-    scheduledAt: attention.requestedScheduleAt,
-    bookingDate: attention.requestedScheduleAt,
+    scheduledAt: attentionDeadline,
+    bookingDate: attentionDeadline,
     startTime: order.timeSlot || "",
     technicianName,
     isPastDate: attention.isPastDate,
@@ -290,6 +303,7 @@ function paginateResolutionCases(cases, pageValue, perPageValue) {
 }
 
 module.exports = {
+  bookingAcceptanceNeedsResolution,
   bookingResolutionCaseIsResolved,
   bookingIssueRequiresOutcome,
   bookingOverviewScheduleResolution,

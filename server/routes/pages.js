@@ -2181,10 +2181,13 @@ router.get(
       const Technician = require("../models/Technician");
       const tech = await Technician.findOne({ user: req.user._id }).lean();
 
+      const companyLoc = await getCompanyLocation();
       res.render("pages/technician/technicianorders", {
         title: "Order Management",
         layout: "layouts/technician",
         technician: tech || {},
+        companyLat: companyLoc.lat,
+        companyLng: companyLoc.lng,
       });
     } catch (e) {
       next(e);

@@ -8,11 +8,11 @@ const Assignment = require('../models/Assignment');
 const Booking = require('../models/BookingService');
 const Technician = require('../models/Technician');
 const middleware = require('../utils/standardTeamMiddleware');
-const read = relative => fs.readFileSync(path.join(__dirname, '..', relative), 'utf8');
+const read = relative => fs.readFileSync(path.join(__dirname, '..', relative), 'utf8').replace(/\r\n/g, '\n');
 const view = read('views/pages/technician/assignments.ejs');
 const id = number => number.toString(16).padStart(24, '0');
 const assignmentId = id(1), technicianId = id(2), replacementId = id(3), bookingId = id(4);
-const query = value => ({ lean: async () => value });
+const query = value => ({ select() { return this; }, lean: async () => value });
 
 async function access(t, { method = 'GET', status = 'cancelled', actor = technicianId, released = true, archived = false } = {}) {
   const assignment = { _id: assignmentId, bookingId, technicianId, serviceType: 'core', status };
@@ -110,10 +110,11 @@ for (const networkError of [false, true]) test(`${networkError ? 'network failur
 });
 
 function detailLoader(f) {
-  const start = view.indexOf('    async function loadAssignmentDetail(id, sequence) {');
+  const start = view.indexOf('    async function loadAssignmentDetail(');
   const end = view.indexOf('\n    };\n\n    function showNotification', start);
   assert.ok(start >= 0 && end > start);
-  return vm.runInContext('(' + view.slice(start, end) + '\n    })', f.context);
+  const load = vm.runInContext('(' + view.slice(start, end) + '\n    })', f.context);
+  return (id, sequence) => load(id, sequence, f.window.TechnicianWorkUpdates.revision || 0);
 }
 test('a stale access response closes the detail and refreshes the list without a Load Failed error', async () => {
   const f = frontend();
@@ -136,6 +137,18 @@ test('closing while a detail response is in flight does not reopen the assignmen
   assert.equal(f.node('rightPanel').classList.contains('open'), false);
   assert.equal(f.window._currentDetailId, null);
   assert.equal(f.messages.length, 0);
+});
+
+test('a detail response from before a newer status write cannot close or replace the open job', async () => {
+  const f = frontend();let respond;
+  f.context.fetch=()=>new Promise(resolve=>{respond=resolve;});
+  const loading=detailLoader(f)(assignmentId,1);
+  f.window.TechnicianWorkUpdates.revision=1;
+  respond({ok:false,status:403,json:async()=>({error:'Older access response',code:'ASSIGNMENT_ACCESS_CHANGED'})});
+  await loading;
+  assert.equal(f.window._currentDetailId,assignmentId);
+  assert.equal(f.node('rightPanel').classList.contains('open'),true);
+  assert.equal(f.messages.length,0);
 });
 
 function teamCard(assignment) {
@@ -170,13 +183,18 @@ test('emergency visit history retains the entire previous crew after current sta
   assert.match(html, /Yachi 123/);
   assert.match(html, /Previous supporting technician/);
 });
-test('both primary and supporting technicians receive the emergency action before work starts', () => {
+test('emergency actions appear after departure and before work, without appearing during acceptance or preparation', () => {
   const window = { addEventListener() {} };
   vm.runInNewContext(read('public/js/standard-job-team.js'), { window, document: { createElement: () => ({}), head: { append() {} } }, location: { pathname: '/fixture' } });
-  for (const crewRole of ['primary', 'support']) for (const status of ['accepted', 'en_route', 'on_site']) {
+  for (const crewRole of ['primary', 'support']) for (const status of ['en_route', 'on_site']) {
     const assignment = { _id: assignmentId, crewRole, status, customerName: 'A "customer"', serviceName: 'Aircon Installation', bookingId: { status: 'on-the-way' } };
     assert.match(window.RACSJobTeams.emergencyAction(assignment), /Report Emergency/);
     if (crewRole === 'support') assert.match(window.RACSJobTeams.assignmentActions(assignment), /Report Emergency/);
+  }
+  for (const crewRole of ['primary','support']) for (const status of ['pending_acceptance','accepted','in_progress','completed','cancelled','declined','expired']) {
+    const assignment = { _id:assignmentId, crewRole, status, bookingId:{status:'confirmed'} };
+    assert.equal(window.RACSJobTeams.emergencyAction(assignment),'');
+    assert.doesNotMatch(window.RACSJobTeams.assignmentActions(assignment),/Report Emergency/);
   }
   assert.equal(window.RACSJobTeams.emergencyAction({ _id: assignmentId, status: 'accepted', bookingId: { status: 'in-progress' } }), '');
 });

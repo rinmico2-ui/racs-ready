@@ -1,16 +1,15 @@
-/* Equipment custody and usage workspace. */
+/* Equipment custody and saved material history. */
 (() => {
   "use strict";
   const page = document.getElementById("technicianToolsPage");
   if (!page) return;
   const $ = id => document.getElementById(id);
-  const state = { category: 'equipment', page: 1, tab: "equipment", equipment: [], legacy: [], usage: [], errors: {}, loading: true, selected: null, returning: false, saving: false, deleting: new Set(), optionSequence: 0, loadSequence: 0 };
+  const state = { category: 'equipment', page: 1, tab: "equipment", equipment: [], legacy: [], usage: [], extra: [], errors: {}, loading: true, selected: null, returning: false, loadSequence: 0 };
   const pageSize = 6;
   let searchTimer;
   const escape = value => String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
   const id = value => String(value?._id || value || "");
   const active = row => ["checked_out", "in_use", "assigned"].includes(row.status);
-  const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   const day = value => {
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? "" : new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
@@ -26,7 +25,7 @@
     const booking = row.bookingId;
     const orders = (row.orderIds || []).map(order => order.orderReference || order.orderNumber).filter(Boolean);
     const project = row.projectId && (row.projectId.bookingId?.bookingReference || row.projectId.bookingId?.workOrderNumber || row.projectId.service?.name || "Project");
-    const links = [booking?.bookingReference || booking?.workOrderNumber, ...orders, project].filter(Boolean);
+    const links = [...new Set([booking?.bookingReference || booking?.workOrderNumber, ...(row.bookingIds || []).map(booking => booking.bookingReference || booking.workOrderNumber), ...orders, project].filter(Boolean))];
     const title = links.join(" / ") || (row.dailyKitId ? "Daily Kit" : "General issue");
     const sub = [booking?.customerId?.name, booking?.service?.name, row.dailyKitId?.workDate ? dateLabel(row.dailyKitId.workDate) : row.workDate ? dateLabel(row.workDate) : ""].filter(Boolean).join(" · ");
     return { title, sub };
@@ -68,8 +67,8 @@
     records.setAttribute("aria-busy", String(state.loading));
     $("ttStatus").parentElement.hidden = state.category !== 'equipment' || state.tab !== "equipment";
     $("ttPagination").innerHTML = '';
-    $("ttContextHelp").textContent = state.tab === "equipment" ? "Return reusable equipment after the linked work is finished." : state.tab === "usage" ? "Usage records do not change inventory stock." : "Showing the latest 200 equipment records and 100 general tool records.";
-    const errorKeys = state.tab === "usage" ? ["usage"] : ["equipment", "legacy"];
+    $("ttContextHelp").textContent = state.tab === "equipment" ? "Return reusable equipment after the linked work is finished." : state.tab === 'extra' ? 'Equipment used outside the original kit. Personal and borrowed tools do not change company stock.' : state.tab === "usage" ? "Previous optional notes only. Daily Preparation and returns track equipment custody; these notes do not deduct stock." : "Showing the latest 200 equipment records and 100 general tool records.";
+    const errorKeys = state.tab === 'extra' ? ['extra'] : state.tab === "usage" ? ["usage"] : ["equipment", "legacy"];
     const error = errorKeys.filter(key => state.errors[key]).map(key => state.errors[key]).join(" ");
     if (state.loading) { records.innerHTML = '<div class="tt-empty"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span><p>Loading your records...</p></div>'; return; }
     if (error) { records.innerHTML = empty("Your records could not be loaded", error, true); $("ttResultContext").textContent = "Could not load records"; return; }
@@ -82,16 +81,20 @@
       $("ttPagination").innerHTML = rows.length > pageSize ? `<button type="button" class="tt-button tt-button-secondary" data-tt-page="${state.page - 1}" ${state.page === 1 ? 'disabled' : ''}>Previous</button><span>Page ${state.page} of ${pages}</span><button type="button" class="tt-button tt-button-secondary" data-tt-page="${state.page + 1}" ${state.page === pages ? 'disabled' : ''}>Next</button>` : '';
       return rows.slice((state.page - 1) * pageSize, state.page * pageSize);
     };
-    if (state.tab === "usage") {
+    if (state.tab === 'extra') {
+      const rows = state.extra.filter(row => [row.equipmentName, row.equipmentCode, row.workReference, row.owner, row.notes].join(' ').toLowerCase().includes(query));
+      $('ttResultContext').textContent = `${rows.length} extra equipment record${rows.length === 1 ? '' : 's'} · Latest 200 records`;
+      records.innerHTML = rows.length ? paginate(rows).map(row => `<article class="tt-usage-row"><div class="tt-item"><span class="tt-item-icon"><i class="bi bi-tools" aria-hidden="true"></i></span><div><strong>${escape(row.equipmentName)}</strong><small>${escape(row.workReference || 'Work reference not recorded')}</small><div class="tt-extra-meta"><span>${escape(({ company: 'Company equipment', personal: 'Personal equipment', borrowed: 'Borrowed equipment' })[row.source] || 'Equipment')}${row.source === 'borrowed' ? ' · ' + escape(row.owner) : ''}</span><span>Qty: ${escape(row.quantity || 1)}</span><span>${escape(dateLabel(row.date))}</span></div><p class="tt-extra-reason">${escape(row.notes)}</p></div></div></article>`).join('') : empty(query ? 'No matching extra equipment' : 'No extra equipment recorded', query ? 'Try another tool name or work reference.' : 'Use Record extra equipment when you used a company, personal, or borrowed tool outside the original kit.');
+    } else if (state.tab === "usage") {
       const rows = state.usage.filter(row => [row.equipmentName, row.equipmentCode, row.notes].join(" ").toLowerCase().includes(query));
-      $("ttResultContext").textContent = `${rows.length} usage record${rows.length === 1 ? "" : "s"} · Latest 200 records`;
-      if (!rows.length) { records.innerHTML = empty(query ? "No matching records" : "No equipment use recorded", query ? "Try a different equipment name." : "Use Log equipment use to record equipment you used on a work date."); return; }
+      $("ttResultContext").textContent = `${rows.length} past note${rows.length === 1 ? "" : "s"} · Latest 200 records`;
+      if (!rows.length) { records.innerHTML = empty(query ? "No matching records" : "No past equipment notes", query ? "Try a different equipment name." : "Equipment is tracked through Daily Preparation and return reports. No separate tool log is required."); return; }
       let previous = "";
       records.innerHTML = paginate(rows).map(row => {
         const date = day(row.date);
         const heading = date !== previous ? `<div class="tt-usage-date">${escape(dateLabel(row.date))}</div>` : "";
         previous = date;
-        return heading + `<article class="tt-usage-row"><div class="tt-item"><span class="tt-item-icon"><i class="bi bi-calendar-check" aria-hidden="true"></i></span><div><strong>${escape(row.equipmentName)}</strong><small>${escape(row.equipmentCode || "")}</small>${row.notes ? `<p>${escape(row.notes)}</p>` : ""}</div></div><button type="button" class="tt-delete" data-delete="${escape(id(row._id))}" aria-label="Delete usage record for ${escape(row.equipmentName)}"><i class="bi bi-trash3" aria-hidden="true"></i></button></article>`;
+        return heading + `<article class="tt-usage-row"><div class="tt-item"><span class="tt-item-icon"><i class="bi bi-calendar-check" aria-hidden="true"></i></span><div><strong>${escape(row.equipmentName)}</strong><small>${escape(row.equipmentCode || "")}</small>${row.notes ? `<p>${escape(row.notes)}</p>` : ""}</div></div></article>`;
       }).join("");
     } else {
       const rows = all.filter(row => state.tab === "history" ? !active(row) && row.status !== "reserved" : active(row) || row.status === "reserved").filter(row => state.tab !== "equipment" || $("ttStatus").value === "all" || ($("ttStatus").value === "active" ? active(row) : row.status === "reserved")).filter(filter);
@@ -105,21 +108,20 @@
     state.loading = true;
     $("ttRefresh").disabled = true;
     render();
-    const results = await Promise.allSettled([request("/api/technician/equipment"), request("/api/technician/tools/assigned/history"), request("/api/technician/equipment-usage")]);
+    const results = await Promise.allSettled([request("/api/technician/equipment"), request("/api/technician/tools/assigned/history"), request("/api/technician/equipment-usage?kind=notes"), request('/api/technician/equipment-usage?kind=extra')]);
     if (sequence !== state.loadSequence) return;
     state.errors = {};
-    ["equipment", "legacy", "usage"].forEach((key, index) => {
+    ["equipment", "legacy", "usage", 'extra'].forEach((key, index) => {
       const result = results[index];
-      if (result.status === "fulfilled") state[key] = key === "legacy" ? (result.value.items || []).filter(row => !row.itemType || ["equipment", "tool"].includes(row.itemType)).map(row => ({ ...row, legacy: true })) : result.value.items || [];
+      if (result.status === "fulfilled") state[key] = key === "legacy" ? (result.value.items || []).filter(row => !row.itemType || ["equipment", "tool"].includes(row.itemType)).map(row => ({ ...row, legacy: true })) : (result.value.items || []).filter(row => key === 'extra' ? row.recordKind === 'extra' : key !== 'usage' || row.recordKind !== 'extra');
       else state.errors[key] = result.reason.message;
-      if (key === "usage" && result.status === "fulfilled") state.todayCount = result.value.todayCount;
     });
     const all = [...state.equipment, ...state.legacy];
     const unavailable = state.errors.equipment || state.errors.legacy;
     $("ttActiveCount").textContent = unavailable ? "—" : all.filter(active).reduce((sum, row) => sum + quantity(row), 0);
     $("ttReservedCount").textContent = unavailable ? "—" : all.filter(row => row.status === "reserved").reduce((sum, row) => sum + quantity(row), 0);
     $("ttEquipmentBadge").textContent = unavailable ? "—" : all.filter(row => active(row) || row.status === "reserved").length;
-    $("ttUsageCount").textContent = state.errors.usage ? "—" : Number.isInteger(state.todayCount) ? state.todayCount : state.usage.filter(row => day(row.date) === today()).length;
+    $("ttPendingCount").textContent = unavailable ? "-" : all.filter(row => row.returnPending).length;
     state.loading = false;
     $("ttRefresh").disabled = false;
     render();
@@ -138,78 +140,33 @@
     render();
   }
   function category(value) {
-    if (!['equipment', 'repair_part', 'consumable', 'returns'].includes(value)) return;
+    if (!['equipment', 'repair_part', 'consumable', 'used', 'returns'].includes(value)) return;
     clearTimeout(searchTimer);
     state.category = value; state.page = 1;
-    const equipment = value === 'equipment', returns = value === 'returns';
+    const equipment = value === 'equipment', returns = value === 'returns', used = value === 'used';
     $('ttEquipmentPanel').hidden = !equipment;
-    $('kitReturnsPanel').hidden = equipment;
-    $('krMaterialsSection').hidden = equipment || returns;
+    $('kitReturnsPanel').hidden = equipment || used;
+    $('ttMaterialsUsedPanel').hidden = !used;
+    $('krMaterialsSection').hidden = equipment || returns || used;
     $('krReportsSection').hidden = !returns;
     $('ttCategoryToolbar').hidden = returns;
-    $('ttLogUsage').hidden = !equipment;
     $('ttSearch').value = '';
-    $('ttSearch').placeholder = equipment ? 'Search equipment or job reference' : value === 'repair_part' ? 'Search repair parts' : 'Search consumables';
+    $('ttSearch').placeholder = equipment ? 'Search equipment or job reference' : used ? 'Search item or booking / order reference' : value === 'repair_part' ? 'Search repair parts' : 'Search consumables';
     for (const button of page.querySelectorAll('[data-category]')) {
       const selected = button.dataset.category === value;
       button.classList.toggle('is-active', selected); button.setAttribute('aria-selected', String(selected)); button.tabIndex = selected ? 0 : -1;
-      if (selected && !equipment) $(returns ? 'krReportsSection' : 'krMaterialsSection').setAttribute('aria-labelledby', button.id);
+      if (selected && !equipment && !used) $(returns ? 'krReportsSection' : 'krMaterialsSection').setAttribute('aria-labelledby', button.id);
     }
     const url = new URL(window.location.href);
     if (equipment) url.searchParams.delete('category'); else url.searchParams.set('category', value);
     window.history.replaceState(null, '', url.pathname + url.search + url.hash);
     render();
-    window.dispatchEvent(new CustomEvent('technician-kit-filter', { detail: { category: value, search: '' } }));
-  }
-  async function loadOptions() {
-    const sequence = ++state.optionSequence;
-    $("ttUsageEquipment").disabled = true;
-    $("ttUsageSave").disabled = true;
-    $("ttUsageEquipment").innerHTML = '<option value="">Loading equipment...</option>';
-    formError("ttUsageError", "");
-    try {
-      const data = await request(`/api/technician/tools/usage-options?date=${encodeURIComponent($("ttUsageDate").value)}`);
-      if (sequence !== state.optionSequence) return;
-      $("ttUsageEquipment").innerHTML = '<option value="">Choose equipment</option>' + (data.items || []).map(row => `<option value="${escape(row._id)}">${escape(row.name)}${row.code ? ` (${escape(row.code)})` : ""}</option>`).join("");
-      $("ttUsageHint").textContent = data.items?.length ? "Only equipment issued to you on this date is listed." : "No equipment was issued to you on this date. Choose another date or ask admin to check the issue record.";
-      $("ttUsageEquipment").disabled = !data.items?.length;
-      $("ttUsageSave").disabled = !data.items?.length;
-    } catch (error) {
-      if (sequence !== state.optionSequence) return;
-      $("ttUsageEquipment").innerHTML = '<option value="">Equipment could not be loaded</option>';
-      formError("ttUsageError", error.message);
-      $("ttUsageHint").textContent = "Choose the date again to retry.";
-    }
+    window.dispatchEvent(new CustomEvent('technician-tools-category', { detail: { category: value } }));
+    if (!equipment && !used) window.dispatchEvent(new CustomEvent('technician-kit-filter', { detail: { category: value, search: '' } }));
   }
   function busyModal(modalId, busy) {
     $(modalId).querySelectorAll('button, input, select, textarea').forEach(element => { element.disabled = busy; });
   }
-  $("ttLogUsage").addEventListener("click", () => {
-    $("ttUsageForm").reset();
-    $("ttUsageDate").value = today();
-    $("ttUsageDate").max = today();
-    bootstrap.Modal.getOrCreateInstance($("ttUsageModal")).show();
-    loadOptions();
-  });
-  $("ttUsageDate").addEventListener("change", loadOptions);
-  $("ttUsageForm").addEventListener("submit", async event => {
-    event.preventDefault();
-    if (state.saving || !$("ttUsageForm").reportValidity()) return;
-    state.saving = true;
-    const body = { equipmentId: $("ttUsageEquipment").value, date: $("ttUsageDate").value, notes: $("ttUsageNotes").value.trim() };
-    busyModal("ttUsageModal", true);
-    $("ttUsageSave").textContent = "Saving...";
-    formError("ttUsageError", "");
-    try {
-      await post("/api/technician/equipment-usage", body);
-      state.saving = false;
-      bootstrap.Modal.getOrCreateInstance($("ttUsageModal")).hide();
-      tab("usage");
-      showMessage("Equipment use saved.");
-      await load();
-    } catch (error) { formError("ttUsageError", error.message); }
-    finally { state.saving = false; busyModal("ttUsageModal", false); $("ttUsageSave").textContent = "Save record"; }
-  });
   $("ttReturnCondition").addEventListener("change", () => {
     const required = ["damaged", "lost"].includes($("ttReturnCondition").value);
     $("ttReturnNotes").required = required;
@@ -235,9 +192,9 @@
     } catch (error) { formError("ttReturnError", error.message); }
     finally { state.returning = false; busyModal("ttReturnModal", false); $("ttReturnCondition").dispatchEvent(new Event("change")); }
   });
-  for (const [modalId, key] of [["ttUsageModal", "saving"], ["ttReturnModal", "returning"]]) {
+  for (const [modalId, key] of [["ttReturnModal", "returning"]]) {
     $(modalId).addEventListener("hide.bs.modal", event => { if (state[key]) event.preventDefault(); });
-    $(modalId).addEventListener("shown.bs.modal", () => $(modalId === "ttUsageModal" ? "ttUsageDate" : "ttReturnCondition").focus());
+    $(modalId).addEventListener("shown.bs.modal", () => $("ttReturnCondition").focus());
   }
   page.addEventListener("click", async event => {
     const button = event.target.closest("button");
@@ -258,20 +215,7 @@
       formError("ttReturnError", "");
       bootstrap.Modal.getOrCreateInstance($("ttReturnModal")).show();
     }
-    if (button.dataset.delete) {
-      const recordId = button.dataset.delete;
-      if (state.deleting.has(recordId)) return;
-      state.deleting.add(recordId);
-      try {
-        const choice = await Swal.fire({ title: "Delete this usage record?", text: "This removes the usage note. Equipment stock stays the same.", icon: "question", showCancelButton: true, confirmButtonText: "Delete record", cancelButtonText: "Keep record", confirmButtonColor: "#b91c1c" });
-        if (!choice.isConfirmed) return;
-        button.disabled = true;
-        await request(`/api/technician/equipment-usage/${encodeURIComponent(recordId)}`, { method: "DELETE" });
-        showMessage("Usage record deleted.");
-        await load();
-      } catch (error) { await Swal.fire({ title: "Could not delete the record", text: error.message, icon: "error", confirmButtonColor: "#15803d" }); }
-      finally { state.deleting.delete(recordId); button.disabled = false; }
-    }
+
   });
   page.querySelector(".tt-tabs").addEventListener("keydown", event => {
     if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(event.key)) return;
@@ -290,10 +234,12 @@
     event.preventDefault(); const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (current + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
     buttons[next].focus(); category(buttons[next].dataset.category);
   });
-  $("ttRefresh").addEventListener("click", () => { load(); window.dispatchEvent(new Event('technician-kit-refresh')); });
+  $("ttRefresh").addEventListener("click", () => { load(); window.dispatchEvent(new Event('technician-kit-refresh')); window.dispatchEvent(new Event('technician-material-refresh')); });
   $("ttSearch").addEventListener("input", () => {
     state.page = 1; render(); clearTimeout(searchTimer);
-    if (state.category !== 'equipment') {
+    if (state.category === 'used') {
+      window.dispatchEvent(new CustomEvent('technician-material-search', { detail: { search: $('ttSearch').value.trim() } }));
+    } else if (state.category !== 'equipment') {
       window.dispatchEvent(new CustomEvent('technician-kit-search-pending', { detail: { search: $('ttSearch').value.trim() } }));
       searchTimer = setTimeout(() => window.dispatchEvent(new CustomEvent('technician-kit-filter', { detail: { category: state.category, search: $('ttSearch').value.trim() } })), 250);
     }
@@ -303,8 +249,9 @@
     $('ttPartsBadge').textContent = event.detail?.repair_part ?? '—';
     $('ttConsumablesBadge').textContent = event.detail?.consumable ?? '—';
   });
+  window.addEventListener('technician-extra-equipment-saved', event => { tab('extra'); showMessage(event.detail?.companyMode === 'stock' ? 'Equipment checked out and recorded against your work. Return it through Current items after work.' : 'Extra equipment recorded against your work.'); load(); });
   function refreshReceivedItems() {
-    if (document.hidden || state.loading || state.returning || state.saving || $('ttReturnModal').classList.contains('show') || $('ttUsageModal').classList.contains('show')) return;
+    if (document.hidden || state.loading || state.returning || $('ttReturnModal').classList.contains('show') || $('ttExtraModal').classList.contains('show')) return;
     load();
   }
   document.addEventListener('visibilitychange', refreshReceivedItems);

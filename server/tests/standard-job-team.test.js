@@ -61,10 +61,50 @@ test('team assignment creates separate technician invitations and one booking wi
   assert.equal(f.current.isProject, undefined); assert.equal(f.current.services[0].quantity, 1);
   assert.deepEqual(f.checks.map(row => row.input.technicianId).sort(), [lead,support]);
 });
+
+test('a customer cancellation hold prevents any new team invitation before operational or financial writes', async () => {
+  const f = fixture(); f.current.customerCancellation = { status: 'pending' };
+  await assert.rejects(f.assign(), error => error.code === 'CUSTOMER_CANCELLATION_PENDING');
+  assert.equal(f.store.assignments.size, 0); assert.equal(f.current.technicianId, undefined); assert.equal(f.current.amountPaid, f.job.amountPaid);
+});
 test('the same assignment service accepts one technician and retains single-primary compatibility', async () => {
   const f = fixture(); await f.assign({ technicianId: lead, technicianIds: [lead] });
   assert.equal(f.store.assignments.size, 1); assert.equal(f.current.technicianTeam.length, 1);
   assert.equal(team.readiness(f.current).ready, false); assert.equal(f.current.technicianId, lead);
+});
+
+test('an expired mixed inspection can return to the queue and receive a fresh invitation for another technician', async () => {
+  const f = fixture(); await f.assign({ technicianId: lead, technicianIds: [lead] });
+  f.current.status = 'inspection_scheduled'; f.current.serviceType = 'mixed';
+  f.current.services.push({ type: 'repair', name: 'Repair inspection', status: 'inspection_scheduled', quantity: 1 });
+  const previous = f.current.assignmentId;
+  f.current.technicianTeam[0].status = 'expired'; f.store.assignments.get(previous).status = 'expired';
+  const amounts = ['totalPrice', 'amountPaid', 'balanceAmount', 'paymentStatus'].map(field => f.current[field]);
+  await f.service.releaseBooking(bookingId, 'Response expired; choose replacement', { _id: id(9) });
+  assert.equal(f.current.status, 'pending_reassignment'); assert.equal(f.current.technicianId, null);
+  await f.assign({ technicianId: support, technicianIds: [support] });
+  assert.equal(f.current.technicianId, support); assert.notEqual(f.current.assignmentId, previous);
+  assert.equal(f.store.assignments.get(previous).status, 'expired');
+  assert.equal(f.store.assignments.get(f.current.assignmentId).status, 'pending_acceptance');
+  const { assignmentWorkDecision } = require('../utils/technicianWorkSync');
+  assert.equal(assignmentWorkDecision(f.store.assignments.get(f.current.assignmentId), f.current).current, true);
+  assert.equal(assignmentWorkDecision(f.store.assignments.get(previous), f.current).historical, true);
+  assert.equal(f.current.services[1].phase, 'repair_phase_1');
+  assert.deepEqual(['totalPrice', 'amountPaid', 'balanceAmount', 'paymentStatus'].map(field => f.current[field]), amounts);
+});
+
+test('expired support can be replaced after primary acceptance, while started work still prevents release', async () => {
+  const f = fixture(); await f.assign();
+  const primaryAssignment = f.current.assignmentId;
+  f.current.status = 'confirmed'; f.current.technicianTeam[0].status = 'accepted';
+  f.store.assignments.get(f.current.assignmentId).status = 'accepted';
+  const supporting = f.current.technicianTeam[1]; supporting.status = 'expired'; f.store.assignments.get(supporting.assignmentId).status = 'expired';
+  await f.service.releaseBooking(bookingId); assert.equal(f.current.status, 'pending_reassignment');
+  assert.equal(f.store.assignments.get(primaryAssignment).status, 'cancelled');
+  const started = fixture(); await started.assign(); started.current.technicianTeam[1].status = 'expired';
+  started.store.assignments.get(started.current.assignmentId).status = 'en_route';
+  await assert.rejects(started.service.releaseBooking(bookingId), /Work has started/);
+  assert.equal(started.current.status, 'assigned'); assert.equal(started.current.technicianId, lead);
 });
 
 for (const source of ['booking', 'order']) {
@@ -279,12 +319,41 @@ test('operations can extend an expired order response within the customer schedu
   assert.equal(f.current.technicianTeam[0].status, 'accepted');
 });
 
-test('the grace period does not allow staff to assign a new order team after its appointment starts', async t => {
-  t.mock.timers.enable({ apis: ['Date'], now: new Date('2099-01-05T00:00:00Z') });
+test('order assignment and the admin queue share the same grace window, reserving the full visit from dispatch', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2099-01-05T00:10:15Z') });
+  const f = fixture({ source: 'order', slots: async () => ({ statusCode: 200, payload: { timeSlots: [{ startTime: '08:11', available: true }] } }) });
+  const result = await f.assign();
+  assert.equal(result.job.timeSlot, '08:00');
+  assert.ok(f.checks.every(row => row.exclusions.assignmentStartMinutes === 491 && row.exclusions.excludeOrderId === orderId));
+  assert.equal(result.job.assignmentCapacity.endMinutes, 626);
+  assert.equal(f.store.bookings.get(result.job.bookingId).endTime, '10:26');
+  assert.equal(require('../utils/orderScheduleCapacity').orderCapacityInterval(f.current, 45).endTime, 626);
+  await f.service.respond('order', orderId, lead, 'accept');
+  t.mock.timers.setTime(new Date('2099-01-05T00:29:59Z').getTime());
+  await f.service.respond('order', orderId, support, 'accept');
+  assert.equal(f.current.status, 'technician_accepted');
+});
+
+test('order grace cannot bypass crew conflicts or allow assignment after the displayed cutoff', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2099-01-05T00:10:15Z') });
+  const conflict = fixture({ source: 'order', slots: async input => ({ statusCode: 200, payload: { timeSlots: [{ startTime: '08:11', available: input.technicianId !== support }] } }) });
+  await assert.rejects(conflict.assign(), /no longer available/);
+  assert.equal(conflict.current.status, 'preparing_unit'); assert.equal(conflict.store.bookings.size, 0);
+  t.mock.timers.setTime(new Date('2099-01-05T00:30:00.001Z').getTime());
   const f = fixture({ source: 'order' });
-  await assert.rejects(f.assign(), /future appointment/);
+  await assert.rejects(f.assign(), error => error.code === 'ORDER_SCHEDULE_PASSED');
   assert.equal(f.current.status, 'preparing_unit');
   assert.equal(f.current.technicianId, undefined);
+});
+
+test('assigning after a saved order reschedule drops the previous dispatch reservation', async () => {
+  const f = fixture({ source:'order' });
+  f.current.timeSlot = '14:00';
+  f.current.assignmentCapacity = { scheduleKey:team.scheduleKey('order', f.current), startMinutes:850, endMinutes:1000 };
+  f.current.delivery.preferredDate = new Date('2099-01-06T00:00:00+08:00'); f.current.timeSlot = '08:00';
+  const result = await f.assign({ technicianId:lead, technicianIds:[lead] });
+  assert.equal(result.job.assignmentCapacity.endMinutes, 615);
+  assert.equal(f.store.bookings.get(result.job.bookingId).endTime, '10:15');
 });
 test('booking teams can be assigned shortly after the start, reserve the full remaining visit and accept within grace', async t => {
   t.mock.timers.enable({ apis:['Date'], now:new Date('2099-01-05T00:10:15Z') });
@@ -412,10 +481,24 @@ test('new order installation mirrors pass the full booking schema without a seco
   await mirror.validate(); assert.equal(mirror.paymentMethod, 'other');
   assert.equal(mirror.sourceOrderId.toString(), orderId);
 });
-test('staff can choose the installation schedule while assigning an order', async () => {
-  const f = fixture({ source: 'order' }); await f.assign({ technicianId: lead, technicianIds: [lead, support], scheduledDate: '2099-01-06', timeSlot: '08:00' });
-  assert.equal(require('../utils/bookingDateTime').manilaDateKey(f.current.delivery.preferredDate), '2099-01-06');
-  assert.equal(f.current.timeSlot, '08:00'); assert.ok(f.checks.every(row => row.input.date === '2099-01-06'));
+test('assignment preserves the saved customer date and time without requiring staff to enter them again', async () => {
+  const f = fixture({ source: 'order' });
+  const before = copy(f.current.delivery.preferredDate);
+  f.current.timeSlot = '8:00 AM - 12:00 PM';
+  await f.assign({ technicianId: lead, technicianIds: [lead, support] });
+  assert.equal(Number(f.current.delivery.preferredDate), Number(before));
+  assert.equal(f.current.timeSlot, '8:00 AM - 12:00 PM');
+  assert.ok(f.checks.every(row => row.input.date === '2099-01-05'));
+  assert.ok(f.checks.every(row => row.input.duration === '165'), 'Check the entire saved appointment window');
+});
+
+test('neither availability checks nor assignment can change the customer schedule', async () => {
+  for (const input of [{ scheduledDate:'2099-01-06' }, { timeSlot:'09:00' }]) {
+    const f = fixture({ source:'order' }), before = copy(f.current);
+    await assert.rejects(f.service.candidates('order', f.current, input), error => error.code === 'ORDER_SCHEDULE_CHANGE_REQUIRES_RESCHEDULE');
+    await assert.rejects(f.assign({ technicianId:lead, technicianIds:[lead], ...input }), error => error.code === 'ORDER_SCHEDULE_CHANGE_REQUIRES_RESCHEDULE');
+    assert.deepEqual(f.current, before); assert.equal(f.store.bookings.size, 0); assert.equal(f.checks.length, 0);
+  }
 });
 test('changing the team during an approved repair preserves its repair phase', async () => {
   const f = fixture(); f.current.status = 'repair_scheduled'; f.current.serviceType = 'repair';
@@ -522,6 +605,20 @@ test('repair follow-up scheduling creates fresh crew invitations and preserves a
   assert.ok(result.job.technicianTeam.every(member => member.status === 'pending'));
   for (const member of result.job.technicianTeam) assert.equal(f.store.assignments.get(member.assignmentId).status, 'pending_acceptance');
   assert.equal(f.store.assignments.get(oldAssignmentId).status, 'completed');
+});
+test('rescheduling legacy Phase 2 replaces accepted invitations and preserves completed core work and money',async()=>{
+  const f=fixture();await f.assign();const job=f.current,oldAssignmentId=job.assignmentId;
+  job.serviceType='mixed';job.status='repair_scheduled';job.repairUnitTracking=false;
+  job.inspection={completedAt:new Date()};job.approval={status:'approved'};job.quotation={totalCost:900,parts:[]};
+  job.amountPaid=1750;job.repairExecution={repairMinutes:120};
+  const completedCore={name:'Installation',type:'core',status:'completed',totalPrice:1200,assignmentId:oldAssignmentId};
+  job.services=[completedCore,{name:'Repair',type:'repair',status:'repair_scheduled',phase:'repair_phase_2',totalPrice:500}];
+  const result=await f.service.assign('booking',bookingId,{technicianId:support,technicianIds:[support,lead],scheduledDate:'2099-01-06',timeSlot:'08:00'},{_id:id(9),role:'admin'},{repairVisit:true});
+  assert.notEqual(result.job.assignmentId,oldAssignmentId);assert.equal(result.job.technicianId,support);
+  assert.equal(f.store.assignments.get(oldAssignmentId).status,'cancelled');
+  assert.deepEqual(result.job.services[0],completedCore);assert.equal(result.job.services[1].phase,'repair_phase_2');
+  assert.equal(result.job.amountPaid,1750);assert.equal(result.job.quotation.totalCost,900);
+  assert.ok(result.job.technicianTeam.every(row=>row.status==='pending'));
 });
 test('retrying the same team assignment preserves invitations instead of sending new ones', async () => {
   const f = fixture(); const first = await f.assign(); const retry = await f.assign();

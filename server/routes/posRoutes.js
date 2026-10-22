@@ -23,7 +23,6 @@ const {
 const { getOrderCheckoutSettings } = require("../utils/orderCheckoutSettings");
 const { buildOrderWarrantySnapshot } = require("../utils/orderWarrantyPolicy");
 const { getAftercarePolicy, warrantyRuleForOrder } = require("../utils/aftercarePolicy");
-const { addMinutesToClock } = require("../utils/clockTime");
 const { clear: clearReportCache } = require("../utils/reportCache");
 const {
   CustomerInvitationError,
@@ -655,7 +654,9 @@ async function checkoutAirconOrder(req, res) {
         phone: selectedTechnician.user?.phone || selectedTechnician.phone || "",
         email: selectedTechnician.user?.email || selectedTechnician.userEmail || "",
       } : undefined,
-      technicianAcceptance: selectedTechnician ? { status: "pending" } : undefined,
+      technicianAcceptance: selectedTechnician ? { status: "pending", deadlineAt: new Date(now.getTime() + 30 * 60000) } : undefined,
+      technicianTeam: selectedTechnician ? [{ technicianId: selectedTechnician._id, name: technicianName,
+        status: 'pending', deadlineAt: new Date(now.getTime() + 30 * 60000) }] : undefined,
       status,
       completedAt: status === "completed" ? now : null,
       paymentMethod: payment.order,
@@ -687,6 +688,7 @@ async function checkoutAirconOrder(req, res) {
       const warrantySnapshot = buildOrderWarrantySnapshot(order, now, warrantyRule);
       if (warrantySnapshot) order.warranty = warrantySnapshot;
     }
+    if (selectedTechnician) order.technicianTeamSchedule = require('../utils/standardJobTeam').scheduleKey('order', order);
     await order.save({ session });
 
     if (workload.isProject) {
@@ -700,6 +702,7 @@ async function checkoutAirconOrder(req, res) {
 
     if (selectedTechnician && fulfillmentType === "delivery_installation") {
       const serviceDurationMinutes = Math.max(60, totalUnits * 60);
+      const capacityEndTime = require('../utils/orderScheduleCapacity').orderCapacityEndTime(order);
       const booking = new BookingService({
         sourceOrderId: order._id,
         customerId: customerUser._id,
@@ -711,6 +714,8 @@ async function checkoutAirconOrder(req, res) {
           address: delivery.address,
         },
         technicianId: selectedTechnician._id,
+        technicianTeam: order.technicianTeam,
+        technicianTeamSchedule: order.technicianTeamSchedule,
         technician: {
           _id: selectedTechnician._id,
           name: technicianName,
@@ -719,7 +724,7 @@ async function checkoutAirconOrder(req, res) {
         },
         bookingDate: delivery.preferredDate,
         startTime: timeSlot,
-        endTime: addMinutesToClock(timeSlot, serviceDurationMinutes),
+        endTime: capacityEndTime,
         selectedTimeLabel: timeSlot,
         status: "scheduled",
         serviceType: "core",
@@ -739,15 +744,15 @@ async function checkoutAirconOrder(req, res) {
           status: "assigned",
           hpDescription: item.capacity ? `${item.capacity} ${item.capacityUnit || "HP"}` : "",
           airconTypeName: item.modelLine || "Air Conditioner",
-          duration: Math.max(60, item.quantity * 60),
+          duration: 60,
           isAirconService: true,
           technicianId: selectedTechnician._id,
           technicianName,
           schedule: {
             date: delivery.preferredDate,
             startTime: timeSlot,
-            endTime: addMinutesToClock(timeSlot, serviceDurationMinutes),
-            durationMinutes: serviceDurationMinutes,
+            endTime: capacityEndTime,
+            durationMinutes: item.quantity * 60,
             kind: "service",
           },
         })),

@@ -1,12 +1,14 @@
-<link rel="stylesheet" href="/css/core-appliance-booking.css?v=20261019-core-appliance-navigation">
-<link rel="stylesheet" href="/css/core-appliance-batch.css?v=20261019-aircon-details">
+<link rel="stylesheet" href="/css/core-appliance-booking.css?v=20261020-simple-service-picker">
+<link rel="stylesheet" href="/css/core-appliance-batch.css?v=20261020-simple-service-picker">
 <link rel="stylesheet" href="/css/appliance-field-guide.css?v=20261019-field-guidance">
 <script src="/js/relocation-booking-locations.js?v=20261017-relocation-address-pins"></script>
-<script src="/js/appliance-services.js?v=20261019-combined-services"></script>
+<script src="/js/appliance-services.js?v=20261022-discovered-repair"></script>
 <script src="/js/appliance-field-guide.js?v=20261019-field-guidance"></script>
-<script src="/js/core-appliance-batch.js?v=20261019-field-guidance"></script>
-<script src="/js/core-appliance-booking.js?v=20261020-current-service-edit"></script>
-<script src="/js/repair-appliance-booking.js?v=20261017-catalog-pricing"></script>
+<script src="/js/core-appliance-batch.js?v=20261020-simple-service-picker"></script>
+<script src="/socket.io/socket.io.js" defer></script>
+<script src="/js/customer-workflow-refresh.js?v=20261021-unit-quotes" defer></script>
+<script src="/js/core-appliance-booking.js?v=20261022-staff-workflow"></script>
+<script src="/js/repair-appliance-booking.js?v=20261022-staff-picker"></script>
 <link rel="stylesheet" href="/css/customer-payment.css?v=20261019-equal-service-cards">
 <% const serviceStats = (typeof publicStats === 'object' && publicStats) ? publicStats : { servicesCompleted:0, satisfactionPercentage:0, activeTechnicians:0, averageRating:0 }; %>
 <%
@@ -567,7 +569,7 @@
 
                   <div class="booking-cart-footer">
                     <div class="booking-cart-total d-none" id="totalPricingSection">
-                      <span>Estimated total</span>
+                      <span>Total fee</span>
                       <strong id="totalEstimatedPrice">₱0</strong>
                     </div>
 
@@ -855,14 +857,14 @@
                       <div class="rv-row d-none text-success" id="bookingLoyaltyDiscountRow"><span id="bookingLoyaltyDiscountLabel">Loyalty discount</span><strong id="bookingLoyaltyDiscountDisplay"></strong></div>
                       <p class="small text-muted" id="bookingLoyaltyQuoteState" role="status" aria-live="polite"></p>
                       <button type="button" class="btn btn-link btn-sm p-0" onclick="refreshBookingReward(true).catch(() => {})">Refresh loyalty price</button>
-                      <div class="booking-review-total"><span id="bookingTotalLabel">Estimated total</span><strong id="totalFeeDisplay">₱0</strong></div>
+                      <div class="booking-review-total"><span id="bookingTotalLabel">Total fee</span><strong id="totalFeeDisplay">₱0</strong></div>
                       <p class="booking-review-note" id="bookingReviewNote">The next step shows what to pay now and the balance left.</p>
                     </div>
                   </div>
                 </aside>
               </div>
               <div class="booking-review-mobile-action" id="reviewNextAction" aria-label="Booking total and next step" aria-hidden="true" hidden inert>
-                <div aria-live="polite"><span id="mobileReviewTotalLabel">Estimated total</span><strong id="mobileReviewTotalDisplay">₱0</strong></div>
+                <div aria-live="polite"><span id="mobileReviewTotalLabel">Total fee</span><strong id="mobileReviewTotalDisplay">₱0</strong></div>
                 <button type="button" class="ent-btn-primary" onclick="requestBookingStepNavigation(6)">Continue to Payment <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
               </div>
             </div>
@@ -905,7 +907,7 @@
                     <div><span>Schedule</span><strong id="paymentScheduleSummary">Not selected</strong></div>
                     <div class="wide"><span>Location</span><strong id="paymentLocationSummary">Not selected</strong></div>
                     <div><span>Travel fee</span><strong id="paymentTravelSummary">₱0</strong></div>
-                    <div><span>Estimated total</span><strong id="paymentSummaryTotal">₱0</strong></div>
+                    <div><span>Total fee</span><strong id="paymentSummaryTotal">₱0</strong></div>
                   </div>
                   <div class="booking-payment-flow mt-3" aria-label="Payment process">
                     <span class="active"><i class="bi bi-1-circle-fill"></i>Choose payment</span>
@@ -1100,7 +1102,7 @@
                       </div>
                     </div>
                     <div id="cashBreakdown" class="rounded-3 p-3 mb-3 customer-payment-summary" style="background:#f8fafc;border:1px solid #e2e8f0;display:none;">
-                      <div class="d-flex justify-content-between small mb-1"><span class="text-muted">Estimated total</span><span class="fw-semibold" id="cashTotalDisplay">—</span></div>
+                      <div class="d-flex justify-content-between small mb-1"><span class="text-muted">Total fee</span><span class="fw-semibold" id="cashTotalDisplay">—</span></div>
                       <div class="d-flex justify-content-between small mb-1"><span class="text-muted" id="cashDownLabel">Down payment now (10%)</span><span class="fw-bold text-warning" id="cashDownDisplay">—</span></div>
                       <hr class="my-1">
                       <div class="d-flex justify-content-between small"><span class="text-muted">Balance due at service completion</span><span class="fw-bold text-success" id="cashBalanceDisplay">—</span></div>
@@ -2784,10 +2786,11 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 <script>
   (function(){var e=document.createElement('script');e.src='/js/enterprise-calendar.js?v=20261017-same-day';document.head.appendChild(e)})();
 </script>
-<link rel="stylesheet" href="/css/repair-units.css?v=20261017-repair-workspace-v2">
+<link rel="stylesheet" href="/css/repair-units.css?v=20261021-repair-color">
+<link rel="stylesheet" href="/css/repair-workspace-theme.css?v=20261021-repair-color">
 <script src="/js/repair-unit-entry.js?v=20261013"></script>
 <script>
-  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20261019-cash-after-service':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
+  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20261022-total-fee':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
 </script>
 
 <script>
@@ -3404,6 +3407,6 @@ document.addEventListener("DOMContentLoaded",()=>{
 </script>
 
 <!-- Final touch-first overrides for this multi-step booking experience. -->
-<link rel="stylesheet" href="/css/services-mobile-ux.css?v=20261014-booking-counter">
+<link rel="stylesheet" href="/css/services-mobile-ux.css?v=20261020-appliance-summary">
 <link rel="stylesheet" href="/css/services-dialogs.css?v=20261009-green-step-actions">
 <link rel="stylesheet" href="/css/racs-loading-motion.css?v=20261010-single-card">

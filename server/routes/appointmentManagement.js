@@ -334,14 +334,15 @@ router.get('/list', requireRole(["admin", "secretary"]), async (req, res) => {
         'services.name', 'services.type', 'services.brand', 'services.model',
         'services.hpDescription', 'services.hp', 'services.applianceTypeName', 'services.applianceType',
         'services.problemDescription', 'services.repairIssue',
+        'services.discoveredDuringService',
         'serviceType', 'serviceModel',
         'totalPrice', 'estimatedFee', 'downpaymentAmount', 'amountPaid', 'balanceAmount', 'balanceCollected', 'paymentMethod', 'paymentChannel', 'paymentStatus',
         'autoReschedulePending', 'priority', 'duration', 'createdAt', 'updatedAt',
         'isProject', 'projectScheduling.preferredStartDate',
-        'technicianId', 'technicianTeam.technicianId', 'technicianTeam.name', 'technicianTeam.status',
+        'technicianId', 'technicianTeam.technicianId', 'technicianTeam.name', 'technicianTeam.status', 'technicianTeam.deadlineAt',
         'proposedReschedule.status', 'proposedReschedule.date',
         'rescheduleRequest.status', 'rescheduleRequest.requestedDate',
-        'resolutionCases.issueType', 'resolutionCases.sourceStatus', 'resolutionCases.state',
+        'resolutionCases.issueType', 'resolutionCases.sourceStatus', 'resolutionCases.state', 'customerCancellation.status',
       ];
       const projection = Object.fromEntries(fields.map(field => [field, 1]));
       if (req.query.compact === 'queue') {
@@ -449,6 +450,7 @@ router.post('/:id/verify-payment', requireRole(["admin", "secretary"]), async (r
   try {
     const booking = await measureRequest(req, 'bookingRead', () => BookingService.findById(req.params.id));
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
+    if (require('../utils/customerCancellationPolicy').open(booking)) return res.status(409).json({ error: 'Review the customer cancellation request and any payment in the Resolution Center first.', code: 'CUSTOMER_CANCELLATION_PENDING' });
 
     const isRepair = booking.serviceModel === "RepairService" ||
       booking.serviceType === "repair" ||
@@ -608,6 +610,7 @@ router.post('/:id/review-reschedule', requireRole(["admin", "secretary"]), async
 
     await withOperationLock(bookingCapacityLockKey(newDate), async () => {
     booking = await BookingService.findById(req.params.id);
+    require('../utils/customerCancellationPolicy').assertNoHold(booking);
     if (!booking || booking.status !== BookingStatus.PENDING) {
       throw Object.assign(new Error('This booking changed while rescheduling. Refresh and try again.'), { status: 409 });
     }
@@ -721,6 +724,7 @@ router.post('/:id/assign', requireRole(["admin", "secretary"]), async (req, res)
     // Shared capacity lease includes legacy single-technician assignments.
     return await withOperationLock(bookingCapacityLockKey(booking.bookingDate), async () => {
     booking = await BookingService.findById(req.params.id);
+    require('../utils/customerCancellationPolicy').assertNoHold(booking);
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
     // Reject assignment of past bookings â€” require reschedule instead
     if (isAssignmentWindowExpired(booking)) {
@@ -1030,6 +1034,7 @@ router.post('/:id/reject', requireRole(["admin", "secretary"]), async (req, res)
 
     const booking = await BookingService.findById(req.params.id);
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
+    if (require('../utils/customerCancellationPolicy').open(booking)) return res.status(409).json({ error: 'Review the customer cancellation request and any payment in the Resolution Center first.', code: 'CUSTOMER_CANCELLATION_PENDING' });
     if (booking.status !== BookingStatus.PENDING) {
       return res.status(400).json({ error: `Cannot reject booking in "${booking.status}" status` });
     }
@@ -1088,6 +1093,8 @@ router.post('/:id/cancel', requireRole(["admin", "secretary"]), async (req, res)
     const { reason } = req.body;
     let booking = await BookingService.findById(req.params.id);
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
+
+    require('../utils/customerCancellationPolicy').assertNoHold(booking);
 
     const terminalStatuses = [BookingStatus.COMPLETED, BookingStatus.CANCELLED];
     if (terminalStatuses.includes(booking.status)) {
@@ -1405,7 +1412,7 @@ router.get('/waiting-acceptance/list', requireRole(["admin", "secretary"]), asyn
     const filter = {
       archivedAt: null, isProject: { $ne: true }, sourceOrderId: null,
       $or: [
-        { status: { $in: ['assigned', 'confirmed', 'inspection_scheduled', 'repair_scheduled'] }, technicianTeam: { $elemMatch: { status: 'pending' } } },
+        { status: { $in: ['assigned', 'confirmed', 'inspection_scheduled', 'repair_scheduled'] }, technicianTeam: { $elemMatch: { status: { $in: ['pending', 'expired'] } } } },
         { 'technicianTeam.0': { $exists: false }, $or: [{ status: 'assigned' }, { assignmentId: { $in: pendingAssignmentIds } }] },
       ],
     };
@@ -1494,6 +1501,7 @@ router.post('/:id/force-reassign', requireRole(["admin", "secretary"]), async (r
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid booking id' });
     const booking = await BookingService.findById(id);
+    require('../utils/customerCancellationPolicy').assertNoHold(booking);
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
     if (booking.technicianTeam?.length) {
       const result = await require('../utils/standardJobTeamService').createService().releaseBooking(id, req.body.reason, req.user);
@@ -1548,7 +1556,7 @@ router.post('/:id/force-reassign', requireRole(["admin", "secretary"]), async (r
     res.json({ success: true, booking });
   } catch (error) {
     console.error('âŒ Error force reassigning:', error);
-    res.status(500).json({ error: 'Failed to reassign booking' });
+    res.status(error.status || 500).json({ error: error.status ? error.message : 'Failed to reassign booking', code: error.code });
   }
 });
 

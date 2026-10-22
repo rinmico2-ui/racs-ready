@@ -40,5 +40,5 @@ test('the actual booking input validation accepts core services without a model 
   for (const model of [{}, ['MODEL-123'], '<script>', 'A'.repeat(51)]) assert.throws(() => context.validate([{ ...repair, model }]), /model number/i);
   assert.throws(() => context.validate([{ ...repair, quantity: 2 }]), /separately/);
   assert.throws(() => context.validate([{ ...repair, hp: null }]), /Choose the aircon HP/);
-  assert.throws(() => context.validate([null]), /valid service details/);
+  assert.throws(() => context.validate([null]), /valid.*service details/i);
 });

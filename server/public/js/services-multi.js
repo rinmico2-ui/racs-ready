@@ -610,6 +610,7 @@ function initMultiServiceBooking() {
     cacheDOMElements();
 
     // Initialize booking state (restores from localStorage if available)
+    const resumingUnitAssistance = Boolean(new URLSearchParams(window.location.search).get('assistanceId'));
     initializeBookingState();
     if (!BookingState.draftRestored || window.__bookingPolicy) reconcileBookingScheduleAfterServiceChange();
 
@@ -646,8 +647,10 @@ function initMultiServiceBooking() {
 
       const stepToRestore = Math.min(getRestorableBookingStep(), 5);
       setTimeout(() => {
-        showStep(stepToRestore);
-        updateStepperIndicators(stepToRestore);
+        if (!resumingUnitAssistance) {
+          showStep(stepToRestore);
+          updateStepperIndicators(stepToRestore);
+        }
         restoreBookingProgressUI();
         // Calendar and map components render asynchronously.
         setTimeout(restoreBookingProgressUI, 250);
@@ -673,15 +676,19 @@ async function openAcceptedUnitAssistance() {
   const requestId = new URLSearchParams(window.location.search).get('assistanceId');
   if (!requestId) return;
   try {
-    const response = await fetch(`/api/unit-assistance/mine/${encodeURIComponent(requestId)}`, { credentials: 'same-origin' });
+    const response = await fetch(`/api/unit-assistance/mine/${encodeURIComponent(requestId)}`, { credentials: 'same-origin', cache: 'no-store' });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Could not load your unit quote.');
     const request = result.request;
-    if (request.status !== 'accepted' || !request.quote || new Date(request.quote.expiresAt) <= new Date()) {
+    if (request.status === 'quoted' || request.existingBookingId) {
+      window.location.assign('/unit-assistance?requestId=' + encodeURIComponent(requestId));
+      return;
+    }
+    if (request.status !== 'accepted' || !Number.isFinite(new Date(request.quote?.expiresAt).getTime()) || new Date(request.quote.expiresAt) <= new Date()) {
       throw new Error('This unit quote is no longer available. Review your request.');
     }
     if (request.requestType === 'repair') {
-      if (BookingState.selectedServices.some(item => String(item.assistanceRequestId) === String(request._id))) return;
+      if (BookingState.selectedServices.some(item => String(item.assistanceRequestId) === String(request._id))) return continueUnitAssistanceBooking(request);
       window.ApplianceServices.assertServiceTypes(BookingState.selectedServices.concat({ type:'repair' }));
       if (selectedUnitTotal() + Number(request.quantity) > MAX_BOOKING_UNITS) throw new Error('Remove another appliance before adding this verified repair request.');
       const pricing = repairUnitPricing(request.quote.unitType, request.quote.unitCategory);
@@ -694,13 +701,12 @@ async function openAcceptedUnitAssistance() {
         duration: request.quote.durationMinutes, hp: request.quote.hp ?? null, hpDescription: request.quote.hp ? `${request.quote.hp} HP` : null,
         airconType: request.quote.airconType ?? null, icon: 'bi-tools', photos: [], units: [] });
       updateSelectedServicesDisplay(); updatePricingDisplay(); updateContinueButtonState(); saveBookingProgress();
-      history.replaceState({}, '', '/services');
-      showBookingToast('Verified repair details and inspection fee added. Review your booking, then choose the address and schedule.');
+      continueUnitAssistanceBooking(request);
       return;
     }
     const service = BookingState.catalog.coreServices.find(item => String(item._id) === String(request.serviceId));
     if (!service) throw new Error('This service is no longer available.');
-    if (BookingState.selectedServices.some(item => String(item.assistanceRequestId) === String(request._id))) return;
+    if (BookingState.selectedServices.some(item => String(item.assistanceRequestId) === String(request._id))) return continueUnitAssistanceBooking(request);
     if (selectedUnitTotal() + Number(request.quantity) > MAX_BOOKING_UNITS) {
       throw new Error(`A booking can contain at most ${MAX_BOOKING_UNITS} units. Remove another service before continuing.`);
     }
@@ -713,9 +719,7 @@ async function openAcceptedUnitAssistance() {
       if (rows[0].unitPrice !== request.quote.unitPrice) throw new Error('The catalog price changed. Contact staff for an updated quote before booking.');
       rows[0].assistanceRequestId = request._id;
       commitCoreAppliance(rows);
-      if (String(BookingState.applianceDraft?.assistanceReceipt?.id) === String(request._id)) window.CoreApplianceBooking?.start();
-      history.replaceState({}, '', '/services');
-      showBookingToast('Your verified service was added. Review it in your booking.');
+      continueUnitAssistanceBooking(request);
       return;
     }
     BookingState.selectedBrand = request.quote.brand;
@@ -743,9 +747,24 @@ async function openAcceptedUnitAssistance() {
     banner.className = 'alert alert-info mb-3';
     banner.textContent = `${service.name} was added with the approved unit details. Choose your location and schedule; the final amount includes any travel fare.`;
     document.getElementById('bookingContainer')?.prepend(banner);
-    history.replaceState({}, '', '/services');
+    continueUnitAssistanceBooking(request);
   } catch (error) {
     showError(error.message);
+  }
+}
+
+function continueUnitAssistanceBooking(request) {
+  for (const [key, builder] of [['applianceDraft', window.CoreApplianceBooking], ['repairDraft', window.RepairApplianceBooking]]) {
+    if (String(BookingState[key]?.assistanceReceipt?.id) === String(request._id)) {
+      builder?.reset(false);
+      BookingState[key] = null;
+    }
+  }
+  history.replaceState({}, '', '/services');
+  saveBookingProgress();
+  if (validateStep(2)) {
+    showStep(3);
+    showBookingToast('Quote accepted. Your verified service is added. Choose your service address, then your schedule.');
   }
 }
 
@@ -10521,7 +10540,11 @@ function commitCoreAppliance(rows, editingGroupId) {
     }
     replacement.assistanceRequestId = original.assistanceRequestId;
   }
-  const next = BookingState.selectedServices.filter(item => !editingGroupId || item.applianceGroupId !== editingGroupId).concat(rows);
+  const original = editingGroupId ? BookingState.selectedServices.find(item => item.applianceGroupId === editingGroupId) : null;
+  if (editingGroupId && !original) throw new Error('This appliance has changed. Reopen it before editing.');
+  const next = original
+    ? BookingState.selectedServices.flatMap(item => item === original ? rows : item.applianceGroupId === editingGroupId ? [] : [item])
+    : BookingState.selectedServices.concat(rows);
   window.ApplianceServices.assertServiceTypes(next);
   window.ApplianceServices.assertStandaloneServices(next);
   window.ApplianceServices.unitCount(next);
@@ -11112,8 +11135,30 @@ function navigateServiceGuide(destination) {
 }
 window.navigateServiceGuide = navigateServiceGuide;
 
+function bookingSelectionSummary() {
+  const A = window.ApplianceServices, rows = BookingState.selectedServices;
+  const counters = new Map();
+  const groups = A.applianceGroups(rows).map(group => {
+    const row = group.primary, repair = isRepairBookingService(row);
+    const kind = repair ? A.isRepairAircon(row) ? 'Aircon' : row.unitType || row.applianceTypeName || 'Appliance' : A.labels[row.applianceKind || 'aircon'] || 'Appliance';
+    const first = (counters.get(kind) || 0) + 1, last = first + group.quantity - 1;
+    counters.set(kind, last);
+    return { ...group, kind, repair,
+      title: group.quantity > 1 ? `${kind}s ${first}\u2013${last}` : `${kind} ${first}`,
+      total: group.rows.reduce((sum, row) => sum + (Number(row.totalPrice) || 0), 0),
+    };
+  });
+  const unitCount = selectedUnitTotal();
+  const serviceCount = rows.reduce((sum, row) => sum + Number(row.quantity || 1), 0);
+  const allAircons = groups.length > 0 && groups.every(group => group.kind === 'Aircon');
+  const unitsLabel = `${unitCount} ${allAircons ? unitCount === 1 ? 'aircon' : 'aircons' : unitCount === 1 ? 'appliance' : 'appliances'}`;
+  const servicesLabel = `${serviceCount} ${serviceCount === 1 ? 'service' : 'services'}`;
+  return { groups, unitCount, serviceCount, unitsLabel, servicesLabel, description: `${unitsLabel} \u00b7 ${servicesLabel}` };
+}
+
 function updateBookingCartChrome() {
-  const count = BookingState.selectedServices.length;
+  const selection = bookingSelectionSummary();
+  const count = selection.unitCount;
   const total = BookingState.selectedServices.reduce((sum, service) => sum + (Number(service.totalPrice) || 0), 0);
   const countCopy = document.getElementById('selectedServiceCountText');
   const mobileCount = document.getElementById('mobileSelectedServiceCount');
@@ -11124,18 +11169,18 @@ function updateBookingCartChrome() {
 
   if (countCopy) countCopy.textContent = count === 0
     ? 'No service selected'
-    : 'Check the details and estimated price before you continue.';
-  if (mobileCount) mobileCount.textContent = `${selectedUnitTotal()} / 40 appliances in your booking`;
+    : `${selection.servicesLabel} across ${selection.unitsLabel}. Check each appliance below.`;
+  if (mobileCount) mobileCount.textContent = selection.description;
   if (mobileTotal) mobileTotal.textContent = formatBookingPrice(total);
   syncBookingActionBarLayer();
   if (reviewButton) {
     reviewButton.classList.toggle('has-selection', count > 0);
     reviewButton.setAttribute('aria-label', count > 0
-      ? `Check ${count} selected ${count === 1 ? 'service' : 'services'} and continue`
+      ? `Check ${selection.unitsLabel} and ${selection.servicesLabel}, then continue`
       : 'Check selected services');
   }
   if (reviewText) reviewText.textContent = count > 0
-    ? `${count} ${count === 1 ? 'service' : 'services'} selected`
+    ? selection.description
     : 'No service selected';
   if (count === 0 && document.getElementById('selectedServicesSummary')?.classList.contains('is-open')) {
     toggleBookingSummary(false);
@@ -11315,7 +11360,8 @@ function updateSelectedServicesDisplay() {
   if (!DOM.selectedServicesList || !DOM.selectedServiceCount) return;
   syncRelocationDestination();
 
-  DOM.selectedServiceCount.textContent = BookingState.selectedServices.length;
+  const overview = bookingSelectionSummary();
+  DOM.selectedServiceCount.textContent = overview.unitsLabel;
   const relocationHint = document.getElementById('relocationLocationHint');
   const relocationItem = BookingState.selectedServices.find(isAirconRelocationService);
   if (relocationHint) {
@@ -11334,68 +11380,41 @@ function updateSelectedServicesDisplay() {
       </div>`;
   } else {
     const esc = v => String(v || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const servicesHtml = BookingState.selectedServices.map((service, idx) => {
-      const isRepair = isRepairBookingService(service);
-      const iconClass = bookingServiceIcon(service, isRepair ? 'bi-tools' : 'bi-gear-wide-connected');
-      const details = [];
-      if (isRepair) {
-        if (service.brand) details.push(esc(service.brand));
-        if (service.problemDescription || service.repairIssue) details.push(esc(service.problemDescription || service.repairIssue));
-        if (service.photos?.length) details.push(`${service.photos.length} ${service.photos.length === 1 ? 'photo' : 'photos'}`);
-      } else {
-        if (service.applianceGroupId) details.push(esc(service.brand), esc(service.model), esc(service.applianceTypeName));
-        else if (service.airconTypeName) details.push(esc(service.airconTypeName));
-        if (service.hp) details.push(`${service.hp} HP`);
-      }
-      details.push(`${service.quantity} ${getServiceUnitText(service)}`);
+    const servicesHtml = overview.groups.map((group, groupIndex) => {
+      const service = group.primary, isRepair = group.repair;
+      const iconClass = bookingServiceIcon(service, isRepair ? 'bi-tools' : 'bi-snow');
+      const details = [service.brand, service.model, service.airconTypeName || service.applianceTypeName,
+        service.hp ? `${service.hp} HP` : ''].filter(Boolean).map(esc);
+      if (group.quantity > 1) details.push(`${group.quantity} matching appliances`);
+      const problem = isRepair && (service.problemDescription || service.repairIssue);
+      const evidence = isRepair && service.photos?.length ? `${service.photos.length} ${service.photos.length === 1 ? 'photo' : 'photos'}` : '';
       const move = service.relocation;
       const routeDetails = move?.scope && move.requestId
         ? `<div class="selected-service-details mt-1"><strong>From:</strong> ${esc(move.from?.details || move.from?.address || 'Current position')}<br><strong>To:</strong> ${esc(move.to?.details || move.to?.address || 'New position')}</div>`
         : move?.scope === 'different_address'
-          ? `<div class="selected-service-details mt-1">Pin both addresses, then choose a date and time in the next steps.</div>`
-          : move?.scope
-            ? `<div class="selected-service-details mt-1"><strong>From:</strong> ${esc(move.from?.details || 'Current position')}<br><strong>To:</strong> ${esc(move.to?.details || 'New position')}</div>` : '';
-
-      return `
-      <article class="selected-service-item" aria-label="${esc(service.name)}">
+          ? '<div class="selected-service-details mt-1">Pin both addresses, then choose a date and time in the next steps.</div>'
+          : move?.scope ? `<div class="selected-service-details mt-1"><strong>From:</strong> ${esc(move.from?.details || 'Current position')}<br><strong>To:</strong> ${esc(move.to?.details || 'New position')}</div>` : '';
+      const serviceLines = group.rows.map(row => `<li><span>${esc(row.name)}${group.quantity > 1 ? `<small>${formatBookingPrice(Number(row.totalPrice) / group.quantity)} each</small>` : ''}</span><strong>${formatBookingPrice(row.totalPrice)}</strong></li>`).join('');
+      const unitLabel = group.kind === 'Aircon' ? 'aircon' : 'appliance';
+      return `<article class="selected-service-item selected-appliance-item" data-appliance-key="${esc(group.key)}" aria-label="${esc(group.title)}">
         <div class="selected-service-main">
-          <div class="selected-service-icon"><i class="bi ${iconClass}" aria-hidden="true"></i></div>
-          <div class="selected-service-copy">
-            <div class="selected-service-name">${esc(service.name)}</div>
-            ${routeDetails}
-            <div class="selected-service-details">${details.join(' <span aria-hidden="true">•</span> ')}</div>
-          </div>
-          <div class="selected-service-price"><span>Estimate</span><strong>${formatBookingPrice(service.totalPrice)}</strong></div>
+          <div class="selected-service-icon"><i class="bi ${esc(iconClass)}" aria-hidden="true"></i></div>
+          <div class="selected-service-copy"><div class="selected-service-name">${esc(group.title)}</div><div class="selected-service-details">${details.join(' \u00b7 ')}</div></div>
+          <div class="selected-service-price"><span>${group.quantity > 1 ? 'Group estimate' : 'Unit estimate'}</span><strong>${formatBookingPrice(group.total)}</strong></div>
         </div>
+        ${problem ? `<p class="booking-appliance-problem">${esc(problem)}</p>` : ''}${evidence ? `<p class="selected-service-details">${evidence}</p>` : ''}${routeDetails}
+        <ul class="booking-appliance-services" aria-label="Services for ${esc(group.title)}">${serviceLines}</ul>
         <div class="selected-service-actions">
-          <button type="button" class="selected-service-edit" onclick="editSelectedService(${idx})" aria-label="Change ${esc(service.name)}"><i class="bi bi-pencil" aria-hidden="true"></i> Change</button>
-          <button type="button" class="remove-service-btn" data-service-id="${service.id}" aria-label="Remove ${esc(service.name)}">
-            <i class="bi bi-trash3" aria-hidden="true"></i> Remove
-          </button>
+          <button type="button" class="selected-service-edit" onclick="editSelectedService(${group.indexes[0]})" aria-label="Edit ${esc(group.title)} and its services"><i class="bi bi-pencil" aria-hidden="true"></i> Edit ${unitLabel}</button>
+          <button type="button" class="remove-service-btn" data-appliance-index="${groupIndex}" aria-label="Remove ${esc(group.title)} and all its services"><i class="bi bi-trash3" aria-hidden="true"></i> Remove ${group.quantity > 1 ? `${group.quantity} ${unitLabel}s` : unitLabel}</button>
         </div>
       </article>`;
     }).join('');
-
     DOM.selectedServicesList.innerHTML = servicesHtml;
-
-    DOM.selectedServicesList.querySelectorAll('.remove-service-btn').forEach(btn => {
-      btn.addEventListener('click', function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-
-        const serviceId = this.dataset.serviceId;
-        const index = BookingState.selectedServices.findIndex(s => s.id === serviceId);
-        if (index > -1) {
-          const removedService = BookingState.selectedServices[index];
-          BookingState.selectedServices.splice(index, 1);
-
-          updateSelectedServicesDisplay();
-          updatePricingDisplay();
-          updateContinueButtonState();
-          saveBookingProgress();
-
-          showBookingToast(`${removedService.name} was removed from your booking.`, 'remove');
-        }
+    DOM.selectedServicesList.querySelectorAll('[data-appliance-index]').forEach(button => {
+      button.addEventListener('click', event => {
+        event.preventDefault(); event.stopPropagation();
+        removeSelectedAppliance(Number(button.dataset.applianceIndex));
       });
     });
   }
@@ -11413,8 +11432,22 @@ function updateSelectedServicesDisplay() {
 }
 
 /**
- * Remove service from booking
+ * Remove an appliance and all of its selected services.
  */
+function removeSelectedAppliance(index) {
+  if (!Number.isInteger(index) || index < 0) return;
+  const group = bookingSelectionSummary().groups[index];
+  if (!group) return;
+  const members = new Set(group.rows);
+  BookingState.selectedServices = BookingState.selectedServices.filter(row => !members.has(row));
+  updateSelectedServicesDisplay();
+  updatePricingDisplay();
+  updateContinueButtonState();
+  saveBookingProgress();
+  showBookingToast(`${group.title} and its services were removed from your booking.`, 'remove');
+}
+
+/** Remove one service line for callers outside the grouped appliance summary. */
 function removeService(serviceId) {
   BookingState.selectedServices = BookingState.selectedServices.filter(s => s.id !== serviceId);
   updateSelectedServicesDisplay();
@@ -13257,10 +13290,10 @@ function displayTotalFee() {
     }
   }
   if (bookingTotalLabel) {
-    bookingTotalLabel.textContent = hasRepairServices ? 'Total before repair quote' : 'Estimated total';
+    bookingTotalLabel.textContent = hasRepairServices ? 'Total before repair quote' : 'Total fee';
   }
   const mobileReviewTotalLabel = document.getElementById('mobileReviewTotalLabel');
-  if (mobileReviewTotalLabel) mobileReviewTotalLabel.textContent = hasRepairServices ? 'Before repair quote' : 'Estimated total';
+  if (mobileReviewTotalLabel) mobileReviewTotalLabel.textContent = hasRepairServices ? 'Before repair quote' : 'Total fee';
   if (bookingReviewNote) {
     bookingReviewNote.textContent = hasRepairServices
       ? 'Includes the selected service price (if any), repair inspection fee, and travel fee. Repair labor and parts are not included. The next step shows what to pay now.'

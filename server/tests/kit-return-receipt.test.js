@@ -48,7 +48,7 @@ function fixture() {
     DailyKit: [{ _id: K, technicianId: T, status: 'confirmed', items: [{ _id: E, name: 'Pump', category: 'equipment', toolId: E, equipmentAssignmentId: A, checkoutStatus: 'checked_out', issuedBookingIds: [B] }, { _id: I, name: 'Copper', category: 'consumable', toolId: I, unit: 'm', quantityIssued: 10, quantityUsed: 2, quantityReturned: 0, checkoutStatus: 'issued', issuedBookingIds: [B] }], deltaItems: [] }],
     Tool: [{ _id: E, quantity: 3, checkedOutQuantity: 2, minStockLevel: 3 }, { _id: I, quantity: 4, minStockLevel: 3 }],
     BookingService: [{ _id: B, status: 'cancelled' }], Assignment: [{ _id: U, bookingId: B, technicianId: T }],
-    KitReturn: [], StockAdjustment: [], Order: [], DailyAssignment: [], WorkOrder: [], Project: [], Notification: [], ToolAssignment: [], EquipmentUsageLog: [],
+    KitReturn: [], StockAdjustment: [], StockReservation: [], Order: [], DailyAssignment: [], WorkOrder: [], Project: [], Notification: [], ToolAssignment: [], EquipmentUsageLog: [],
   };
   let number = 40, tail = Promise.resolve(), fail = '';
   function document(name, row) {
@@ -157,6 +157,19 @@ async function reviewFixture() {
   const f = fixture(), [equipment] = await f.service.reportEquipment(equipmentInput), material = await f.service.reportMaterials(materialInput);
   return { f, input: { items: [{ reportId: equipment._id }, { reportId: material._id }], userId: U, decision: 'receive', confirmedReceived: true } };
 }
+
+test('returning an extra repair part closes its checked-out reservation and restores stock once', async () => {
+  const f = fixture(), item = f.data.DailyKit[0].items[1];
+  item.category = 'repair_part'; item.quantityIssued = 2; item.quantityUsed = 1;
+  f.data.StockReservation.push({ _id: A, bookingId: B, toolId: I, quantity: 2, quantityFulfilled: 1, status: 'checked_out' });
+  const report = await f.service.reportMaterials({ kitId: K, itemId: I, unused: 1, technicianIds: [T], userId: U });
+  await f.service.reconcile({ reportId: report._id, userId: U, decision: 'receive' });
+  assert.equal(f.data.Tool[1].quantity, 5); assert.equal(f.data.DailyKit[0].items[1].quantityReturned, 1);
+  assert.equal(f.data.StockReservation[0].quantityReturned, 1); assert.equal(f.data.StockReservation[0].quantityFulfilled, 1);
+  assert.equal(f.data.StockReservation[0].status, 'fulfilled');
+  await assert.rejects(f.service.reconcile({ reportId: report._id, userId: U, decision: 'receive' }), { status: 409 });
+  assert.equal(f.data.Tool[1].quantity, 5); assert.equal(f.data.StockAdjustment.length, 1);
+});
 
 test('admin batch receipt handles equipment and corrected materials together and retains original claims', async () => {
   const { f, input } = await reviewFixture();

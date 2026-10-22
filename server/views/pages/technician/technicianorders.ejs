@@ -1,3 +1,6 @@
+<script>window._orderCompanyLocation = <%- JSON.stringify({lat:typeof companyLat === "undefined" ? null : companyLat,lng:typeof companyLng === "undefined" ? null : companyLng}) %>;</script>
+<link rel="stylesheet" href="/css/technician-order-route.css?v=20261022-route-refresh">
+<link rel="stylesheet" href="/css/technician-order-payment.css?v=20261022-simple-collection">
 <style>
   /* ═══════════════════════════════════════════════════════════════════
      ENTERPRISE UI/UX — Technician Order Management (Assignments v2)
@@ -2486,6 +2489,12 @@
   .to-detail-card-title i { color: #2563eb; }
   .to-detail-card-count { color: #64748b; font-size: .64rem; font-weight: 700; }
   .to-detail-card-body { padding: 14px 15px; }
+  .to-team-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+  .to-team-member { display: flex; align-items: flex-start; gap: 10px; }
+  .to-team-person { min-width: 0; }
+  .to-team-name { color: #172033; font-weight: 750; overflow-wrap: anywhere; }
+  .to-team-you { display: inline-block; margin-left: 6px; color: #2563eb; font-size: .7rem; }
+  .to-team-state { color: #475569; font-size: .75rem; margin-top: 3px; }
   .to-info-list { display: grid; gap: 0; }
   .to-info-row { display: grid; grid-template-columns: 33px minmax(0,1fr); gap: 10px; padding: 10px 0; border-bottom: 1px solid #f0f3f7; }
   .to-info-row:first-child { padding-top: 0; }
@@ -3102,6 +3111,7 @@
 
   window.fetchOrders = function(options) {
     var request = ++orderFetchRequest;
+    var revision = window.TechnicianWorkUpdates?.revision || 0;
     _search = document.getElementById('toSearch').value.trim();
     // Build URL — handle comma-separated multi-status by NOT sending to server; filter client-side
     var _statuses = !['all','today'].includes(_status) ? _status.split(',').map(s=>s.trim()) : [];
@@ -3115,14 +3125,14 @@
       document.getElementById('toOrdersList').innerHTML = '<div class="to-empty"><div class="to-empty-icon"><i class="bi bi-arrow-repeat spin"></i></div><h6>Loading orders...</h6></div>';
     }
     
-    return fetch(url)
+    return fetch(url, { credentials:'same-origin', cache:'no-store' })
     .then(async function(r) {
       var payload = await r.json();
       if(!r.ok) throw new Error(payload.error || 'Unable to load technician orders.');
       return payload;
     })
     .then(data=>{
-      if(request !== orderFetchRequest) return;
+      if(request !== orderFetchRequest || revision !== (window.TechnicianWorkUpdates?.revision || 0)) return;
       _allOrders = (data.orders||[]).filter(function(order) {
         return order.fulfillmentType === 'delivery_only' || order.fulfillmentType === 'delivery_installation';
       });
@@ -3143,20 +3153,22 @@
       updateKPIs(data.kpi||{});
       renderCurrentOrderView();
       window.RACSJobTeams?.supportingOrders();
+      window.TechnicianOrderRoute?.sync(_allOrders);
       if(_selectedId) {
-        var found = _orders.find(o=>o._id===_selectedId);
+        var found = _allOrders.find(o=>String(o._id)===String(_selectedId));
         if(found) openDetailPanel(found);
         else closeDetailPanel();
       }
     })
     .catch(e=>{
-      if(request !== orderFetchRequest) return;
+      if(request !== orderFetchRequest || revision !== (window.TechnicianWorkUpdates?.revision || 0)) return;
       if(_status === 'today') {
         document.getElementById('toTodayWorkOrderSummary').textContent = 'Today\'s order schedule could not be loaded.';
         document.getElementById('toTodayWorkOrderList').innerHTML = '<div class="today-work-order-empty"><i class="bi bi-exclamation-triangle"></i>Error loading orders: '+esc(e.message)+'</div>';
       } else {
         document.getElementById('toOrdersList').innerHTML = '<div class="alert alert-danger">Error loading orders: '+esc(e.message)+'</div>';
       }
+      return false;
     });
   };
 
@@ -3221,15 +3233,23 @@
       : Number(s.pendingPrep||0) + Number(s.outForDelivery||0) + Number(s.arrived||0) + Number(s.installing||0));
   }
 
+  window.viewOrderRoute = function(id) {
+    const order = _allOrders.find(order => String(order._id) === String(id));
+    if (!order) return;
+    if (window.TechnicianOrderRoute) window.TechnicianOrderRoute.open(order, {company:window._orderCompanyLocation});
+    else Swal.fire({title:'Route map unavailable',text:'Use Directions for navigation, or reload this page to load the route map.',icon:'info'});
+  };
+
   window.viewOrder = function(id) {
     _selectedId = id;
-    var order = _orders.find(o=>o._id===id);
+    var order = _allOrders.find(o=>String(o._id)===String(id));
     if(order) openDetailPanel(order);
     renderCurrentOrderView();
   };
   
   window.closeDetailPanel = function() {
     _selectedId = null;
+    window.TechnicianOrderRoute?.close();
     document.getElementById('leftPane').classList.remove('panel-open');
     document.getElementById('rightPane').classList.remove('open');
     document.body.classList.remove('order-sheet-open');
@@ -3324,7 +3344,7 @@
     var history = (o.statusHistory || []).slice().reverse().slice(0, 8);
     var h = '<div class="to-detail-shell">';
     if(scheduleRecovery) {
-      h += '<div class="alert alert-warning mb-3" role="alert"><i class="bi bi-alarm-fill me-2"></i><strong>Scheduled delivery window passed.</strong> This order cannot be accepted or marked En Route until operations confirms a new schedule with the customer.</div>';
+      h += '<div class="alert alert-warning mb-3" role="alert"><i class="bi bi-alarm-fill me-2"></i><strong>'+(o.status === 'technician_accepted'?'Departure window ended.':'Scheduled delivery window passed.')+'</strong> Ask admin or secretary to confirm a new schedule with the customer before '+(o.status === 'technician_accepted'?'departure.':'accepting this order.')+'</div>';
     }
     h += '<section class="to-detail-overview"><div class="to-detail-overview-main"><div class="to-detail-overview-icon"><i class="bi bi-box-seam"></i></div><div><div class="to-detail-eyebrow">Assigned order</div><h4>'+esc(itemsLabel)+'</h4><p>Order #'+esc(reference)+' · '+esc(fulfillmentLabel(o.fulfillmentType))+'</p></div></div><div class="to-detail-total"><span>Order total</span><strong>'+esc(peso(o.total))+'</strong></div></section>';
     h += '<div class="to-detail-summary">';
@@ -3343,6 +3363,7 @@
       h += '<a class="to-contact-action" href="tel:'+esc(phoneLink)+'"><i class="bi bi-telephone"></i>Call</a>';
       h += '<a class="to-contact-action" href="sms:'+esc(phoneLink)+'"><i class="bi bi-chat-dots"></i>Text</a>';
     }
+    h += '<button type="button" class="to-contact-action" data-order-route="'+esc(o._id)+'"><i class="bi bi-map"></i>View map</button>';
     h += '<a class="to-contact-action" href="'+esc(mapsHref)+'" target="_blank" rel="noopener noreferrer"><i class="bi bi-sign-turn-right"></i>Directions</a>';
     h += '</div></div></section>';
 
@@ -3369,6 +3390,9 @@
     h += '</div></section></div><div class="to-detail-column">';
 
     h += '<section class="to-detail-card"><div class="to-detail-card-head"><h6 class="to-detail-card-title"><i class="bi bi-clipboard2-check"></i>Departure Readiness</h6></div><div class="to-detail-card-body">';
+    if(o.status === 'technician_accepted' && o.dispatchDeadlineAt) {
+      h += '<div class="to-info-note mb-3" data-dispatch-deadline><strong>'+(scheduleRecovery?'Departure window ended':'Depart by')+' '+esc(displayDate(o.dispatchDeadlineAt, true))+'</strong><br>'+(o.dispatchWindowExtended?'The whole team accepted on time. Preparation is allowed for 30 minutes after acceptance. ':'')+'The aircon and required kit must be ready before departure.</div>';
+    }
     h += '<div class="to-readiness-row"><div><div class="to-readiness-name"><i class="bi bi-box-seam"></i>Aircon preparation</div><div class="to-item-meta">Admin or secretary confirms</div></div><span class="to-state-pill '+(dispatchReady?'ready':dispatchPrep.status==='blocked'?'blocked':'pending')+'">'+(dispatchReady?'Prepared':'Not prepared')+'</span></div>';
     if(dispatchReady && dispatchPrep.readyAt) h += '<div class="to-info-note">Confirmed '+esc(displayDate(dispatchPrep.readyAt, true))+(dispatchPrep.note ? '<br>'+esc(dispatchPrep.note) : '')+'</div>';
     if(o.unitPreparationDueSoon && !dispatchReady && !scheduleRecovery) h += '<div class="to-info-note">'+esc(o.unitPreparationDueLabel)+'\'s delivery: ask admin or secretary to confirm aircon preparation.</div>';
@@ -3378,6 +3402,7 @@
     }
     if(prepBlockers.length) h += '<ul class="to-blocker-list">'+prepBlockers.map(function(reason){return '<li>'+esc(reason)+'</li>';}).join('')+'</ul>';
     h += '</div></section>';
+    h += window.RACSJobTeams?.orderTeamCard(o) || '';
 
     h += '<section class="to-detail-card"><div class="to-detail-card-head"><h6 class="to-detail-card-title"><i class="bi bi-receipt"></i>Payment Snapshot</h6><span class="to-payment-status '+(paymentSettled?'settled':'unsettled')+'">'+esc(String(o.paymentStatus || 'pending').replace(/_/g,' '))+'</span></div><div class="to-detail-card-body">';
     h += '<div class="to-money-row"><span>Payment method</span><strong>'+esc(paymentMethodLabel(o.paymentMethod))+'</strong></div>';
@@ -3399,7 +3424,6 @@
     h += '</div></div></div>';
 
     document.getElementById('detailPanelContent').innerHTML = h;
-    window.RACSJobTeams?.display('order', o, document.getElementById('detailPanelContent'));
     document.getElementById('detailPanelContent').style.display = 'block';
     document.getElementById('detailPanelBody').scrollTop = 0;
     
@@ -3439,7 +3463,7 @@
       aHtml += '<button class="to-btn to-btn-done" data-action="status" data-id="'+oid+'" data-status="completed"><i class="bi bi-check2-all"></i>Mark Completed</button>';
     }
     
-    if(!o.isProject && o.continuation?.status !== 'pending' && (['technician_accepted','out_for_delivery','arrived'].includes(s) || s === 'technician_assigned' && o.viewerAssignment?.status === 'accepted')) aHtml += '<button type="button" class="to-btn to-btn-decline" onclick="RACSJobTeams.reportOrderEmergency(\''+oid+'\')"><i class="bi bi-exclamation-triangle"></i>Report Emergency</button>';
+    if(!o.isProject && o.continuation?.status !== 'pending' && ['out_for_delivery','arrived'].includes(s)) aHtml += '<button type="button" class="to-btn to-btn-decline" onclick="RACSJobTeams.reportOrderEmergency(\''+oid+'\')"><i class="bi bi-exclamation-triangle"></i>Report Emergency</button>';
     if(s === 'installing' && o.continuation?.status !== 'pending') aHtml += '<button type="button" class="to-btn" onclick="RACSWorkContinuation.request(\'order\',\''+oid+'\')">Continue on another visit</button>';
     var actDiv = document.getElementById('detailPanelActions');
     if(aHtml) {
@@ -3452,7 +3476,7 @@
 
   window.doAccept = async function(id) {
     try {
-      var assignedOrder = _orders.find(o=>String(o._id)===String(id));
+      var assignedOrder = _allOrders.find(o=>String(o._id)===String(id));
       if(orderNeedsScheduleRecovery(assignedOrder)) {
         await Swal.fire({title:'Missed Schedule',text:'This order must be rescheduled by operations before you can accept it.',icon:'warning'});
         return;
@@ -3460,7 +3484,7 @@
       const res = await fetch('/api/orders/'+id+'/accept', {method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
       const data = await res.json().catch(() => ({ error: 'The server response could not be read. Refresh the order and try again.' }));
       if(!res.ok || data.error) throw new Error(data.error || "Failed to accept");
-      var acceptedOrder = data.order || _orders.find(o=>String(o._id)===String(id)) || {};
+      var acceptedOrder = data.order || _allOrders.find(o=>String(o._id)===String(id)) || {};
       var acceptedDate = orderDateKey(acceptedOrder.delivery?.preferredDate);
       if(acceptedOrder.status === 'technician_assigned') {
         await Swal.fire({title:'Assignment Accepted',text:'Your response is saved. The other assigned technicians must accept before the team can prepare for departure.',icon:'success'});
@@ -3556,7 +3580,7 @@
   window.doStatus = async function(id, status) {
     let finishUpdate;
     try {
-      const order = _orders.find(o => String(o._id) === String(id)) || {};
+      const order = _allOrders.find(o => String(o._id) === String(id)) || {};
       if(status === 'out_for_delivery' && orderNeedsScheduleRecovery(order)) {
         await Swal.fire({title:'Missed Schedule',text:'En Route is locked until operations confirms a new customer schedule.',icon:'warning'});
         return;
@@ -3566,16 +3590,14 @@
         evidence=await captureOrderStageProof(status);
         if(!evidence) return;
       } else if(status==='completed') {
+        const requiresFinalCollection = ['cod','cash','cash_onsite','gcash_downpayment'].includes(order.paymentMethod);
+        if(requiresFinalCollection && !(await collectOrderPayment(id))) return;
         evidence=await captureOrderCompletion(order);
         if(!evidence) return;
       } else {
         var confirmation=await Swal.fire({title:'Go En Route?',text:'Confirm that you are leaving for the customer location.',icon:'question',showCancelButton:true,confirmButtonText:'Mark En Route'});
         if(!confirmation.isConfirmed) return;
       }
-      const requiresFinalCollection = status === 'completed'
-        && ['cod','cash','cash_onsite','gcash_downpayment'].includes(order.paymentMethod)
-        && Number(order.balanceAmount ?? order.total ?? 0) > 0;
-      if(requiresFinalCollection && !(await collectOrderPayment(id))) return;
       finishUpdate = window.TechnicianWorkUpdates.beginMutation();
       const res = await fetch('/api/orders/'+id+'/status', {
         method:'PATCH',headers:{'Content-Type':'application/json'},
@@ -3595,22 +3617,28 @@
         return;
       }
       if(!res.ok) throw new Error(data.error || "Failed to update status");
-      await Swal.fire({title:status==='completed'?'Work Completed':'Status Updated',text:'Order is now '+SCFG[status].label+'.',icon:'success',timer:1800,showConfirmButton:false});
+      const refreshed = await finishUpdate();
+      finishUpdate = null;
+      await Swal.fire({title:refreshed === false ? 'Status Saved' : status==='completed'?'Work Completed':'Status Updated',text:refreshed === false ? 'The status is saved, but the latest details could not be loaded. Check your connection and refresh your orders.' : 'Order is now '+SCFG[status].label+'.',icon:refreshed === false ? 'warning' : 'success',timer:refreshed === false ? undefined : 1800,showConfirmButton:refreshed === false});
+      if(status === 'out_for_delivery' && String(_selectedId || '') === String(id) && _allOrders.some(order => String(order._id) === String(id) && order.status === 'out_for_delivery')) window.viewOrderRoute(id);
     } catch(e) { await Swal.fire("Error",e.message,"error"); }
-    finally { finishUpdate?.(); }
+    finally { finishUpdate?.(false); }
   };
 
   async function collectOrderPayment(id) {
-    var order=_orders.find(o=>String(o._id)===String(id))||{};
-    const amountDue=Number(order.balanceAmount ?? order.total ?? 0);
-    const result=await Swal.fire({title:'Collect Payment',html:`<div class="text-start"><label class="form-label">Amount Due</label><input id="opAmount" type="number" class="form-control mb-2" value="${amountDue}" min="${amountDue}" max="${amountDue}" step="0.01" readonly><label class="form-label">Payment Method</label><select id="opMethod" class="form-select mb-2"><option value="cash">Cash</option><option value="gcash">GCash</option><option value="bank">Bank Transfer</option></select><label class="form-label">Reference Number</label><input id="opRef" class="form-control mb-2" placeholder="Required for GCash / Bank"><label class="form-label">Receipt Screenshot</label><input id="opProof" type="file" accept="image/*" class="form-control mb-2"><label class="form-label">Customer Signature</label><input id="opSignature" class="form-control" placeholder="Customer full name" required></div>`,showCancelButton:true,confirmButtonText:'Record Collection',preConfirm:async()=>{const method=document.getElementById('opMethod').value,reference=document.getElementById('opRef').value.trim(),customerSignature=document.getElementById('opSignature').value.trim(),file=document.getElementById('opProof').files[0];if(!customerSignature||((method==='gcash'||method==='bank')&&(!reference||!file))){Swal.showValidationMessage('Signature and required transfer evidence are missing.');return false;}const proofUrl=file?await new Promise((ok,bad)=>{const f=new FileReader();f.onload=()=>ok(f.result);f.onerror=bad;f.readAsDataURL(file);}):null;return {amount:amountDue,method,reference,proofUrl,customerSignature};}});
-    if(!result.isConfirmed) return false;
-    const location=await new Promise(ok=>{if(!navigator.geolocation)return ok(null);navigator.geolocation.getCurrentPosition(p=>ok({lat:p.coords.latitude,lng:p.coords.longitude,accuracy:p.coords.accuracy}),()=>ok(null),{timeout:5000});});
-    const r=await fetch('/api/orders/'+id+'/collect-payment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...result.value,location})});
-    const d=await r.json();if(!r.ok)throw new Error(d.error||'Failed to record payment');
-    await Swal.fire({title:'Payment Collected',text:'Waiting for admin remittance verification.',icon:'success'});
-    return true;
+    return window.TechnicianOrderPayment.collect(id, function(payment) {
+      const order = _allOrders.find(item => String(item._id) === String(id));
+      if (!order) return;
+      order.balanceAmount = Number(payment.balanceAmount ?? 0);
+      order.paymentStatus = payment.paymentStatus || order.paymentStatus;
+      if (String(_selectedId || '') === String(id)) openDetailPanel(order);
+    });
   }
+
+  document.getElementById('detailPanelContent').addEventListener('click', function(event) {
+    const button = event.target.closest('[data-order-route]');
+    if (button) window.viewOrderRoute(button.dataset.orderRoute);
+  });
 
   // Delegated click handlers — card list (view order)
   document.getElementById('toOrdersList').addEventListener('click', function(e) {
@@ -3692,4 +3720,8 @@
 
 })();
 </script>
-<script src="/js/technician-work-updates.js?v=20261016-coordinated-refresh"></script>
+<script src="/js/technician-order-payment.js?v=20261022-no-payment-photos"></script>
+<script src="/js/order-route-map.js?v=20261022-route-refresh"></script>
+<script src="/js/technician-order-route.js?v=20261022-route-refresh"></script>
+<script src="/js/technician-work-updates.js?v=20261022-awaited-refresh"></script>
+<script src="/js/technician-work-actions.js?v=20261022-mixed-visit"></script>

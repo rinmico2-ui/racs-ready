@@ -121,10 +121,10 @@ function createService(overrides = {}) {
             });
             if (Object.keys(sets).length) await m.DailyKit.updateOne({ _id: related._id }, { $set: sets }, { session });
           }
-          const bookingIds = ids([assignment.bookingId, ...rows.flatMap(row => row.bookingIds || []), ...relatedKits.flatMap(kit => kit.bookingIds || [])]);
+          const bookingIds = ids([assignment.bookingId, ...(assignment.bookingIds || []), ...rows.flatMap(row => row.bookingIds || []), ...relatedKits.flatMap(kit => kit.bookingIds || [])]);
           const custodyIds = ids(relatedKits.flatMap(kit => [...(kit.items || []), ...(kit.deltaItems || [])].flatMap(row => [...(row.custodyAssignmentIds || []), row.equipmentAssignmentId])));
           for (const bookingId of bookingIds) {
-            const remaining = await m.EquipmentAssignment.exists({ technicianId: { $in: technicianIds }, consumable: { $ne: true }, status: { $in: ACTIVE }, $or: [{ bookingId }, { dailyKitId: { $in: relatedKits.map(kit => kit._id) } }, { _id: { $in: custodyIds } }] }).session(session);
+            const remaining = await m.EquipmentAssignment.exists({ technicianId: { $in: technicianIds }, consumable: { $ne: true }, status: { $in: ACTIVE }, $or: [{ bookingId }, { bookingIds: bookingId }, { dailyKitId: { $in: relatedKits.map(kit => kit._id) } }, { _id: { $in: custodyIds } }] }).session(session);
             if (!remaining) await m.Assignment.updateMany({ bookingId, technicianId: { $in: technicianIds } }, { $set: { equipmentReturned: true, equipmentReturnedAt: now } }, { session });
           }
           await m.Notification.updateMany({ referenceModel: "EquipmentAssignment", referenceId: assignmentId, type: "equipment_return_overdue", read: false }, { $set: { read: true, readAt: now } }, { session });

@@ -241,6 +241,9 @@ function bookingQuotationSummary(booking, now = new Date()) {
   booking.approval = { ...plain(booking.approval || {}), status: approved.length ? 'approved' : 'declined', decidedAt: now };
   const firstVisit = require('../public/js/repair-visit-payment').summary(booking);
   booking.balanceAmount = Math.max(0, Math.round((firstVisit.initialBookingTotal + booking.quotation.totalCost - firstVisit.amountPaid) * 100) / 100);
+  booking.balanceCollected = booking.balanceAmount <= 0.01;
+  const overpaid = Math.max(0, Math.round((firstVisit.amountPaid - firstVisit.initialBookingTotal - booking.quotation.totalCost) * 100) / 100);
+  for (const item of booking.services || []) if (item.discoveredDuringService?.coreDisposition === 'not_performed') item.discoveredDuringService.refundReviewAmount = overpaid;
   if (booking.serviceType === 'repair') booking.status = approved.length ? 'repair_approved' : 'repair_declined';
   for (const item of (booking.services || []).filter(item => item.type === 'repair')) {
     const allowed = rows({ services: [item] }).filter(row => ['approved', 'completed'].includes(row.unit.repairReview?.state));

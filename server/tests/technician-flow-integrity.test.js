@@ -12,6 +12,7 @@ const technicianApi = source("routes/technicianApi.js");
 const projectRoutes = source("routes/projectRoutes.js");
 const assignmentsView = source("views/pages/technician/assignments.ejs");
 const orderView = source("views/pages/technician/technicianorders.ejs");
+const orderCollection = source("public/js/technician-order-payment.js");
 const dailyKitService = source("utils/dailyKitService.js");
 
 test("order handover requires the exact final balance before completion", () => {
@@ -21,16 +22,17 @@ test("order handover requires the exact final balance before completion", () => 
   assert.match(orderRoutes, /code: "ORDER_BALANCE_REQUIRED"/);
   assert.match(orderRoutes, /balanceAmount: 0/);
   assert.match(orderRoutes, /__v: order\.__v/);
-  assert.match(orderView, /Number\(order\.balanceAmount \?\? order\.total \?\? 0\) > 0/);
-  assert.match(orderView, /readonly/);
+  assert.match(orderView, /TechnicianOrderPayment\.collect\(id/);
+  assert.match(orderCollection, /collection-summary/);
+  assert.match(orderCollection, /readonly/);
 });
 
 test("proof completion commits consumables with the booking instead of consuming in advance", () => {
   assert.doesNotMatch(assignmentsView, /fetch\('\/api\/technician\/daily-kit\/consume'/);
   assert.match(assignmentsView, /formData\.append\('consumables', JSON\.stringify\(consumables\)\)/);
-  assert.match(technicianApi, /completionSession\.startTransaction\(\)/);
+  assert.match(technicianApi, /completionSession\.withTransaction\(async \(\) =>/);
   assert.match(technicianApi, /recordBookingConsumableUsage\(\{/);
-  assert.match(technicianApi, /completionSession\.commitTransaction\(\)/);
+  assert.match(technicianApi, /timeoutMS: 15000/);
   assert.match(technicianApi, /deleteCompletionProof\(storedProof\.fileId\)/);
   assert.match(dailyKitService, /Record consumable usage for:/);
   assert.match(dailyKitService, /assignmentId,[\s\S]*bookingId,[\s\S]*quantityUsed: usage\.quantity/);

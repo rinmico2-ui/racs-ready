@@ -24,9 +24,12 @@ function orderCapacityInterval(order, bufferMinutes = 0) {
   const travelMinutes = Math.max(0, Number(order.routeDurationMin) || 30);
   const calculatedEnd = start + workMinutes + travelMinutes + Math.max(0, Number(bufferMinutes) || 0);
   const explicitEnd = timeParts.length > 1 ? parseAppointmentTime(timeParts[1]) : NaN;
+  const reserved = order.assignmentCapacity;
+  const reservedEnd = reserved?.scheduleKey === require('./standardJobTeam').scheduleKey('order', order)
+    && Number.isFinite(reserved.endMinutes) && reserved.endMinutes > start ? reserved.endMinutes : 0;
   return {
     startTime: start,
-    endTime: Number.isFinite(explicitEnd) && explicitEnd > start ? Math.max(calculatedEnd, explicitEnd) : calculatedEnd,
+    endTime: Math.max(calculatedEnd, reservedEnd, Number.isFinite(explicitEnd) && explicitEnd > start ? explicitEnd : 0),
   };
 }
 
@@ -59,7 +62,7 @@ async function loadActiveOrderCapacityRows(startDate, endDate, {
     fulfillmentType: { $in: ["delivery_only", "delivery_installation"] },
     status: { $in: ACTIVE_DELIVERY_STATUSES },
     "delivery.preferredDate": { $gte: queryStart, $lte: queryEnd },
-  }).select("_id bookingId technicianId technicianTeam continuation fulfillmentType status delivery.preferredDate timeSlot items.quantity routeDurationMin").lean();
+  }).select("_id bookingId technicianId technicianTeam continuation assignmentCapacity fulfillmentType status delivery.preferredDate timeSlot items.quantity routeDurationMin").lean();
 
   const coveredBookingIds = new Set([...activeBookingIds].map(String));
   const coveredOrderIds = new Set([...activeLinkedOrderIds].map(String));

@@ -81,6 +81,7 @@ const serviceToolUsageSchema = new mongoose.Schema(
       enum: ["equipment", "part", "consumable", "tool"],
       default: "part",
     },
+    completionStage: { type: String, enum: ["repair", "final"] },
     unit: { type: String, default: "pcs", trim: true },
 
     quantityUsed: {
