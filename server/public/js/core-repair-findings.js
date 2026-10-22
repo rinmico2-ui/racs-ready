@@ -171,9 +171,8 @@
     const booking=assignment?.bookingId;
     if (!booking || typeof booking!=='object' || assignment.crewRole==='support' || assignment.status!=='in_progress' || booking.isProject || booking.sourceOrderId || assignment.serviceType==='project') return '';
     const items=booking.services||[],found=items.some(row=>row.discoveredDuringService);
-    if (!found && !window.CoreRepairPolicy?.isCoreOrigin(booking)) return '';
-    if(!found&&!items.some(row=>row.type==='core'&&!row.relocation?.scope&&!['completed','cancelled'].includes(row.status)))return '';
-    return `<button type="button" class="btn btn-outline-warning" onclick="CoreRepairFindings.open('${esc(booking._id)}')"><i class="bi bi-clipboard-plus me-1" aria-hidden="true"></i>${found?'Repair findings':'Repair found'}</button>`;
+    if (!found) return '';
+    return `<button type="button" class="btn btn-outline-warning" onclick="CoreRepairFindings.open('${esc(booking._id)}')"><i class="bi bi-clipboard-plus me-1" aria-hidden="true"></i>Repair findings</button>`;
   }
   function notice(assignment) {
     const held=(assignment?.bookingId?.services || []).some(item=>item.coreRepairHold?.state==='on_hold');

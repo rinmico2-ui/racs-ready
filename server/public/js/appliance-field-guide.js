@@ -37,7 +37,7 @@
     return { refresh, entered, interrupt, commit };
   }
 
-  function mount({ host, fields, enabled, nextButton }) {
+  function mount({ host, fields, enabled, nextButton, continueLabel = 'Choose services' }) {
     const panel = host.querySelector('[data-panel="2"]'), hintId = `${host.id}-field-guide-hint`;
     const guide = document.createElement('div');
     guide.className = 'cab-field-guide'; guide.hidden = true;
@@ -70,8 +70,8 @@
       if (progressNode.textContent !== progress) progressNode.textContent = progress;
       guide.classList.toggle('is-ready', !target); guide.classList.toggle('is-error', Boolean(errorKey));
       const button = guide.querySelector('[data-guide-go]');
-      button.textContent = target ? 'Go to field →' : 'Choose services →';
-      button.setAttribute('aria-label', target ? `Go to ${target.label}` : 'Continue to choose services');
+      button.textContent = target ? 'Go to field →' : `${continueLabel} →`;
+      button.setAttribute('aria-label', target ? `Go to ${target.label}` : continueLabel);
       button.disabled = !target && nextButton().disabled;
       if (highlighted) {
         highlighted.closest('label, .cab-quantity')?.classList.add('cab-guide-next');

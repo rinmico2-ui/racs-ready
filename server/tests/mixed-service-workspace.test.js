@@ -55,11 +55,11 @@ test('secondary tools stay in a collapsed group, appliance text is escaped and o
   assert.equal((html.match(/data-mixed-primary/g)||[]).length,1);assert.match(html,/<details class="mixed-work-tools">/);assert.doesNotMatch(html,/<details[^>]*\bopen\b/);
   const summary=workspace.repairSummary(a);assert.doesNotMatch(summary,/<img/);assert.match(summary,/&lt;img/);assert.doesNotMatch(summary,/<button/);
 });
-test('Repair found is hidden for originally mixed jobs and remains accessible to core-origin findings',()=>{
+test('Repair found is removed from core and mixed jobs while recorded findings remain accessible',()=>{
   const a=fixture();assert.equal(policy.isCoreOrigin(a.bookingId),false);
   const window={CoreRepairPolicy:policy};vm.runInNewContext(fs.readFileSync(require.resolve('../public/js/core-repair-findings'),'utf8'),{window,Map,Intl});
   assert.equal(window.CoreRepairFindings.actions(a),'');
-  a.bookingId.services.pop();a.bookingId.serviceType='core';assert.match(window.CoreRepairFindings.actions(a),/Repair found/);
+  a.bookingId.services.pop();a.bookingId.serviceType='core';assert.equal(window.CoreRepairFindings.actions(a),'');
   a.bookingId.services.push({_id:id(6),type:'repair',discoveredDuringService:{sourceServiceItemId:id(3)}});a.bookingId.serviceType='mixed';
   assert.equal(policy.isCoreOrigin(a.bookingId),true);assert.match(window.CoreRepairFindings.actions(a),/Repair findings/);
 });

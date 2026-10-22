@@ -74,8 +74,8 @@
     batch?.restore(data.batch);
     host.querySelectorAll('[name="moveScope"]').forEach(input => { input.checked = input.value === (data.moveScope === 'custom_quote' ? 'different_address' : data.moveScope); });
     refreshServices();
-    host.querySelectorAll('[name="service"]').forEach(input => { input.checked = !input.disabled && Array.isArray(data.services) && data.services.includes(input.value); });
-    assistanceOpen = data.assistanceOpen !== false && Boolean(host.querySelector('[name="service"][data-verification]:checked'));
+    if (!hooks.repair) host.querySelectorAll('[name="service"]').forEach(input => { input.checked = !input.disabled && Array.isArray(data.services) && data.services.includes(input.value); });
+    assistanceOpen = (hooks.repair || data.assistanceOpen !== false) && Boolean(host.querySelector('[name="service"][data-verification]:checked'));
     requestToken = typeof data.requestToken === 'string' ? data.requestToken : null; requestFingerprint = typeof data.requestFingerprint === 'string' ? data.requestFingerprint : null;
     reached = Math.min(3, Math.max(1, Number(data.reached) || 1)); setStep(Math.min(reached, Math.max(1, Number(data.step) || 1)), false);
     if (data.saved && data.assistanceReceipt?.id) { assistanceReceipt = data.assistanceReceipt; showAssistanceSuccess(); }
@@ -100,7 +100,7 @@
       const move = A.isRelocation(catalog.find(service => String(service._id) === input.value));
       const blocked = outside.some(base.isRelocation) || (move ? outside.length > 0 || selected.some(other => other !== input) : selected.some(other => other !== input && A.isRelocation(catalog.find(service => String(service._id) === other.value))));
       input.disabled = input.hasAttribute('data-unavailable') || blocked;
-      input.closest('label').classList.toggle('is-unavailable', input.disabled);
+      input.closest('.cab-service').classList.toggle('is-unavailable', input.disabled);
       input.title = blocked ? 'Aircon Relocation must be booked on its own. Remove it or book other services separately.' : '';
     }
     const conflict = outside.some(base.isRelocation) || selected.some(input => A.isRelocation(catalog.find(service => String(service._id) === input.value))) && (outside.length > 0 || selected.length > 1);
@@ -232,10 +232,10 @@
     host.querySelector('[data-back]').hidden = step === 1; host.querySelector('[data-next]').hidden = step === 3; host.querySelector('[data-submit]').hidden = step !== 3;
     host.querySelector('[data-cancel]').hidden = !editingId && step === 1;
     host.querySelector('[data-cancel]').textContent = editingId ? 'Cancel changes' : 'Start over';
-    host.querySelector('[data-next]').textContent = step === 1 ? 'Next: appliance details' : 'Next: choose services';
+    host.querySelector('[data-next]').textContent = step === 1 ? 'Next: appliance details' : hooks.repair ? 'Next: describe the problem' : 'Next: choose services';
     message(''); updateTotal();
     changed();
-    if (focus) { const heading = host.querySelector(`[data-panel="${step}"] h3`); heading.focus({ preventScroll: true }); host.scrollIntoView({ behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); }
+    if (focus) { const heading = host.querySelector(hooks.repair && step === 3 ? '[data-identification-heading]' : `[data-panel="${step}"] h3`); heading.focus({ preventScroll: true }); host.scrollIntoView({ behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); }
   }
   function next() {
     syncLimit(true);
@@ -243,7 +243,7 @@
     if (step === 2 && !detailsValid()) {
       if (batch?.active() && batch.focusInvalid()) return;
       const invalid = requiredDetailFields().map(field).find(input => !input.disabled && (!input.validity.valid || input.name === 'brand' && !input.value.trim()));
-      message('Complete the required appliance details before choosing services.', true); invalid?.focus(); invalid?.reportValidity(); return;
+      message(hooks.repair ? 'Complete the required appliance details before describing the problem.' : 'Complete the required appliance details before choosing services.', true); invalid?.focus(); invalid?.reportValidity(); return;
     }
     if (step < 3) { refreshServices(); setStep(step + 1); }
   }
@@ -301,7 +301,13 @@
     candidates.forEach(service => {
       const state = A.availability(service, selected);
       const pricing = state.available ? state.pricing : null;
-      if (canAsk() && (detailsUnknown || A.needsVerification(service, selected) && (!selected.airconType || !selected.hp))) {
+      const verification = canAsk() && (detailsUnknown || A.needsVerification(service, selected) && (!selected.airconType || !selected.hp));
+      if (hooks.repair && (pricing || verification)) {
+        if (verification) assistanceOpen = true;
+        rows.push(`<div class="cab-service cab-service-included"><input type="${verification ? 'radio' : 'checkbox'}" name="service" value="${escape(service._id)}" ${verification ? 'data-verification' : ''} checked hidden tabindex="-1" aria-hidden="true"><span class="cab-service-copy"><strong>${escape(service.name)}</strong><small><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Already selected for this appliance.</small></span><span class="cab-service-price">${verification ? 'Pending confirmation' : money(pricing.unitPrice)}<small>${verification ? 'Staff will confirm the fee' : `inspection only &middot; ${pricing.duration} min`}</small></span></div>`);
+        return;
+      }
+      if (verification) {
         rows.push(`<label class="cab-service"><input type="radio" name="service" value="${escape(service._id)}" data-verification ${checked.has(String(service._id)) ? 'checked' : ''}><span class="cab-service-copy"><strong>${escape(service.name)}</strong><small>Staff will confirm your unit details and send a price for approval.</small></span><span class="cab-service-price">Price pending verification</span></label>`);
         return;
       }
@@ -313,7 +319,7 @@
       if (!pricing) {
         if (hooks.repair) {
           const error = state.reason || 'Staff must set a price for this service.';
-          rows.push(`<label class="cab-service is-unavailable"><input type="checkbox" name="service" value="${escape(service._id)}" disabled data-unavailable><span class="cab-service-copy"><strong>${escape(service.name)}</strong><small>${escape(error || service.description || 'Service for your selected appliance.')}</small></span><span class="cab-service-price">Unavailable<small>Choose another service</small></span></label>`);
+          rows.push(`<div class="cab-service is-unavailable"><span class="cab-service-copy"><strong>${escape(service.name)}</strong><small>${escape(error)}</small></span><span class="cab-service-price">Unavailable<small>Contact staff to confirm the fee</small></span></div>`);
         } else excluded += 1;
         return;
       }
@@ -366,7 +372,7 @@
     host.querySelector('[data-detail-caption]').textContent = hooks.repair ? repairQuantity() > 1 ? `${repairQuantity()} appliances on this existing entry. Contact staff to change the quantity.` : 'One appliance per repair entry. Add another appliance separately.' : 'Choose the details shown on your appliance.';
     const help = host.querySelector('[data-unit-help]');
     if (help) { help.textContent = helpOpen ? 'Enter my unit details instead' : "I don't know my unit details"; help.setAttribute('aria-expanded', String(helpOpen)); help.disabled = Boolean(editingId); }
-    host.querySelector('[data-services-intro]').textContent = detailsUnknown ? 'Choose one service for staff to confirm. You can add more services after your unit details are verified.' : hooks.repair ? 'Book an inspection for this appliance. Repair work is quoted after inspection.' : 'Select one or more services for the same appliance.';
+    host.querySelector('[data-services-intro]').textContent = hooks.repair ? 'Repair inspection is already selected. Describe the problem below.' : detailsUnknown ? 'Choose one service for staff to confirm. You can add more services after your unit details are verified.' : 'Select one or more services for the same appliance.';
     const priceNotice = host.querySelector('[data-price-notice]');
     if (priceNotice) {
       const item = hooks.priceNotice?.(selection(), { unknown: detailsUnknown });
@@ -401,7 +407,7 @@
     host.querySelector('[data-submit]').textContent = sending ? 'Sending request…' : verification ? 'Review staff request' : editingId ? 'Save changes' : 'Add to booking';
     host.querySelector('[data-next]').disabled = !available() || !A.kinds.includes(field('kind').value) || step === 2 && !detailsValid();
     host.querySelector('[data-summary-appliance]').textContent = `${detailsUnknown ? 'Staff identification' : selected.brand || 'Your appliance'} · ${A.labels[selected.applianceKind] || 'Choose an appliance'}`;
-    host.querySelector('[data-guidance]').textContent = !available() ? 'Your booking has 40 appliances. Edit or remove an item before adding another.' : step === 1 ? hooks.repair ? 'Next, add the details for this appliance.' : 'Next, add the appliance details and quantity.' : step === 2 ? helpOpen ? 'Choose staff assistance or use AI to help read your unit label.' : 'Fill in the required fields to see matching services and prices.' : detailsUnknown ? 'Choose a service, then review and confirm your request to staff.' : 'Choose services, then add this appliance to your booking.';
+    host.querySelector('[data-guidance]').textContent = !available() ? 'Your booking has 40 appliances. Edit or remove an item before adding another.' : step === 1 ? hooks.repair ? 'Next, add the details for this appliance.' : 'Next, add the appliance details and quantity.' : step === 2 ? helpOpen ? 'Choose staff assistance or use AI to help read your unit label.' : 'Fill in the required fields to see matching services and prices.' : hooks.repair ? detailsUnknown ? 'Describe the problem, then review and confirm your request to staff.' : 'Describe the problem, then add this appliance to your booking.' : detailsUnknown ? 'Choose a service, then review and confirm your request to staff.' : 'Choose services, then add this appliance to your booking.';
     guide?.refresh();
   }
   function updateBatchTotal() {
@@ -544,9 +550,13 @@
       }
     });
     if (options.repair) {
-      host.querySelector('[data-details-required]').textContent = options.guideFields ? 'Fields marked * are required. Follow the next-field guide below.' : 'Fields marked * are required. Services will open automatically when you finish these details.';
+      host.querySelector('[data-step="3"] strong').textContent = 'Problem';
+      host.querySelector('[data-builder-id="cabServicesHeading"]').textContent = 'Your repair inspection';
+      host.querySelector('[data-service-picker] > .cab-note').hidden = true;
+      host.querySelector('[data-change-service]').hidden = true;
+      host.querySelector('[data-details-required]').textContent = options.guideFields ? 'Fields marked * are required. Follow the next-field guide below.' : 'Fields marked * are required. The problem form opens automatically when you finish these details.';
       host.querySelector('[data-assistance] h4').textContent = 'Describe the problem';
-      host.querySelector('[data-assistance] p').textContent = 'Choose Repair inspection and describe what happened. Repair work is quoted after inspection and needs separate approval.';
+      host.querySelector('[data-assistance] p').textContent = 'Describe what happened. Repair work is quoted after inspection and needs your approval.';
       const notes = field('assistanceNotes'); notes.required = true; notes.minLength = 10; notes.maxLength = 500; notes.placeholder = 'Tell us what happened, in at least 10 characters.';
       notes.parentElement.firstChild.textContent = 'Problem description * ';
       notes.parentElement.querySelector('.cab-optional')?.remove();
@@ -580,6 +590,7 @@
       guide = window.ApplianceFieldGuide.mount({ host, fields: guidanceFields,
         enabled: () => step === 2 && !saved && !helpOpen && !detailsUnknown,
         nextButton: () => host.querySelector('[data-next]'),
+        continueLabel: options.repair ? 'Next: describe the problem' : 'Choose services',
       });
     }
     host.addEventListener('change', event => {
@@ -642,7 +653,7 @@
       if (event.target.closest('[data-cancel]') || event.target.closest('[data-new]')) reset();
       if (event.target.closest('[data-next]')) next();
       if (event.target.closest('[data-back]')) {
-        if (step === 3 && assistanceOpen) { host.querySelector('[data-change-service]').click(); }
+        if (step === 3 && assistanceOpen && !hooks.repair) { host.querySelector('[data-change-service]').click(); }
         else setStep(step - 1);
       }
       if (event.target.closest('[data-minus]') || event.target.closest('[data-plus]')) { closeConfirmation(); field('quantity').value = String(Math.max(1, Math.min(available(), Number(field('quantity').value) + (event.target.closest('[data-plus]') ? 1 : -1)))); updateTotal(); changed(); }
