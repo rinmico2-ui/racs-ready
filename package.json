@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "server/index.js",
   "engines": {
-    "node": ">=20"
+    "node": "24.22.1"
   },
   "directories": {
     "doc": "docs",

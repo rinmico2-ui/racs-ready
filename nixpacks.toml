@@ -1,0 +1,20 @@
+# Nixpacks selects Node by major version from its pinned Nix package archive.
+# Use the official image to pin the exact patch for both build and runtime.
+buildImage = "node:24.22.1-bookworm"
+providers = []
+
+[variables]
+NODE_ENV = "production"
+
+[phases.setup]
+onlyIncludeFiles = ["package.json", "package-lock.json"]
+cmds = ['test "$(node --version)" = "v24.22.1"', "node --version", "npm --version"]
+
+[phases.install]
+dependsOn = ["setup"]
+onlyIncludeFiles = ["package.json", "package-lock.json"]
+cmds = ["npm ci --include=dev"]
+cacheDirectories = ["/root/.npm"]
+
+[start]
+cmd = "npm start"
